@@ -80,16 +80,14 @@ contract LinkedList {
 
         bytes32 blockHash = keccak256(rlpHeader);
         bytes memory rlpWithoutNonce = copy(rlpHeader, rlpHeader.length-42);
-        rlpWithoutNonce[1] = toByte(1);
-        rlpWithoutNonce[2] = toByte(217);
+        uint16 rlpHeaderWithoutNonceLength = uint16(rlpHeader.length-3-42);  // rlpHeaderLength - 3 prefix bytes (0xf9 + length) - length of nonce and mixHash
+        bytes2 headerLengthBytes = bytes2(rlpHeaderWithoutNonceLength);
+        rlpWithoutNonce[1] = headerLengthBytes[0];
+        rlpWithoutNonce[2] = headerLengthBytes[1];
         bytes32 rlpHeaderHashWithoutNonce = keccak256(rlpWithoutNonce);
         emit ParseBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.parent);
 
         return header;
-    }
-
-    function toByte(uint8 _num) internal pure returns (byte _ret) {
-        return byte(_num);
     }
 
     function copy(bytes memory sourceArray, uint newLength) internal pure returns (bytes memory){

@@ -8,7 +8,7 @@ readTestimoniumEvents(web3);
 
 
 function readTestimoniumEvents(web3) {
-    const contractInstance = new web3.eth.Contract(abiTestimonium, "0x9B7B26A4bDdAb43d8Da408B806e20Ba3bdE0F9E6",{
+    const contractInstance = new web3.eth.Contract(abiTestimonium, "0xBcA729959391a8d64cF8d08C71b26f3d0e25E83F",{
     });
 
     contractInstance.events.allEvents({

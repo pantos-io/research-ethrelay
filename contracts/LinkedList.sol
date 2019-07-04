@@ -8,6 +8,7 @@ contract LinkedList {
 
     struct BlockHeader {
         bytes32 parent;
+        bytes32[] successors;    // in case of forks a blockchain can have multiple successors
         bytes32 stateRoot;
         bytes32 transactionsRoot;
         bytes32 receiptsRoot;
@@ -15,7 +16,9 @@ contract LinkedList {
         bytes32 rlpHeaderHashWithoutNonce;   // sha3 hash of the header without nonce and mix fields
         uint nonce;                        // blockNumber, rlpHeaderHashWithoutNonce and nonce are needed for verifying PoW
         uint lockedUntil;
-        bool isDisputed;
+        uint totalDifficulty;
+        uint index;     // index at which the block header is/was stored in the endpoints mapping
+        bytes32 latestFork;  // contains the hash of the latest node where the current fork branched off
     }
 
 //    struct BlockHeaderFull {
@@ -42,68 +45,115 @@ contract LinkedList {
     uint constant lockPeriodInMin = 5 minutes;
     uint constant requiredSucceedingBlocks = 3;
     uint lastRemovedBlockHeight = 0;   // TODO: initialize
+    bytes32[] endpoints;   // contains the hash of each fork's recent block
 
     constructor () public {
-
+        // TODO: add "genesis" block to headers mapping and to endpoints array
     }
 
-    function addHeader(bytes memory _rlpHeader) public {
-        bytes32 blockHash;
-        BlockHeader memory header;
-        (blockHash, header) = parseBlockHeader(_rlpHeader);
-        header.lockedUntil = now + lockPeriodInMin;
-        header.isDisputed = false;
-        headers[blockHash] = header;
-        heightToHeaders[header.blockNumber].push(blockHash);
-        lastConfirmedBlock = getLastConfirmedBlock(header.parent);
+    function submitHeader(bytes memory _rlpHeader) public {
+        bytes32 newBlockHash;
+        BlockHeader memory newHeader;
+        (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
 
+        // Get parent header and set next pointer to newHeader
+        BlockHeader storage parentHeader = headers[newHeader.parent];
+        parentHeader.successors.push(newBlockHash);
 
-        for (uint i = lastRemovedBlockHeight + 1; i <= headers[lastConfirmedBlock].blockNumber; i++) {
-            removeBlocksAtHeight(headers[lastConfirmedBlock].blockNumber);
+        newHeader.lockedUntil = now + lockPeriodInMin;
+        headers[newBlockHash] = newHeader;
+
+        // check if parent is an endpoint
+        if (endpoints[parentHeader.index] == newHeader.parent) {
+            // parentHeader is an endpoint (and no fork) -> replace parentHeader in endpoints by new header (since new header becomes new endpoint)
+            endpoints[parentHeader.index] = newBlockHash;
+            newHeader.index = parentHeader.index;
+            newHeader.latestFork = parentHeader.latestFork;
         }
-        lastRemovedBlockHeight = headers[lastConfirmedBlock].blockNumber;
+        else {
+            // parentHeader is forked
+            newHeader.index = endpoints.push(newBlockHash) - 1;
+            newHeader.latestFork = newHeader.parent;
 
-    }
-
-    function getLastConfirmedBlock(bytes32 currentBlockHash) internal view returns (bytes32) {
-        bytes32 newConfirmedBlock = lastConfirmedBlock;
-        BlockHeader memory currentBlock = headers[currentBlockHash];
-        uint8 count = 0;
-        while (currentBlock.nonce != 0 &&  // check if current block exists
-               currentBlockHash != lastConfirmedBlock &&   // check if last confirmed block header is reached
-               currentBlock.blockNumber > headers[lastConfirmedBlock].blockNumber) {  // check if current block is at height higher than last confirmed block
-
-            if (currentBlock.lockedUntil > now || currentBlock.isDisputed) {
-                return lastConfirmedBlock; // either the lock period is not over yet or the validity of the block has been disputed
+            if (parentHeader.successors.length == 2) {
+                // a new fork was created, so we set the latest fork of the original branch to the newly created fork
+                // this has to be done only the first time a fork is created
+                setLatestForkAtSuccessors(headers[parentHeader.successors[0]], newHeader.parent);
             }
-            if (count == 0 && currentBlock.blockNumber - headers[lastConfirmedBlock].blockNumber <= requiredSucceedingBlocks) {
-                return lastConfirmedBlock; // lastConfirmedBlock cannot be updated because there are not enough succeeding blocks
-            }
-
-            if (count == requiredSucceedingBlocks) {
-                newConfirmedBlock = currentBlockHash;
-            }
-            currentBlockHash = currentBlock.parent;
-            count++;
         }
-        return newConfirmedBlock;
+
     }
 
-    function removeBlocksAtHeight(uint blockHeight) private {
-        if (heightToHeaders[blockHeight].length == 0) {
+    function setLatestForkAtSuccessors(BlockHeader storage header, bytes32 latestFork) private {
+        if (header.latestFork == latestFork) {
+            // latest fork has already been set
             return;
         }
 
-        for (uint i; i<heightToHeaders[blockHeight].length; i++) {
-            if (heightToHeaders[blockHeight][i] == lastConfirmedBlock) {
-                continue;
-            }
-            delete headers[heightToHeaders[blockHeight][i]];
+        header.latestFork = latestFork;
+
+        if (header.successors.length == 1) {
+            setLatestForkAtSuccessors(headers[header.successors[0]], latestFork);
         }
-        delete heightToHeaders[blockHeight];
     }
 
-    function checkValidHeader(BlockHeader memory header) private view {
+//    function addHeader(bytes memory _rlpHeader) public {
+//        bytes32 blockHash;
+//        BlockHeader memory header;
+//        (blockHash, header) = parseAndValidateBlockHeader(_rlpHeader);
+//        header.lockedUntil = now + lockPeriodInMin;
+//        header.isDisputed = false;
+//        headers[blockHash] = header;
+//        heightToHeaders[header.blockNumber].push(blockHash);
+//        lastConfirmedBlock = getLastConfirmedBlock(header.parent);
+//
+//
+//        for (uint i = lastRemovedBlockHeight + 1; i <= headers[lastConfirmedBlock].blockNumber; i++) {
+//            removeBlocksAtHeight(headers[lastConfirmedBlock].blockNumber);
+//        }
+//        lastRemovedBlockHeight = headers[lastConfirmedBlock].blockNumber;
+//
+//    }
+
+//    function getLastConfirmedBlock(bytes32 currentBlockHash) internal view returns (bytes32) {
+//        bytes32 newConfirmedBlock = lastConfirmedBlock;
+//        BlockHeader memory currentBlock = headers[currentBlockHash];
+//        uint8 count = 0;
+//        while (currentBlock.nonce != 0 &&  // check if current block exists
+//               currentBlockHash != lastConfirmedBlock &&   // check if last confirmed block header is reached
+//               currentBlock.blockNumber > headers[lastConfirmedBlock].blockNumber) {  // check if current block is at height higher than last confirmed block
+//
+//            if (currentBlock.lockedUntil > now || currentBlock.isDisputed) {
+//                return lastConfirmedBlock; // either the lock period is not over yet or the validity of the block has been disputed
+//            }
+//            if (count == 0 && currentBlock.blockNumber - headers[lastConfirmedBlock].blockNumber <= requiredSucceedingBlocks) {
+//                return lastConfirmedBlock; // lastConfirmedBlock cannot be updated because there are not enough succeeding blocks
+//            }
+//
+//            if (count == requiredSucceedingBlocks) {
+//                newConfirmedBlock = currentBlockHash;
+//            }
+//            currentBlockHash = currentBlock.parent;
+//            count++;
+//        }
+//        return newConfirmedBlock;
+//    }
+
+//    function removeBlocksAtHeight(uint blockHeight) private {
+//        if (heightToHeaders[blockHeight].length == 0) {
+//            return;
+//        }
+//
+//        for (uint i; i<heightToHeaders[blockHeight].length; i++) {
+//            if (heightToHeaders[blockHeight][i] == lastConfirmedBlock) {
+//                continue;
+//            }
+//            delete headers[heightToHeaders[blockHeight][i]];
+//        }
+//        delete heightToHeaders[blockHeight];
+//    }
+
+    function checkHeaderValidity(BlockHeader memory header) private view {
         require(headers[header.parent].nonce != 0, "Non-existent parent");
         // todo: check block number increment
         // todo: check difficulty
@@ -112,8 +162,9 @@ contract LinkedList {
     }
 
     event ParseBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, bytes32 parent );
-    function parseBlockHeader( bytes memory rlpHeader ) internal returns(bytes32, BlockHeader memory) {
+    function parseAndValidateBlockHeader( bytes memory rlpHeader ) internal returns(bytes32, BlockHeader memory) {
         BlockHeader memory header;
+        uint difficulty;
 
         RLP.Iterator memory it = rlpHeader.toRLPItem().iterator();
         uint idx;
@@ -122,7 +173,7 @@ contract LinkedList {
             else if ( idx == 3 ) header.stateRoot = it.next().toBytes32();
             else if ( idx == 4 ) header.transactionsRoot = it.next().toBytes32();
             else if ( idx == 5 ) header.receiptsRoot = it.next().toBytes32();
-//            else if ( idx == 7 ) header.difficulty = it.next().toUint();
+            else if ( idx == 7 ) difficulty = it.next().toUint();
 //            else if ( idx == 8 ) header.blockNumber = it.next().toUint();
 //            else if ( idx == 9 ) header.gasLimit = it.next().toUint();
 //            else if ( idx == 11 ) header.timestamp = it.next().toUint();
@@ -144,6 +195,11 @@ contract LinkedList {
 
         header.rlpHeaderHashWithoutNonce = rlpHeaderHashWithoutNonce;
         // TODO: check header validity (block number, timestamp, difficulty)
+        checkHeaderValidity(header);
+
+        // Get parent header and calculate total difficulty for the new block
+        BlockHeader storage parentHeader = headers[header.parent];
+        header.totalDifficulty = parentHeader.totalDifficulty + difficulty;
 
         return (blockHash, header);
 

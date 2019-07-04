@@ -47,8 +47,13 @@ contract LinkedList {
     uint lastRemovedBlockHeight = 0;   // TODO: initialize
     bytes32[] endpoints;   // contains the hash of each fork's recent block
 
-    constructor () public {
-        // TODO: add "genesis" block to headers mapping and to endpoints array
+    constructor (bytes memory _rlpHeader) public {  // initialized with block 8084509
+        // TODO: maybe add newBlockHash as latestFork
+        bytes32 newBlockHash;
+        BlockHeader memory newHeader;
+        (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
+        newHeader.index = endpoints.push(newBlockHash) - 1;
+        headers[newBlockHash] = newHeader;
     }
 
     function submitHeader(bytes memory _rlpHeader) public {
@@ -154,11 +159,13 @@ contract LinkedList {
 //    }
 
     function checkHeaderValidity(BlockHeader memory header) private view {
-        require(headers[header.parent].nonce != 0, "Non-existent parent");
-        // todo: check block number increment
-        // todo: check difficulty
-        // todo: check gas limit
-        // todo: check timestamp
+        if (endpoints.length > 0) {
+            require(headers[header.parent].nonce != 0, "Non-existent parent");
+            // todo: check block number increment
+            // todo: check difficulty
+            // todo: check gas limit
+            // todo: check timestamp
+        }
     }
 
     event ParseBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, bytes32 parent );

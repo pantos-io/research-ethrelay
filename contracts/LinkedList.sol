@@ -102,6 +102,35 @@ contract LinkedList {
         }
     }
 
+    function removeBranch(bytes32 root) public {
+        bytes32 parent = headers[root].parent;
+        BlockHeader storage parentHeader = headers[parent];
+        if (parentHeader.successors.length == 1) {
+            endpoints[parentHeader.index] = parent;
+        }
+
+        for (uint i=0; i<parentHeader.successors; i++) {
+            if (parentHeader.successors[i] == root) {
+                // overwrite root with last successor and delete last successor
+                parentHeader.successors[i] = parentHeader.successors[parentHeader.successors.length - 1];
+                parentHeader.successors.length--;
+                break;  // we remove at most one element
+            }
+        }
+        pruneBranch(root);
+    }
+
+    function pruneBranch(bytes32 root) private {
+        BlockHeader storage rootHeader = headers[root];
+        for (uint i=0; i<rootHeader.successors.length; i++) {
+            pruneBranch(rootHeader.successors[i]);
+        }
+        if (endpoints[rootHeader.index] == root) {
+            delete endpoints[rootHeader.index];
+        }
+        delete headers[root];
+    }
+
 //    function addHeader(bytes memory _rlpHeader) public {
 //        bytes32 blockHash;
 //        BlockHeader memory header;

@@ -109,7 +109,7 @@ contract LinkedList {
             endpoints[parentHeader.index] = parent;
         }
 
-        for (uint i=0; i<parentHeader.successors; i++) {
+        for (uint i=0; i<parentHeader.successors.length; i++) {
             if (parentHeader.successors[i] == root) {
                 // overwrite root with last successor and delete last successor
                 parentHeader.successors[i] = parentHeader.successors[parentHeader.successors.length - 1];

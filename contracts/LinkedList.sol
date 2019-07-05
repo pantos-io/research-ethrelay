@@ -22,30 +22,9 @@ contract LinkedList {
         bytes32 latestFork;  // contains the hash of the latest node where the current fork branched off
     }
 
-//    struct BlockHeaderFull {
-//        bytes32 parent;
-//        bytes32 ommersHash;
-//        address beneficiary;
-//        bytes32 stateRoot;
-//        bytes32 transactionsRoot;
-//        bytes32 receiptsRoot;
-//        byte[256] logsBloom;
-//        uint difficulty;
-//        uint blockNumber;
-//        uint gasLimit;
-//        uint gasUsed;
-//        uint timestamp;
-//        bytes extraData;
-//        bytes32 mixHash;
-//        uint nonce;
-//    }
-
-    bytes32 public lastConfirmedBlock;
     mapping (bytes32 => BlockHeader) public headers;  // sha3 hash -> Header
-    mapping (uint => bytes32[]) public heightToHeaders;     // blockNumber -> Array of Header hashes
     uint constant lockPeriodInMin = 5 minutes;
     uint constant requiredSucceedingBlocks = 3;
-    uint lastRemovedBlockHeight = 0;   // TODO: initialize
     bytes32[] orderedEndpoints;   // contains the hash of each fork's recent block
     bytes32[] iterableEndpoints;
 
@@ -113,9 +92,11 @@ contract LinkedList {
         bytes32 parent = headers[root].parent;
         BlockHeader storage parentHeader = headers[parent];
         if (parentHeader.successors.length == 1) {
+            // parentHeader has only one successor --> parentHeader will be an endpoint after pruning
             orderedEndpoints[parentHeader.orderedIndex] = parent;
         }
 
+        // remove root (which will be pruned) from the parent's successor list
         for (uint i=0; i<parentHeader.successors.length; i++) {
             if (parentHeader.successors[i] == root) {
                 // overwrite root with last successor and delete last successor
@@ -133,66 +114,11 @@ contract LinkedList {
             pruneBranch(rootHeader.successors[i]);
         }
         if (orderedEndpoints[rootHeader.orderedIndex] == root) {
+            // root is an endpoint --> delete root in endpoints array, since root will be deleted and thus can no longer be an endpoint
             delete orderedEndpoints[rootHeader.orderedIndex];
         }
         delete headers[root];
     }
-
-//    function addHeader(bytes memory _rlpHeader) public {
-//        bytes32 blockHash;
-//        BlockHeader memory header;
-//        (blockHash, header) = parseAndValidateBlockHeader(_rlpHeader);
-//        header.lockedUntil = now + lockPeriodInMin;
-//        header.isDisputed = false;
-//        headers[blockHash] = header;
-//        heightToHeaders[header.blockNumber].push(blockHash);
-//        lastConfirmedBlock = getLastConfirmedBlock(header.parent);
-//
-//
-//        for (uint i = lastRemovedBlockHeight + 1; i <= headers[lastConfirmedBlock].blockNumber; i++) {
-//            removeBlocksAtHeight(headers[lastConfirmedBlock].blockNumber);
-//        }
-//        lastRemovedBlockHeight = headers[lastConfirmedBlock].blockNumber;
-//
-//    }
-
-//    function getLastConfirmedBlock(bytes32 currentBlockHash) internal view returns (bytes32) {
-//        bytes32 newConfirmedBlock = lastConfirmedBlock;
-//        BlockHeader memory currentBlock = headers[currentBlockHash];
-//        uint8 count = 0;
-//        while (currentBlock.nonce != 0 &&  // check if current block exists
-//               currentBlockHash != lastConfirmedBlock &&   // check if last confirmed block header is reached
-//               currentBlock.blockNumber > headers[lastConfirmedBlock].blockNumber) {  // check if current block is at height higher than last confirmed block
-//
-//            if (currentBlock.lockedUntil > now || currentBlock.isDisputed) {
-//                return lastConfirmedBlock; // either the lock period is not over yet or the validity of the block has been disputed
-//            }
-//            if (count == 0 && currentBlock.blockNumber - headers[lastConfirmedBlock].blockNumber <= requiredSucceedingBlocks) {
-//                return lastConfirmedBlock; // lastConfirmedBlock cannot be updated because there are not enough succeeding blocks
-//            }
-//
-//            if (count == requiredSucceedingBlocks) {
-//                newConfirmedBlock = currentBlockHash;
-//            }
-//            currentBlockHash = currentBlock.parent;
-//            count++;
-//        }
-//        return newConfirmedBlock;
-//    }
-
-//    function removeBlocksAtHeight(uint blockHeight) private {
-//        if (heightToHeaders[blockHeight].length == 0) {
-//            return;
-//        }
-//
-//        for (uint i; i<heightToHeaders[blockHeight].length; i++) {
-//            if (heightToHeaders[blockHeight][i] == lastConfirmedBlock) {
-//                continue;
-//            }
-//            delete headers[heightToHeaders[blockHeight][i]];
-//        }
-//        delete heightToHeaders[blockHeight];
-//    }
 
     function checkHeaderValidity(BlockHeader memory header) private view {
         if (orderedEndpoints.length > 0) {

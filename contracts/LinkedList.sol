@@ -17,7 +17,8 @@ contract LinkedList {
         uint nonce;                        // blockNumber, rlpHeaderHashWithoutNonce and nonce are needed for verifying PoW
         uint lockedUntil;
         uint totalDifficulty;
-        uint index;     // index at which the block header is/was stored in the endpoints mapping
+        uint orderedIndex;     // index at which the block header is/was stored in the ordered endpoints array
+        uint iterableIndex;     // index at which the block header is/was stored in the iterable endpoints array
         bytes32 latestFork;  // contains the hash of the latest node where the current fork branched off
     }
 
@@ -45,14 +46,16 @@ contract LinkedList {
     uint constant lockPeriodInMin = 5 minutes;
     uint constant requiredSucceedingBlocks = 3;
     uint lastRemovedBlockHeight = 0;   // TODO: initialize
-    bytes32[] endpoints;   // contains the hash of each fork's recent block
+    bytes32[] orderedEndpoints;   // contains the hash of each fork's recent block
+    bytes32[] iterableEndpoints;
 
     constructor (bytes memory _rlpHeader) public {  // initialized with block 8084509
         // TODO: maybe add newBlockHash as latestFork
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
         (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
-        newHeader.index = endpoints.push(newBlockHash) - 1;
+        newHeader.orderedIndex = orderedEndpoints.push(newBlockHash) - 1;
+        newHeader.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
         headers[newBlockHash] = newHeader;
     }
 
@@ -69,15 +72,19 @@ contract LinkedList {
         headers[newBlockHash] = newHeader;
 
         // check if parent is an endpoint
-        if (endpoints[parentHeader.index] == newHeader.parent) {
+        if (orderedEndpoints[parentHeader.orderedIndex] == newHeader.parent) {
             // parentHeader is an endpoint (and no fork) -> replace parentHeader in endpoints by new header (since new header becomes new endpoint)
-            endpoints[parentHeader.index] = newBlockHash;
-            newHeader.index = parentHeader.index;
+            orderedEndpoints[parentHeader.orderedIndex] = newBlockHash;
+            newHeader.orderedIndex = parentHeader.orderedIndex;
+            iterableEndpoints[parentHeader.iterableIndex] = newBlockHash;
+            newHeader.iterableIndex = parentHeader.iterableIndex;
+            delete parentHeader.iterableIndex;
             newHeader.latestFork = parentHeader.latestFork;
         }
         else {
             // parentHeader is forked
-            newHeader.index = endpoints.push(newBlockHash) - 1;
+            newHeader.orderedIndex = orderedEndpoints.push(newBlockHash) - 1;
+            newHeader.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
             newHeader.latestFork = newHeader.parent;
 
             if (parentHeader.successors.length == 2) {
@@ -106,7 +113,7 @@ contract LinkedList {
         bytes32 parent = headers[root].parent;
         BlockHeader storage parentHeader = headers[parent];
         if (parentHeader.successors.length == 1) {
-            endpoints[parentHeader.index] = parent;
+            orderedEndpoints[parentHeader.orderedIndex] = parent;
         }
 
         for (uint i=0; i<parentHeader.successors.length; i++) {
@@ -125,8 +132,8 @@ contract LinkedList {
         for (uint i=0; i<rootHeader.successors.length; i++) {
             pruneBranch(rootHeader.successors[i]);
         }
-        if (endpoints[rootHeader.index] == root) {
-            delete endpoints[rootHeader.index];
+        if (orderedEndpoints[rootHeader.orderedIndex] == root) {
+            delete orderedEndpoints[rootHeader.orderedIndex];
         }
         delete headers[root];
     }
@@ -188,7 +195,7 @@ contract LinkedList {
 //    }
 
     function checkHeaderValidity(BlockHeader memory header) private view {
-        if (endpoints.length > 0) {
+        if (orderedEndpoints.length > 0) {
             require(headers[header.parent].nonce != 0, "Non-existent parent");
             // todo: check block number increment
             // todo: check difficulty

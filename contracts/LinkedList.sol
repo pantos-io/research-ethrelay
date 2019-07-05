@@ -94,6 +94,7 @@ contract LinkedList {
         if (parentHeader.successors.length == 1) {
             // parentHeader has only one successor --> parentHeader will be an endpoint after pruning
             orderedEndpoints[parentHeader.orderedIndex] = parent;
+            parentHeader.iterableIndex = iterableEndpoints.push(parent) - 1;
         }
 
         // remove root (which will be pruned) from the parent's successor list
@@ -116,6 +117,8 @@ contract LinkedList {
         if (orderedEndpoints[rootHeader.orderedIndex] == root) {
             // root is an endpoint --> delete root in endpoints array, since root will be deleted and thus can no longer be an endpoint
             delete orderedEndpoints[rootHeader.orderedIndex];
+            iterableEndpoints[rootHeader.iterableIndex] = iterableEndpoints[iterableEndpoints.length - 1];
+            iterableEndpoints.length--;
         }
         delete headers[root];
     }

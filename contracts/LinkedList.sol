@@ -88,7 +88,13 @@ contract LinkedList {
         }
     }
 
-    function removeBranch(bytes32 root) public {
+    function disputeBlock(bytes32 blockHash) public {
+        // todo: do light validation
+        // todo: do full validation (via SPV or majority vote)
+        removeBranch(blockHash);
+    }
+
+    function removeBranch(bytes32 root) private {
         bytes32 parent = headers[root].parent;
         BlockHeader storage parentHeader = headers[parent];
         if (parentHeader.successors.length == 1) {

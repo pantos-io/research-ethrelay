@@ -75,6 +75,12 @@ contract LinkedList {
 
     }
 
+    function disputeBlock(bytes32 blockHash) public {
+        // todo: do light validation
+        // todo: do full validation (via SPV or majority vote)
+        removeBranch(blockHash);
+    }
+
     function setLatestForkAtSuccessors(BlockHeader storage header, bytes32 latestFork) private {
         if (header.latestFork == latestFork) {
             // latest fork has already been set
@@ -88,11 +94,6 @@ contract LinkedList {
         }
     }
 
-    function disputeBlock(bytes32 blockHash) public {
-        // todo: do light validation
-        // todo: do full validation (via SPV or majority vote)
-        removeBranch(blockHash);
-    }
 
     function removeBranch(bytes32 root) private {
         bytes32 parent = headers[root].parent;

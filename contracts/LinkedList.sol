@@ -118,6 +118,114 @@ contract LinkedList {
         removeBranch(blockHash);
     }
 
+    // @dev Verifies the existence of a transaction ('txHash') within a certain block ('blockHash').
+    // The verification follows the following steps:
+    //     1. Verify that the given block is part of the longest Proof of Work chain
+    //     2. Verify that the block has passed the dispute period in which the validity of a block can be disputed
+    //     3. Verify that the block has been confirmed by at least n succeeding blocks ('noOfConfirmations')
+    //     4. Verify that the transaction is indeed part of the block via a Merkle proof
+    //
+    // In case we have to check whether enough block confirmations occurred
+    // starting from the requested block ('blockHash'), we go to the latest
+    // unlocked block on the longest chain path (could be the requested block itself)
+    // and count the number of confirmations (i.e. the number of unlocked blocks),
+    // starting from the latest unlocked block along the longest chain path.
+    function verifyTransaction(bytes32 txHash, bytes32 requested, uint8 noOfConfirmations) public view returns (bool) {
+        bytes32 last = longestChainEndpoint;
+        bytes32 current = longestChainEndpoint;
+        bytes32 checkpoint = requested;
+        bool confirmed = false;
+        while (true) {
+            if (!confirmed && checkpoint == requested) {
+                if (isUnlocked(current)) {
+                    if (headers[current].blockNumber >= headers[requested].blockNumber + noOfConfirmations) {
+                        // We found a block that is unlocked AND confirms the requested block
+                        // by at least 'noOfConfirmations' confirmations
+                        confirmed = true;
+                    } else {
+                        // We found a block that is unlocked, but the requested block cannot be considered confirmed yet.
+                        // Since all blocks before the current block will also be unlocked, we only need to check whether
+                        // enough blocks follow the current block along the longest chain which are also unlocked.
+                        // 'Enough' is determined by the number of blocks required for the requested block to be considered confirmed.
+                        checkpoint = getSuccessor(current, last);
+                        noOfConfirmations = (uint8)(headers[requested].blockNumber + noOfConfirmations - headers[checkpoint].blockNumber);
+                    }
+                }
+            }
+
+            if (headers[current].orderedIndex < headers[requested].orderedIndex) {
+                return false;   // the requested block is NOT part of the longest chain
+            }
+
+            if (headers[current].orderedIndex == headers[requested].orderedIndex) {
+                break;  // the requested block is part of the longest chain --> jump out of the loop
+            }
+
+            // go to next fork
+            last = current;
+            current = headers[current].latestFork;
+        }
+
+        if (!confirmed && !hasEnoughConfirmations(checkpoint, noOfConfirmations)) {
+            return false;
+        }
+
+        return verifyMerkleProof();
+    }
+
+    function isUnlocked(bytes32 blockHash) public view returns (bool) {
+        return (now - headers[blockHash].lockedUntil) > lockPeriodInMin;
+    }
+
+    // @dev Returns the successor of the given block ('blockHash').
+    // If a block does not have any successors, the block itself is returned.
+    // If a block only has one successor, that successor is returned.
+    // If a block has multiple successors, the successor in the direction of the next fork ('nextFork') is returned.
+    function getSuccessor(bytes32 blockHash, bytes32 nextFork) private view returns (bytes32) {
+        if (headers[blockHash].successors.length == 1) {
+            return headers[blockHash].successors[0];
+        }
+
+        if (headers[blockHash].successors.length > 1) {
+            for (uint i = 0; i<headers[blockHash].successors.length; i++) {
+                bytes32 successor = headers[blockHash].successors[i];
+                if (headers[successor].orderedIndex == headers[nextFork].orderedIndex) {
+                    return successor;
+                }
+            }
+        }
+
+        return blockHash;   // --> either block has no successors or the right successor could not be determined
+    }
+
+    // @dev Checks whether a block has enough succeeding blocks that are unlocked (dispute period is over).
+    // Note: The caller has to make sure that this method is only called for paths where the required number of
+    // confirmed blocks does not go beyond forks, i.e., each block has to have a clear successor.
+    // If a block is a fork, i.e., has more than one successor and requires more than 0 confirmations
+    // the method returns false, which may or may not represent the true state of the system.
+    function hasEnoughConfirmations(bytes32 start, uint8 noOfConfirmations) private view returns (bool) {
+        if (!isUnlocked(start)) {
+            return false;   // --> block is still locked and can therefore not be confirmed
+        }
+
+        if (noOfConfirmations == 0) {
+            return true;    // --> block is unlocked and no more confirmations are required
+        }
+
+        // More confirmations are required but block has more than one successor or no successor at all.
+        // Since we do not know which path to take or there is no path to choose at all, we return false.
+        if (headers[start].successors.length != 1) {
+            // todo: move along first path
+            return false;
+        }
+
+        return hasEnoughConfirmations(headers[start].successors[0], noOfConfirmations - 1);
+    }
+
+    function verifyMerkleProof() private pure returns (bool) {
+        return true;
+    }
+
     function setLatestForkAtSuccessors(BlockHeader storage header, bytes32 latestFork) private {
         if (header.latestFork == latestFork) {
             // latest fork has already been set

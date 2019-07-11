@@ -15,7 +15,7 @@ contract LinkedList {
         uint blockNumber;
         bytes32 rlpHeaderHashWithoutNonce;   // sha3 hash of the header without nonce and mix fields
         uint nonce;                        // blockNumber, rlpHeaderHashWithoutNonce and nonce are needed for verifying PoW
-        uint lockedUntil;
+        uint lockedUntil;                   // timestamp until which it is possible to dispute a given block
         uint totalDifficulty;
         uint orderedIndex;     // index at which the block header is/was stored in the ordered endpoints array
         uint iterableIndex;     // index at which the block header is/was stored in the iterable endpoints array
@@ -27,6 +27,7 @@ contract LinkedList {
     uint constant requiredSucceedingBlocks = 3;
     bytes32[] orderedEndpoints;   // contains the hash of each fork's recent block
     bytes32[] iterableEndpoints;
+    bytes32 longestChainEndpoint;
 
     constructor (bytes memory _rlpHeader) public {  // initialized with block 8084509
         // TODO: maybe add newBlockHash as latestFork
@@ -36,6 +37,40 @@ contract LinkedList {
         newHeader.orderedIndex = orderedEndpoints.push(newBlockHash) - 1;
         newHeader.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
         headers[newBlockHash] = newHeader;
+    }
+
+    function getNoOfForks() public view returns (uint) {
+        return iterableEndpoints.length;
+    }
+
+    // @dev Returns the block hash of the endpoint at the specified index
+    function getBlockHashOfEndpoint(uint index) public view returns (bytes32) {
+        return iterableEndpoints[index];
+    }
+
+    function isBlock(bytes32 hash) public view returns (bool) {
+        return headers[hash].nonce != 0;    // maybe a more sophisticated check is required here
+    }
+
+    function getBlock(bytes32 hash) public view returns (
+        bytes32,            // parent,
+        uint,               // blockNumber,
+        uint,               // lockedUntil,
+        uint,               // totalDifficulty,
+        uint,               // orderedIndex,
+        uint,               // iterableIndex,
+        bytes32             // latestFork
+    ) {
+        require(isBlock(hash), "Non-existent key");
+        return (
+            headers[hash].parent,
+            headers[hash].blockNumber,
+            headers[hash].lockedUntil,
+            headers[hash].totalDifficulty,
+            headers[hash].orderedIndex,
+            headers[hash].iterableIndex,
+            headers[hash].latestFork
+        );
     }
 
     function submitHeader(bytes memory _rlpHeader) public {
@@ -153,7 +188,7 @@ contract LinkedList {
             else if ( idx == 4 ) header.transactionsRoot = it.next().toBytes32();
             else if ( idx == 5 ) header.receiptsRoot = it.next().toBytes32();
             else if ( idx == 7 ) difficulty = it.next().toUint();
-//            else if ( idx == 8 ) header.blockNumber = it.next().toUint();
+            else if ( idx == 8 ) header.blockNumber = it.next().toUint();
 //            else if ( idx == 9 ) header.gasLimit = it.next().toUint();
 //            else if ( idx == 11 ) header.timestamp = it.next().toUint();
             else if ( idx == 14 ) header.nonce = it.next().toUint();

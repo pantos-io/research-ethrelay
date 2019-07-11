@@ -83,7 +83,6 @@ contract LinkedList {
         parentHeader.successors.push(newBlockHash);
 
         newHeader.lockedUntil = now + lockPeriodInMin;
-        headers[newBlockHash] = newHeader;
 
         // check if parent is an endpoint
         if (orderedEndpoints[parentHeader.orderedIndex] == newHeader.parent) {
@@ -107,6 +106,9 @@ contract LinkedList {
                 setLatestForkAtSuccessors(headers[parentHeader.successors[0]], newHeader.parent);
             }
         }
+
+        // LASTLY, we store the new header so any property changes are also persisted
+        headers[newBlockHash] = newHeader;
 
     }
 

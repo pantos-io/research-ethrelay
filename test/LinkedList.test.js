@@ -199,6 +199,12 @@ contract('LinkedList', async (accounts) => {
         await checkExpectedBlockHeaders(expectedBlocks);
     });
 
+    it('should revert when the parent of a submitted block header does not exist', async () => {
+        const blockWithNonExistentParent = await sourceWeb3.eth.getBlock(8084511);    // 8084509 is genesis block
+        const rlpHeader = createRLPHeader(blockWithNonExistentParent);
+        await expectRevert(testimonium.submitHeader(rlpHeader), 'Non-existent parent');
+    });
+
     const submitExpectedBlockHeaders = async (expectedHeaders) => {
         await expectedHeaders.forEach(async expected => {
             const rlpHeader = createRLPHeader(expected.block);

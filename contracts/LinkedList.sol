@@ -29,7 +29,9 @@ contract LinkedList {
     bytes32[] iterableEndpoints;
     bytes32 longestChainEndpoint;
 
-    constructor (bytes memory _rlpHeader) public {  // initialized with block 8084509
+    // The contract is initialized with block 8084509 and the total difficulty of that same block.
+    // The contract creator needs to make sure that these values represent a valid block of the tracked blockchain.
+    constructor (bytes memory _rlpHeader, uint totalDifficulty) public {
         // TODO: maybe add newBlockHash as latestFork
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
@@ -37,6 +39,7 @@ contract LinkedList {
         newHeader.orderedIndex = orderedEndpoints.push(newBlockHash) - 1;
         newHeader.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
         newHeader.lockedUntil = now;    // the first block does not need a confirmation period
+        newHeader.totalDifficulty = totalDifficulty;
         headers[newBlockHash] = newHeader;
     }
 
@@ -319,15 +322,13 @@ contract LinkedList {
         emit ParseBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.parent);
 
         header.rlpHeaderHashWithoutNonce = rlpHeaderHashWithoutNonce;
-        // TODO: check header validity (block number, timestamp, difficulty)
         checkHeaderValidity(header);
 
-        // Get parent header and calculate total difficulty for the new block
+        // Get parent header and set total difficulty
         BlockHeader storage parentHeader = headers[header.parent];
         header.totalDifficulty = parentHeader.totalDifficulty + difficulty;
 
         return (blockHash, header);
-
     }
 
     function copy(bytes memory sourceArray, uint newLength) internal pure returns (bytes memory) {

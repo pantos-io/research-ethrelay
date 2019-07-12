@@ -36,6 +36,7 @@ contract LinkedList {
         (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
         newHeader.orderedIndex = orderedEndpoints.push(newBlockHash) - 1;
         newHeader.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
+        newHeader.lockedUntil = now;    // the first block does not need a confirmation period
         headers[newBlockHash] = newHeader;
     }
 
@@ -174,7 +175,7 @@ contract LinkedList {
     }
 
     function isUnlocked(bytes32 blockHash) public view returns (bool) {
-        return (now - headers[blockHash].lockedUntil) > lockPeriodInMin;
+        return headers[blockHash].lockedUntil < now;
     }
 
     // @dev Returns the successor of the given block ('blockHash').

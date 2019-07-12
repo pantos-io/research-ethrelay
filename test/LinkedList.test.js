@@ -1,11 +1,11 @@
 const Web3 = require("web3");
-const RLP = require('rlp');
 const { BN, balance, ether, expectRevert, time } = require('openzeppelin-test-helpers');
+const { createRLPHeader, calculateBlockHash } = require('../utils/utils');
 
 const LinkedList = artifacts.require('./LinkedList');
 const { expect } = require('chai');
 
-const GENESIS_RLP = '0xf90217a0f325431224239d833b7d870b4d6d7fd2e6ab4b80857022daa012a9a08277e09fa01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d493479406b8c5883ec71bc3f4b332081519f23834c8706ea00ceb1811de623435b9e6e35e75b2faa0e732d364b2a3781bc6e9d6b5212b860ba056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421a056e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421b90100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008707896d68b38322837b5c1d837a120080845d1ddeaa99d883010817846765746888676f312e31302e34856c696e7578a04db51f8d4a4200dbdcbf0bd0c7bd8c104dfcfa61fb5ba7ef767183f86b1d57d588c23b0a7000b8c2c7';
+const GENESIS_BLOCK = 8084509;
 const ZERO_BLOCK = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const LOCK_PERIOD = time.duration.minutes(5);
 
@@ -22,14 +22,14 @@ contract('LinkedList', async (accounts) => {
     });
 
     beforeEach(async () => {
-        testimonium = await LinkedList.new(web3.utils.hexToBytes(GENESIS_RLP));
+        const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+        testimonium = await LinkedList.new(createRLPHeader(genesisBlock), genesisBlock.totalDifficulty);
     });
 
 
     it("should initialise correctly", async () => {
         const initTime = await time.latest();
-        const expectedGenesis = await sourceWeb3.eth.getBlock(8084509);
-        expectedGenesis.totalDifficulty = expectedGenesis.difficulty;   // our 'genesis' block's total difficulty will just be its difficulty
+        const expectedGenesis = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
         const expectedBlocks = [
             {
                 block: expectedGenesis,
@@ -50,7 +50,7 @@ contract('LinkedList', async (accounts) => {
     // (0)---(1)
     //
     it('should add a block header correctly on top of the genesis block', async () => {
-        const block1 = await sourceWeb3.eth.getBlock(8084510);
+        const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
         const expectedBlocks = [
             {
                 block: block1,
@@ -72,8 +72,8 @@ contract('LinkedList', async (accounts) => {
     //
     it('should add two block headers correctly on top of the genesis block', async () => {
         // Create expected chain
-        const block1 = await sourceWeb3.eth.getBlock(8084510);
-        const block2 = await sourceWeb3.eth.getBlock(8084511);
+        const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+        const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
         const expectedBlocks = [
             {
                 block: block1,
@@ -105,14 +105,14 @@ contract('LinkedList', async (accounts) => {
     //      -(2)
     //
     it('should create a fork correctly', async () => {
-        const block1 = await sourceWeb3.eth.getBlock(8084510);
-        const block2 = await sourceWeb3.eth.getBlock(8084510);
+        const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+        const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
 
         // change data of block 2
         block2.transactionsRoot = block1.receiptsRoot;
         block2.stateRoot = block1.transactionsRoot;
         block2.receiptsRoot = block1.stateRoot;
-        recalculateBlockHash(block2);  // IMPORTANT: recalculate block hash otherwise asserts fails
+        block2.hash = calculateBlockHash(block2);  // IMPORTANT: recalculate block hash otherwise asserts fails
 
         const expectedBlocks = [
             {
@@ -146,21 +146,21 @@ contract('LinkedList', async (accounts) => {
     //      -(3)
     //
     it('should create a three-fork correctly', async () => {
-        const block1 = await sourceWeb3.eth.getBlock(8084510);
-        const block2 = await sourceWeb3.eth.getBlock(8084510);
-        const block3 = await sourceWeb3.eth.getBlock(8084510);
+        const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+        const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+        const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
 
         // change data of block 2
         block2.transactionsRoot = block1.receiptsRoot;
         block2.stateRoot = block1.transactionsRoot;
         block2.receiptsRoot = block1.stateRoot;
-        recalculateBlockHash(block2);  // IMPORTANT: recalculate block hash otherwise asserts fails
+        block2.hash = calculateBlockHash(block2);  // IMPORTANT: recalculate block hash otherwise asserts fails
 
         // change data of block 3
         block3.transactionsRoot = block1.stateRoot;
         block3.stateRoot = block1.receiptsRoot;
         block3.receiptsRoot = block1.transactionsRoot;
-        recalculateBlockHash(block3);  // IMPORTANT: recalculate block hash otherwise asserts fails
+        block3.hash = calculateBlockHash(block3);  // IMPORTANT: recalculate block hash otherwise asserts fails
 
         const expectedBlocks = [
             {
@@ -193,7 +193,7 @@ contract('LinkedList', async (accounts) => {
     });
 
     it('should revert when the parent of a submitted block header does not exist', async () => {
-        const blockWithNonExistentParent = await sourceWeb3.eth.getBlock(8084511);    // 8084509 is genesis block
+        const blockWithNonExistentParent = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
         const rlpHeader = createRLPHeader(blockWithNonExistentParent);
         await expectRevert(testimonium.submitHeader(rlpHeader), 'Non-existent parent');
     });
@@ -203,7 +203,7 @@ contract('LinkedList', async (accounts) => {
     // (0)---(1)
     //
     it('should unlock a block at the correct time', async () => {
-        const block1 = await sourceWeb3.eth.getBlock(8084510);
+        const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
         const expectedBlocks = [
             {
                 block: block1,
@@ -285,32 +285,9 @@ const assertBlocksEqual = (actual, expected) => {
     expect(actual.hash).to.equal(expected.hash);
     expect(actual.parent).to.equal(expected.parent);
     expect(actual.number).to.be.bignumber.equal(new BN(expected.number));
+    expect(actual.totalDifficulty).to.be.bignumber.equal(expected.totalDifficulty);
     // todo: maybe parse also total difficulty in Testimonium contract, so we don't have to it calculate manually
     // assert.equal(actual.totalDifficulty, expected.totalDifficulty, 'Total difficulties are different');
-};
-
-const recalculateBlockHash = (block) => {
-    block.hash = web3.utils.keccak256(createRLPHeader(block));
-};
-
-const createRLPHeader = (block) => {
-    return RLP.encode([
-        block.parentHash,
-        block.sha3Uncles,
-        block.miner,
-        block.stateRoot,
-        block.transactionsRoot,
-        block.receiptsRoot,
-        block.logsBloom,
-        new BN(block.difficulty),
-        new BN(block.number),
-        block.gasLimit,
-        block.gasUsed,
-        block.timestamp,
-        block.extraData,
-        block.mixHash,
-        block.nonce,
-    ]);
 };
 
 async function asyncForEach(array, callback) {

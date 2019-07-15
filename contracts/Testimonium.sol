@@ -65,7 +65,7 @@ contract Testimonium {
         uint,               // iterableIndex,
         bytes32             // latestFork
     ) {
-        require(isBlock(hash), "Non-existent key");
+        require(isBlock(hash), "non-existent key");
         return (
             headers[hash].parent,
             headers[hash].blockNumber,
@@ -281,7 +281,7 @@ contract Testimonium {
 
     function checkHeaderValidity(BlockHeader memory header) private view {
         if (orderedEndpoints.length > 0) {
-            require(headers[header.parent].nonce != 0, "Non-existent parent");
+            require(headers[header.parent].nonce != 0, "non-existent parent");
             // todo: check block number increment
             // todo: check difficulty
             // todo: check gas limit
@@ -289,7 +289,7 @@ contract Testimonium {
         }
     }
 
-    event ParseBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, bytes32 parent );
+    event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, bytes32 parent );
     function parseAndValidateBlockHeader( bytes memory rlpHeader ) internal returns(bytes32, BlockHeader memory) {
         BlockHeader memory header;
         uint difficulty;
@@ -311,15 +311,17 @@ contract Testimonium {
             idx++;
         }
 
-        // duplicate rlp header and truncate nonce and mixDataHash
+        // calculate block hash and check that block header does not already exist
         bytes32 blockHash = keccak256(rlpHeader);
+        require(!isBlock(blockHash), "block already exists");
+
+        // duplicate rlp header and truncate nonce and mixDataHash
         bytes memory rlpWithoutNonce = copy(rlpHeader, rlpHeader.length-42);  // 42: length of none+mixHash
         uint16 rlpHeaderWithoutNonceLength = uint16(rlpHeader.length-3-42);  // rlpHeaderLength - 3 prefix bytes (0xf9 + length) - length of nonce and mixHash
         bytes2 headerLengthBytes = bytes2(rlpHeaderWithoutNonceLength);
         rlpWithoutNonce[1] = headerLengthBytes[0];
         rlpWithoutNonce[2] = headerLengthBytes[1];
         bytes32 rlpHeaderHashWithoutNonce = keccak256(rlpWithoutNonce);
-        emit ParseBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.parent);
 
         header.rlpHeaderHashWithoutNonce = rlpHeaderHashWithoutNonce;
         checkHeaderValidity(header);
@@ -328,6 +330,7 @@ contract Testimonium {
         BlockHeader storage parentHeader = headers[header.parent];
         header.totalDifficulty = parentHeader.totalDifficulty + difficulty;
 
+        emit SubmitBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.parent);
         return (blockHash, header);
     }
 

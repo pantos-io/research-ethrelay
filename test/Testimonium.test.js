@@ -2,7 +2,7 @@ const Web3 = require("web3");
 const { BN, balance, ether, expectRevert, time } = require('openzeppelin-test-helpers');
 const { createRLPHeader, calculateBlockHash } = require('../utils/utils');
 
-const LinkedList = artifacts.require('./LinkedList');
+const Testimonium = artifacts.require('./Testimonium');
 const { expect } = require('chai');
 
 const GENESIS_BLOCK = 8084509;
@@ -10,7 +10,7 @@ const ZERO_BLOCK = '0x0000000000000000000000000000000000000000000000000000000000
 const LOCK_PERIOD = time.duration.minutes(5);
 
 
-contract('LinkedList', async (accounts) => {
+contract('Testimonium', async (accounts) => {
 
     let testimonium;
     let sourceWeb3;
@@ -23,7 +23,7 @@ contract('LinkedList', async (accounts) => {
 
     beforeEach(async () => {
         const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-        testimonium = await LinkedList.new(createRLPHeader(genesisBlock), genesisBlock.totalDifficulty);
+        testimonium = await Testimonium.new(createRLPHeader(genesisBlock), genesisBlock.totalDifficulty);
     });
 
 

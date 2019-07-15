@@ -2,7 +2,7 @@ pragma solidity ^0.5.10;
 
 import "./RLP.sol";
 
-contract LinkedList {
+contract Testimonium {
 
     using RLP for *;
 
@@ -104,6 +104,8 @@ contract LinkedList {
             newHeader.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
             newHeader.latestFork = newHeader.parent;
 
+            // todo: check whether the new fork is the longest chain
+
             if (parentHeader.successors.length == 2) {
                 // a new fork was created, so we set the latest fork of the original branch to the newly created fork
                 // this has to be done only the first time a fork is created
@@ -111,9 +113,7 @@ contract LinkedList {
             }
         }
 
-        // LASTLY, we store the new header so any property changes are also persisted
-        headers[newBlockHash] = newHeader;
-
+        headers[newBlockHash] = newHeader; // make sure to persist the header only AFTER all property changes
     }
 
     function disputeBlock(bytes32 blockHash) public {

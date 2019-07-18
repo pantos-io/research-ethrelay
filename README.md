@@ -1,4 +1,21 @@
-## Compile Contract
+# Testimonium
+This project contains Ethereum smart contracts that enable the verification of transaction of one "source" blockchain on a different "destination" blockchains without the need for centralized trust.
+
+## Get Started
+Compile contracts with 
+```
+truffle compile
+```
+Deploy contracts with
+```
+truffle migrate --reset
+```
+Generate Go contract file and export it to Testimonium-CLI project:
+```
+./export.sh
+```
+
+#### Generate Go Contract File Manually
 First convert the smart contract into an ABI file with 
 ```
 solc --abi contracts/Testimonium.sol --out .

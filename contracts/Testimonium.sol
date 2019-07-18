@@ -118,6 +118,12 @@ contract Testimonium {
     }
 
     function disputeBlock(bytes32 blockHash) public {
+        // Currently, once the dispute period is over and the block is unlocked we accept it as valid.
+        // In that case, no validation is carried out anymore.
+        // TO DISCUSS: There might not be a problem to accept disputes even after a block has been unlocked.
+        // If an already unlocked block is disputed, certain transactions might have been illegally verified.
+        require(!isUnlocked(blockHash), "dispute period is expired");
+
         // todo: do light validation
         // todo: do full validation (via SPV or majority vote)
         removeBranch(blockHash);
@@ -228,6 +234,7 @@ contract Testimonium {
     }
 
     function verifyMerkleProof() private pure returns (bool) {
+        // todo: check Merkle Proof
         return true;
     }
 

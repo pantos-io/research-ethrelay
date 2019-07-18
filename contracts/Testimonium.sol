@@ -56,6 +56,7 @@ contract Testimonium {
         return headers[hash].nonce != 0;    // maybe a more sophisticated check is required here
     }
 
+    // todo: probably not necessary as the headers mapping is public
     function getBlock(bytes32 hash) public view returns (
         bytes32,            // parent,
         uint,               // blockNumber,
@@ -265,6 +266,7 @@ contract Testimonium {
         pruneBranch(root);
     }
 
+    event RemoveBranch( bytes32 root );
     function pruneBranch(bytes32 root) private {
         BlockHeader storage rootHeader = headers[root];
         for (uint i=0; i<rootHeader.successors.length; i++) {
@@ -277,6 +279,7 @@ contract Testimonium {
             iterableEndpoints.length--;
         }
         delete headers[root];
+        emit RemoveBranch(root);
     }
 
     function checkHeaderValidity(BlockHeader memory header) private view {

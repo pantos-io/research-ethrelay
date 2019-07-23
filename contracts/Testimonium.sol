@@ -252,6 +252,7 @@ contract Testimonium {
     }
 
 
+    event RemoveBranch( bytes32 root );
     function removeBranch(bytes32 root) private {
         bytes32 parent = headers[root].parent;
         BlockHeader storage parentHeader = headers[parent];
@@ -267,13 +268,13 @@ contract Testimonium {
                 // overwrite root with last successor and delete last successor
                 parentHeader.successors[i] = parentHeader.successors[parentHeader.successors.length - 1];
                 parentHeader.successors.length--;
-                break;  // we remove at most one element
+            break;  // we remove at most one element
             }
         }
         pruneBranch(root);
+        emit RemoveBranch(root);
     }
 
-    event RemoveBranch( bytes32 root );
     function pruneBranch(bytes32 root) private {
         BlockHeader storage rootHeader = headers[root];
         for (uint i=0; i<rootHeader.successors.length; i++) {
@@ -286,7 +287,6 @@ contract Testimonium {
             iterableEndpoints.length--;
         }
         delete headers[root];
-        emit RemoveBranch(root);
     }
 
     function checkHeaderValidity(BlockHeader memory header) private view {

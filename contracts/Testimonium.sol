@@ -27,12 +27,11 @@ contract Testimonium {
     uint constant requiredSucceedingBlocks = 3;
     bytes32[] orderedEndpoints;   // contains the hash of each fork's recent block
     bytes32[] iterableEndpoints;
-    bytes32 longestChainEndpoint;
+    bytes32 public longestChainEndpoint;
 
     // The contract is initialized with block 8084509 and the total difficulty of that same block.
     // The contract creator needs to make sure that these values represent a valid block of the tracked blockchain.
     constructor (bytes memory _rlpHeader, uint totalDifficulty) public {
-        // TODO: maybe add newBlockHash as latestFork
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
         (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
@@ -41,6 +40,7 @@ contract Testimonium {
         newHeader.lockedUntil = now;    // the first block does not need a confirmation period
         newHeader.totalDifficulty = totalDifficulty;
         headers[newBlockHash] = newHeader;
+        longestChainEndpoint = newBlockHash;
     }
 
     function getNoOfForks() public view returns (uint) {
@@ -54,28 +54,6 @@ contract Testimonium {
 
     function isBlock(bytes32 hash) public view returns (bool) {
         return headers[hash].nonce != 0;    // maybe a more sophisticated check is required here
-    }
-
-    // todo: probably not necessary as the headers mapping is public
-    function getBlock(bytes32 hash) public view returns (
-        bytes32,            // parent,
-        uint,               // blockNumber,
-        uint,               // lockedUntil,
-        uint,               // totalDifficulty,
-        uint,               // orderedIndex,
-        uint,               // iterableIndex,
-        bytes32             // latestFork
-    ) {
-        require(isBlock(hash), "non-existent key");
-        return (
-            headers[hash].parent,
-            headers[hash].blockNumber,
-            headers[hash].lockedUntil,
-            headers[hash].totalDifficulty,
-            headers[hash].orderedIndex,
-            headers[hash].iterableIndex,
-            headers[hash].latestFork
-        );
     }
 
     function submitHeader(bytes memory _rlpHeader) public {
@@ -105,13 +83,15 @@ contract Testimonium {
             newHeader.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
             newHeader.latestFork = newHeader.parent;
 
-            // todo: check whether the new fork is the longest chain
-
             if (parentHeader.successors.length == 2) {
                 // a new fork was created, so we set the latest fork of the original branch to the newly created fork
                 // this has to be done only the first time a fork is created
                 setLatestForkAtSuccessors(headers[parentHeader.successors[0]], newHeader.parent);
             }
+        }
+
+        if (newHeader.totalDifficulty > headers[longestChainEndpoint].totalDifficulty) {
+            longestChainEndpoint = newBlockHash;
         }
 
         headers[newBlockHash] = newHeader; // make sure to persist the header only AFTER all property changes

@@ -1,6 +1,6 @@
 const Web3 = require("web3");
 const { BN, balance, ether, expectRevert, time } = require('openzeppelin-test-helpers');
-const { createRLPHeader, calculateBlockHash } = require('../utils/utils');
+const { createRLPHeader, calculateBlockHash, createRLPHeaderWithoutNonce } = require('../utils/utils');
 
 const Testimonium = artifacts.require('./Testimonium');
 const { expect } = require('chai');
@@ -27,6 +27,10 @@ contract('Testimonium', async (accounts) => {
     });
 
 
+    // Test Scenario:
+    //
+    // (0)
+    //
     it("should initialise correctly", async () => {
         const initTime = await time.latest();
         const expectedGenesis = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
@@ -36,12 +40,14 @@ contract('Testimonium', async (accounts) => {
                 orderedIndex: 0,
                 iterableIndex: 0,
                 latestFork: ZERO_BLOCK,
-                lockedUntil: initTime
+                lockedUntil: initTime,
+                successors: undefined
             }
         ];
 
         expect(await testimonium.getNoOfForks()).to.be.bignumber.equal(new BN(1));
         expect(await testimonium.getBlockHashOfEndpoint(0)).to.equal(expectedGenesis.hash);
+        expect(await testimonium.longestChainEndpoint()).to.equal(expectedGenesis.hash);
         await checkExpectedBlockHeaders(expectedBlocks);
     });
 
@@ -56,13 +62,16 @@ contract('Testimonium', async (accounts) => {
                 block: block1,
                 orderedIndex: 0,
                 iterableIndex: 0,
-                latestFork: ZERO_BLOCK
+                latestFork: ZERO_BLOCK,
+                successors: undefined
             }
         ];
         await submitExpectedBlockHeaders(expectedBlocks);
 
         expect(await testimonium.getNoOfForks()).to.be.bignumber.equal(new BN(1));
         expect(await testimonium.getBlockHashOfEndpoint(0)).to.equal(block1.hash);
+        expect(await testimonium.longestChainEndpoint()).to.equal(block1.hash);
+
         await checkExpectedBlockHeaders(expectedBlocks);
     });
 
@@ -93,6 +102,8 @@ contract('Testimonium', async (accounts) => {
         // Perform checks
         expect(await testimonium.getNoOfForks()).to.be.bignumber.equal(new BN(1));
         expect(await testimonium.getBlockHashOfEndpoint(0)).to.equal(block2.hash);
+        // expect(await testimonium.getLongestChainEndpoint).to.equal(expected.latestFork);
+
         await checkExpectedBlockHeaders(expectedBlocks);
     });
 
@@ -232,15 +243,15 @@ contract('Testimonium', async (accounts) => {
 
     const checkExpectedBlockHeaders = async (expectedHeaders) => {
         await expectedHeaders.forEach(async expected => {
-            const actual = toBlock(expected.block.hash, await testimonium.getBlock(web3.utils.hexToBytes(expected.block.hash)));
+            const actual = await testimonium.headers(web3.utils.hexToBytes(expected.block.hash));
             assertBlocksEqual(actual, expected.block);
             expect(actual.latestFork).to.equal(expected.latestFork);
             expect(actual.orderedIndex).to.be.bignumber.equal(new BN(expected.orderedIndex));
             expect(actual.iterableIndex).to.be.bignumber.equal(new BN(expected.iterableIndex));
             expect(actual.lockedUntil).to.be.bignumber.equal(expected.lockedUntil);
+            expect(actual.successors).to.deep.equal(expected.successors);
         });
     };
-
 });
 
 
@@ -277,17 +288,15 @@ Block.prototype.toString = function blockToString() {
   }`
 };
 
-const toBlock = (hash, result) => {
-    return new Block(hash, result[0], result[1], result[2], result[3], result[4], result[5], result[6]);
-};
-
 const assertBlocksEqual = (actual, expected) => {
-    expect(actual.hash).to.equal(expected.hash);
-    expect(actual.parent).to.equal(expected.parent);
-    expect(actual.number).to.be.bignumber.equal(new BN(expected.number));
+    expect(actual.parent).to.equal(expected.parentHash);
+    expect(actual.blockNumber).to.be.bignumber.equal(new BN(expected.number));
     expect(actual.totalDifficulty).to.be.bignumber.equal(expected.totalDifficulty);
-    // todo: maybe parse also total difficulty in Testimonium contract, so we don't have to it calculate manually
-    // assert.equal(actual.totalDifficulty, expected.totalDifficulty, 'Total difficulties are different');
+    expect(actual.stateRoot).to.equal(expected.stateRoot);
+    expect(actual.transactionsRoot).to.equal(expected.transactionsRoot);
+    expect(actual.receiptsRoot).to.equal(expected.receiptsRoot);
+    expect(actual.nonce).to.be.bignumber.equal(web3.utils.toBN(expected.nonce));
+    expect(actual.rlpHeaderHashWithoutNonce).to.equal(web3.utils.keccak256(createRLPHeaderWithoutNonce(expected)));
 };
 
 async function asyncForEach(array, callback) {

@@ -27,11 +27,11 @@ contract('Testimonium', async (accounts) => {
     });
 
 
-    // Test Scenario:
+    // Test Scenario 1:
     //
     // (0)
     //
-    it("should initialise correctly", async () => {
+    it("should correctly execute test scenario 1", async () => {
         const initTime = await time.latest();
         const expectedGenesis = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
         const expectedBlocks = [
@@ -41,21 +41,21 @@ contract('Testimonium', async (accounts) => {
                 iterableIndex: 0,
                 latestFork: ZERO_BLOCK,
                 lockedUntil: initTime,
-                successors: undefined
+                successors: []
             }
         ];
 
-        expect(await testimonium.getNoOfForks()).to.be.bignumber.equal(new BN(1));
-        expect(await testimonium.getBlockHashOfEndpoint(0)).to.equal(expectedGenesis.hash);
-        expect(await testimonium.longestChainEndpoint()).to.equal(expectedGenesis.hash);
+        const expectedEndpoints = [ expectedGenesis ];
+
+        await checkExpectedEndpoints(expectedEndpoints);
         await checkExpectedBlockHeaders(expectedBlocks);
     });
 
-    // Test Scenario:
+    // Test Scenario 2:
     //
     // (0)---(1)
     //
-    it('should add a block header correctly on top of the genesis block', async () => {
+    it('should correctly execute test scenario 2', async () => {
         const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
         const expectedBlocks = [
             {
@@ -63,23 +63,22 @@ contract('Testimonium', async (accounts) => {
                 orderedIndex: 0,
                 iterableIndex: 0,
                 latestFork: ZERO_BLOCK,
-                successors: undefined
+                successors: []
             }
         ];
-        await submitExpectedBlockHeaders(expectedBlocks);
+        const expectedEndpoints = [ block1 ];
 
-        expect(await testimonium.getNoOfForks()).to.be.bignumber.equal(new BN(1));
-        expect(await testimonium.getBlockHashOfEndpoint(0)).to.equal(block1.hash);
-        expect(await testimonium.longestChainEndpoint()).to.equal(block1.hash);
+        await submitBlockHeaders(expectedBlocks);
 
+        await checkExpectedEndpoints(expectedEndpoints);
         await checkExpectedBlockHeaders(expectedBlocks);
     });
 
-    // Test Scenario:
+    // Test Scenario 3:
     //
     // (0)---(1)---(2)
     //
-    it('should add two block headers correctly on top of the genesis block', async () => {
+    it('should correctly execute test scenario 3', async () => {
         // Create expected chain
         const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
         const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -88,26 +87,27 @@ contract('Testimonium', async (accounts) => {
                 block: block1,
                 orderedIndex: 0,
                 iterableIndex: 0,
-                latestFork: ZERO_BLOCK
+                latestFork: ZERO_BLOCK,
+                successors: [block2.hash]
             },
             {
                 block: block2,
                 orderedIndex: 0,
                 iterableIndex: 0,
-                latestFork: ZERO_BLOCK
+                latestFork: ZERO_BLOCK,
+                successors: []
             }
         ];
-        await submitExpectedBlockHeaders(expectedBlocks);
+        const expectedEndpoints = [ block2 ];
+
+        await submitBlockHeaders(expectedBlocks);
 
         // Perform checks
-        expect(await testimonium.getNoOfForks()).to.be.bignumber.equal(new BN(1));
-        expect(await testimonium.getBlockHashOfEndpoint(0)).to.equal(block2.hash);
-        // expect(await testimonium.getLongestChainEndpoint).to.equal(expected.latestFork);
-
+        await checkExpectedEndpoints(expectedEndpoints);
         await checkExpectedBlockHeaders(expectedBlocks);
     });
 
-    // Test Scenario:
+    // Test Scenario 4:
     //
     //      -(1)
     //    /
@@ -115,7 +115,7 @@ contract('Testimonium', async (accounts) => {
     //    \
     //      -(2)
     //
-    it('should create a fork correctly', async () => {
+    it('should correctly execute test scenario 4', async () => {
         const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
         const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
 
@@ -130,25 +130,76 @@ contract('Testimonium', async (accounts) => {
                 block: block1,
                 orderedIndex: 0,
                 iterableIndex: 0,
-                latestFork: block1.parentHash
+                latestFork: block1.parentHash,
+                successors: []
             },
             {
                 block: block2,
                 orderedIndex: 1,
                 iterableIndex: 1,
-                latestFork: block2.parentHash
+                latestFork: block2.parentHash,
+                successors: []
             }
         ];
-        await submitExpectedBlockHeaders(expectedBlocks);
+        const expectedEndpoints = [ block1, block2 ];
+        await submitBlockHeaders(expectedBlocks);
 
         // Perform checks
-        expect(await testimonium.getNoOfForks()).to.be.bignumber.equal(new BN(2));
-        expect(await testimonium.getBlockHashOfEndpoint(0)).to.equal(block1.hash);
-        expect(await testimonium.getBlockHashOfEndpoint(1)).to.equal(block2.hash);
+        await checkExpectedEndpoints(expectedEndpoints);
         await checkExpectedBlockHeaders(expectedBlocks);
     });
 
-    // Test Scenario:
+    // Test Scenario 5:
+    //
+    //      -(1)---(2)
+    //    /
+    // (0)
+    //    \
+    //      -(3)
+    //
+    it('should correctly execute test scenario 5', async () => {
+        const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+        const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+        const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+
+        // change data of block 3
+        block3.transactionsRoot = block1.receiptsRoot;
+        block3.stateRoot = block1.transactionsRoot;
+        block3.receiptsRoot = block1.stateRoot;
+        block3.hash = calculateBlockHash(block3);  // IMPORTANT: recalculate block hash otherwise asserts fails
+
+        const expectedBlocks = [
+            {
+                block: block1,
+                orderedIndex: 0,
+                iterableIndex: 0,
+                latestFork: block1.parentHash,
+                successors: [block2.hash]
+            },
+            {
+                block: block2,
+                orderedIndex: 0,
+                iterableIndex: 0,
+                latestFork: block1.parentHash,
+                successors: []
+            },
+            {
+                block: block3,
+                orderedIndex: 1,
+                iterableIndex: 1,
+                latestFork: block3.parentHash,
+                successors: []
+            }
+        ];
+        const expectedEndpoints = [ block2, block3 ];
+        await submitBlockHeaders(expectedBlocks);
+
+        // Perform checks
+        await checkExpectedEndpoints(expectedEndpoints);
+        await checkExpectedBlockHeaders(expectedBlocks);
+    });
+
+    // Test Scenario 6:
     //
     //      -(1)
     //    /
@@ -156,7 +207,7 @@ contract('Testimonium', async (accounts) => {
     //    \
     //      -(3)
     //
-    it('should create a three-fork correctly', async () => {
+    it('should correctly execute test scenario 6', async () => {
         const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
         const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
         const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -178,28 +229,185 @@ contract('Testimonium', async (accounts) => {
                 block: block1,
                 orderedIndex: 0,
                 iterableIndex: 0,
-                latestFork: block1.parentHash
+                latestFork: block1.parentHash,
+                successors: []
             },
             {
                 block: block2,
                 orderedIndex: 1,
                 iterableIndex: 1,
-                latestFork: block2.parentHash
+                latestFork: block2.parentHash,
+                successors: []
             },
             {
                 block: block3,
                 orderedIndex: 2,
                 iterableIndex: 2,
-                latestFork: block3.parentHash
+                latestFork: block3.parentHash,
+                successors: []
             }
         ];
-        await submitExpectedBlockHeaders(expectedBlocks);
+        const expectedEndpoints = [ block1, block2, block3 ];
+
+        await submitBlockHeaders(expectedBlocks);
 
         // Perform checks
-        expect(await testimonium.getNoOfForks()).to.be.bignumber.equal(new BN(3));
-        expect(await testimonium.getBlockHashOfEndpoint(0)).to.equal(block1.hash);
-        expect(await testimonium.getBlockHashOfEndpoint(1)).to.equal(block2.hash);
-        expect(await testimonium.getBlockHashOfEndpoint(2)).to.equal(block3.hash);
+        await checkExpectedEndpoints(expectedEndpoints);
+        await checkExpectedBlockHeaders(expectedBlocks);
+    });
+
+    // Test Scenario 7:
+    //
+    //      -(1)---(2)---(3)
+    //    /
+    // (0)
+    //    \
+    //      -(4)
+    //
+    it('should correctly execute test scenario 7', async () => {
+        const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+        const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+        const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+        const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+
+        // change data of block 4
+        block4.transactionsRoot = block1.receiptsRoot;
+        block4.stateRoot = block1.transactionsRoot;
+        block4.receiptsRoot = block1.stateRoot;
+        block4.hash = calculateBlockHash(block4);  // IMPORTANT: recalculate block hash otherwise asserts fails
+
+        const expectedBlocks = [
+            {
+                block: block1,
+                orderedIndex: 0,
+                iterableIndex: 0,
+                latestFork: block1.parentHash,
+                successors: [block2.hash]
+            },
+            {
+                block: block2,
+                orderedIndex: 0,
+                iterableIndex: 0,
+                latestFork: block1.parentHash,
+                successors: [block3.hash]
+            },
+            {
+                block: block3,
+                orderedIndex: 0,
+                iterableIndex: 0,
+                latestFork: block1.parentHash,
+                successors: []
+            },
+            {
+                block: block4,
+                orderedIndex: 1,
+                iterableIndex: 1,
+                latestFork: block4.parentHash,
+                successors: []
+            }
+        ];
+        const expectedEndpoints = [ block3, block4 ];
+        await submitBlockHeaders(expectedBlocks);
+
+        // Perform checks
+        await checkExpectedEndpoints(expectedEndpoints);
+        await checkExpectedBlockHeaders(expectedBlocks);
+    });
+
+    // Test Scenario 8:
+    //
+    //                  -(5)---(7)
+    //                /
+    // (0)---(1)---(2)---(3)---(4)
+    //                      \
+    //                        -(6)
+    //
+    it.only('should correctly execute test scenario 8', async () => {
+        const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+        const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+        const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+        const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+        const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+        const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+        const block7 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+
+        // change data of block 5
+        block5.transactionsRoot = block3.receiptsRoot;
+        block5.stateRoot = block3.transactionsRoot;
+        block5.receiptsRoot = block3.stateRoot;
+        block5.parentHash = block2.hash;
+        block5.hash = calculateBlockHash(block5);  // IMPORTANT: recalculate block hash otherwise asserts fails
+
+        // change data of block 6
+        block6.transactionsRoot = block4.receiptsRoot;
+        block6.stateRoot = block4.transactionsRoot;
+        block6.receiptsRoot = block4.stateRoot;
+        block6.parentHash = block3.hash;
+        block6.hash = calculateBlockHash(block6);  // IMPORTANT: recalculate block hash otherwise asserts fails
+
+        // change data of block 7
+        block7.transactionsRoot = block4.receiptsRoot;
+        block7.stateRoot = block4.transactionsRoot;
+        block7.receiptsRoot = block4.stateRoot;
+        block7.parentHash = block5.hash;
+        block7.hash = calculateBlockHash(block7);  // IMPORTANT: recalculate block hash otherwise asserts fails
+
+        const expectedBlocks = [
+            {
+                block: block1,
+                orderedIndex: 0,
+                iterableIndex: 0,
+                latestFork: ZERO_BLOCK,
+                successors: [block2.hash]
+            },
+            {
+                block: block2,
+                orderedIndex: 0,
+                iterableIndex: 0,
+                latestFork: ZERO_BLOCK,
+                successors: [block3.hash, block5.hash]
+            },
+            {
+                block: block3,
+                orderedIndex: 0,
+                iterableIndex: 0,
+                latestFork: block2.hash,
+                successors: [block4.hash, block6.hash]
+            },
+            {
+                block: block4,
+                orderedIndex: 0,
+                iterableIndex: 0,
+                latestFork: block3.hash,
+                successors: []
+            },
+            {
+                block: block5,
+                orderedIndex: 1,
+                iterableIndex: 0,
+                latestFork: block2.hash,
+                successors: [block7.hash]
+            },
+            {
+                block: block6,
+                orderedIndex: 2,
+                iterableIndex: 2,
+                latestFork: block3.hash,
+                successors: []
+            },
+            {
+                block: block7,
+                orderedIndex: 1,
+                iterableIndex: 1,
+                latestFork: block2.hash,
+                successors: []
+            }
+        ];
+        const expectedEndpoints = [ block4, block7, block6 ];
+        await submitBlockHeaders(expectedBlocks);
+
+        // Perform checks
+        await checkExpectedEndpoints(expectedEndpoints);
         await checkExpectedBlockHeaders(expectedBlocks);
     });
 
@@ -220,18 +428,19 @@ contract('Testimonium', async (accounts) => {
                 block: block1,
                 orderedIndex: 0,
                 iterableIndex: 0,
-                latestFork: ZERO_BLOCK
+                latestFork: ZERO_BLOCK,
+                successors: []
             }
         ];
-        await submitExpectedBlockHeaders(expectedBlocks);
+        await submitBlockHeaders(expectedBlocks);
         expect(await testimonium.isUnlocked(block1.hash)).to.equal(false);  // block is locked right after submission
-        await time.increase(LOCK_PERIOD);
+        await time.increaseTo(expectedBlocks[0].lockedUntil-1);
         expect(await testimonium.isUnlocked(block1.hash)).to.equal(false);  // block is locked for duration of lock period
-        await time.increase(time.duration.seconds(1));
+        await time.increase(time.duration.seconds(2));
         expect(await testimonium.isUnlocked(block1.hash)).to.equal(true);   // block is unlocked right after lock period has passed
     });
 
-    const submitExpectedBlockHeaders = async (expectedHeaders) => {
+    const submitBlockHeaders = async (expectedHeaders) => {
         await asyncForEach(expectedHeaders, async expected => {
             const rlpHeader = createRLPHeader(expected.block);
             await time.increase(time.duration.seconds(15));
@@ -242,8 +451,10 @@ contract('Testimonium', async (accounts) => {
     };
 
     const checkExpectedBlockHeaders = async (expectedHeaders) => {
-        await expectedHeaders.forEach(async expected => {
+        await asyncForEach(expectedHeaders, async expected => {
             const actual = await testimonium.headers(web3.utils.hexToBytes(expected.block.hash));
+            const successors = await testimonium.getSuccessors(web3.utils.hexToBytes(expected.block.hash));  // successors are not returned in first call
+            actual.successors = successors;
             assertBlocksEqual(actual, expected.block);
             expect(actual.latestFork).to.equal(expected.latestFork);
             expect(actual.orderedIndex).to.be.bignumber.equal(new BN(expected.orderedIndex));
@@ -252,6 +463,22 @@ contract('Testimonium', async (accounts) => {
             expect(actual.successors).to.deep.equal(expected.successors);
         });
     };
+
+    // checks if expectedEndpoints array is correct and if longestChainEndpoints contains hash of block with highest difficulty
+    const checkExpectedEndpoints = async (expectedEndpoints) => {
+        expect(await testimonium.getNoOfForks()).to.be.bignumber.equal(new BN(expectedEndpoints.length));
+
+        let expectedLongestChainEndpoint = expectedEndpoints[0];
+        await expectedEndpoints.forEach(async (expected, index) => {
+            expect(await testimonium.getBlockHashOfEndpoint(index)).to.equal(expected.hash);
+            if (expectedLongestChainEndpoint.totalDifficulty < expected.totalDifficulty) {
+                expectedLongestChainEndpoint = expected;
+            }
+        });
+
+        expect(await testimonium.longestChainEndpoint()).to.equal(expectedLongestChainEndpoint.hash);
+
+    }
 });
 
 

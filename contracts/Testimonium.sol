@@ -52,6 +52,10 @@ contract Testimonium {
         return iterableEndpoints[index];
     }
 
+    function getSuccessors(bytes32 blockHash) public view returns (bytes32[] memory) {
+        return headers[blockHash].successors;
+    }
+
     function isBlock(bytes32 hash) public view returns (bool) {
         return headers[hash].nonce != 0;    // maybe a more sophisticated check is required here
     }

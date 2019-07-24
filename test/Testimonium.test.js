@@ -566,7 +566,7 @@ contract('Testimonium', async (accounts) => {
         //                                              \
         //                                                -(11)---(12)
         //
-        it.only('should correctly execute test scenario 3', async () => {
+        it('should correctly execute test scenario 3', async () => {
 
 
             // Create expected chain

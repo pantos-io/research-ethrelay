@@ -665,7 +665,120 @@ contract('Testimonium', async (accounts) => {
                 }
             }
         });
+        // Test Scenario 4:
+        //
+        // (0)---(1)
+        //    \
+        //      -(2)---(3)---(4)---(6)---(8)---(10)---(12)
+        //        ^       \     \     \     \
+        //        |         -(5)  -(7)  -(9)  -(11)
+        //        tx
+        //
+        it('should correctly execute test scenario 4', async () => {
+            // Create expected chain
+            const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block7  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block8  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
+            const block9  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
+            const block10 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 6);
+            const block11 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 6);
+            const block12 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 7);
+            const txHash  = web3.utils.hexToBytes(block2.transactions[0]);
+
+            block2.nonce += 1;
+            block2.hash = calculateBlockHash(block2);
+
+            block3.parentHash = block2.hash;
+            block3.hash = calculateBlockHash(block3);
+
+            block4.parentHash = block3.hash;
+            block4.hash = calculateBlockHash(block4);
+            block5.nonce += 1;
+            block5.parentHash = block3.hash;
+            block5.hash = calculateBlockHash(block5);
+
+            block6.parentHash = block4.hash;
+            block6.hash = calculateBlockHash(block6);
+            block7.nonce += 1;
+            block7.parentHash = block4.hash;
+            block7.hash = calculateBlockHash(block7);
+
+            block8.parentHash = block6.hash;
+            block8.hash = calculateBlockHash(block8);
+            block9.nonce += 1;
+            block9.parentHash = block6.hash;
+            block9.hash = calculateBlockHash(block9);
+
+            block10.parentHash = block8.hash;
+            block10.hash = calculateBlockHash(block10);
+            block11.nonce += 1;
+            block11.parentHash = block8.hash;
+            block11.hash = calculateBlockHash(block11);
+
+            block12.parentHash = block10.hash;
+            block12.hash = calculateBlockHash(block12);
+
+            const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
+            const expectedBlocks = [
+                { block: block1 },
+                { block: block2 },
+                { block: block3 },
+                { block: block4 },
+                { block: block5 },
+                { block: block6 },
+                { block: block7 },
+                { block: block8 },
+                { block: block9 },
+                { block: block10 },
+                { block: block11 },
+                { block: block12 }
+            ];
+
+            const maxConfirmations = expectedBlocks.length + 1;
+            const expectedVerificationResults = [
+                generateBooleanArray(0, maxConfirmations), // no unlocked block
+                generateBooleanArray(0, maxConfirmations), // block 1 unlocked
+                generateBooleanArray(1, maxConfirmations), // block 2 unlocked
+                generateBooleanArray(2, maxConfirmations), // block 3 unlocked
+                generateBooleanArray(3, maxConfirmations), // block 4 unlocked
+                generateBooleanArray(3, maxConfirmations), // block 5 unlocked
+                generateBooleanArray(4, maxConfirmations), // block 6 unlocked
+                generateBooleanArray(4, maxConfirmations), // block 7 unlocked
+                generateBooleanArray(5, maxConfirmations), // block 8 unlocked
+                generateBooleanArray(5, maxConfirmations), // block 9 unlocked
+                generateBooleanArray(6, maxConfirmations), // block 10 unlocked
+                generateBooleanArray(6, maxConfirmations), // block 11 unlocked
+                generateBooleanArray(7, maxConfirmations), // block 12 unlocked
+            ];
+
+            await submitBlockHeaders(expectedBlocks);
+
+            expectedBlocks.forEach((block, index) => {
+                console.log(`Block ${index + 1} lockedUntil: ${block.lockedUntil}`)
+            });
+
+            for (let i = 0; i < expectedBlocks.length + 1; i++) {
+                console.log(`Current time: ${await time.latest()}`);
+                console.log(`Unlocked block: ${i}`);
+
+                for (let j=0; j < expectedVerificationResults[i].length; j++) {
+                    expect(await testimonium.verifyTransaction(txHash, requestedBlockHash, j))
+                        .to.equal(expectedVerificationResults[i][j]);
+                }
+
+                if (i < expectedBlocks.length) {
+                    await time.increaseTo(expectedBlocks[i].lockedUntil);
+                    await time.increase(time.duration.seconds(1));
+                }
+            }
+        });
     });
+
 
     const submitBlockHeaders = async (expectedHeaders) => {
         await asyncForEach(expectedHeaders, async expected => {
@@ -705,7 +818,7 @@ contract('Testimonium', async (accounts) => {
 
         expect(await testimonium.longestChainEndpoint()).to.equal(expectedLongestChainEndpoint.hash);
 
-    }
+    };
 });
 
 

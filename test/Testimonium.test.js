@@ -786,28 +786,46 @@ contract('Testimonium', async (accounts) => {
         // (0)---(1)-X-(2)---(3)---(4)
         //
         //
-        it.only('should make the parent the endpoint when pruning at a non-fork', async () => {
+        it('should make the parent the endpoint when pruning at a non-fork', async () => {
             // Create expected chain
             const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
             const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
             const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
 
-            const expectedBlocks = [
+            const blocksToSubmit = [
                 { block: block1 },
                 { block: block2 },
                 { block: block3 },
                 { block: block4 },
             ];
 
-            const expectedEndpoints = [ block1 ];
-
-            await submitBlockHeaders(expectedBlocks);
-            console.log(await testimonium.getNoOfForks());
+            // Submit and dispute blocks
+            await submitBlockHeaders(blocksToSubmit);
             await testimonium.disputeBlock(web3.utils.hexToBytes(block2.hash));
-            console.log(await testimonium.getNoOfForks());
 
+            // Check
+            const expectedEndpoints = [ block1 ];
+            const expectedBlocks = [
+                {
+                    block: block1,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: ZERO_BLOCK,
+                    successors: [],
+                    lockedUntil: blocksToSubmit[0].lockedUntil
+                }
+            ];
             await checkExpectedEndpoints(expectedEndpoints);
+            await checkExpectedBlockHeaders(expectedBlocks);
+
+            // check that all blocks after block 2 have been really removed
+            for (let i=1; i<blocksToSubmit.length; i++) {
+                const removedBlockHash = blocksToSubmit[i].block.hash;
+                const removedBlock = await testimonium.headers(web3.utils.hexToBytes(removedBlockHash));
+                expect(removedBlock.blockNumber).to.be.bignumber.equal(new BN(0));
+                expect(removedBlock.nonce).to.be.bignumber.equal(new BN(0));
+            }
 
         });
     });

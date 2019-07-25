@@ -859,10 +859,6 @@ contract('Testimonium', async (accounts) => {
                 { block: block6 }
             ];
 
-            blocksToSubmit.forEach((block) => {
-               console.log(block.block.hash);
-            });
-
             // Submit and dispute blocks
             await submitBlockHeaders(blocksToSubmit);
             await testimonium.disputeBlock(web3.utils.hexToBytes(block2.hash));

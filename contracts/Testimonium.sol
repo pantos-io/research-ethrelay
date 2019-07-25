@@ -207,10 +207,8 @@ contract Testimonium {
             return true;    // --> block is unlocked and no more confirmations are required
         }
 
-        // More confirmations are required but block has more than one successor or no successor at all.
-        // Since we do not know which path to take or there is no path to choose at all, we return false.
-        if (headers[start].successors.length != 1) {
-            // todo: move along first path
+        if (headers[start].successors.length == 0) {
+            // More confirmations are required but block has no more successors.
             return false;
         }
 

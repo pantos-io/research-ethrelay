@@ -252,7 +252,7 @@ contract Testimonium {
                 // overwrite root with last successor and delete last successor
                 parentHeader.successors[i] = parentHeader.successors[parentHeader.successors.length - 1];
                 parentHeader.successors.length--;
-            break;  // we remove at most one element
+                break;  // we remove at most one element
             }
         }
         pruneBranch(root);

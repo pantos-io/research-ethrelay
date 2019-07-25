@@ -237,26 +237,26 @@ contract Testimonium {
 
 
     event RemoveBranch( bytes32 root );
-    function removeBranch(bytes32 root) private {
-        bytes32 parent = headers[root].parent;
-        BlockHeader storage parentHeader = headers[parent];
+    function removeBranch(bytes32 rootHash) private {
+        bytes32 parentHash = headers[rootHash].parent;
+        BlockHeader storage parentHeader = headers[parentHash];
         if (parentHeader.successors.length == 1) {
             // parentHeader has only one successor --> parentHeader will be an endpoint after pruning
-            orderedEndpoints[parentHeader.orderedIndex] = parent;
-            parentHeader.iterableIndex = iterableEndpoints.push(parent) - 1;
+            orderedEndpoints[parentHeader.orderedIndex] = parentHash;
+            parentHeader.iterableIndex = iterableEndpoints.push(parentHash) - 1;
         }
 
         // remove root (which will be pruned) from the parent's successor list
         for (uint i=0; i<parentHeader.successors.length; i++) {
-            if (parentHeader.successors[i] == root) {
+            if (parentHeader.successors[i] == rootHash) {
                 // overwrite root with last successor and delete last successor
                 parentHeader.successors[i] = parentHeader.successors[parentHeader.successors.length - 1];
                 parentHeader.successors.length--;
                 break;  // we remove at most one element
             }
         }
-        pruneBranch(root);
-        emit RemoveBranch(root);
+        pruneBranch(rootHash);
+        emit RemoveBranch(rootHash);
     }
 
     function pruneBranch(bytes32 root) private {
@@ -267,8 +267,10 @@ contract Testimonium {
         if (orderedEndpoints[rootHeader.orderedIndex] == root) {
             // root is an endpoint --> delete root in endpoints array, since root will be deleted and thus can no longer be an endpoint
             delete orderedEndpoints[rootHeader.orderedIndex];
-            iterableEndpoints[rootHeader.iterableIndex] = iterableEndpoints[iterableEndpoints.length - 1];
+            bytes32 lastIterableElement = iterableEndpoints[iterableEndpoints.length - 1];
+            iterableEndpoints[rootHeader.iterableIndex] = lastIterableElement;
             iterableEndpoints.length--;
+            headers[lastIterableElement].iterableIndex = rootHeader.iterableIndex;
         }
         delete headers[root];
     }

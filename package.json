@@ -16,6 +16,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "bignumber.js": "^9.0.0",
     "openzeppelin-solidity": "^2.3.0",
     "rlp": "^2.2.3",
     "truffle": "^5.0.22",

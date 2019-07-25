@@ -1,12 +1,12 @@
 const Web3 = require("web3");
 const {BN, balance, ether, expectRevert, time} = require('openzeppelin-test-helpers');
-const {createRLPHeader, calculateBlockHash, createRLPHeaderWithoutNonce} = require('../utils/utils');
+const {createRLPHeader, calculateBlockHash, createRLPHeaderWithoutNonce, addToHex} = require('../utils/utils');
 
 const Testimonium = artifacts.require('./Testimonium');
 const {expect} = require('chai');
 
 const GENESIS_BLOCK = 8084509;
-const ZERO_BLOCK = '0x0000000000000000000000000000000000000000000000000000000000000000';
+const ZERO_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const LOCK_PERIOD = time.duration.minutes(5);
 
 
@@ -41,7 +41,7 @@ contract('Testimonium', async (accounts) => {
                     block: expectedGenesis,
                     orderedIndex: 0,
                     iterableIndex: 0,
-                    latestFork: ZERO_BLOCK,
+                    latestFork: ZERO_HASH,
                     lockedUntil: initTime,
                     successors: []
                 }
@@ -64,7 +64,7 @@ contract('Testimonium', async (accounts) => {
                     block: block1,
                     orderedIndex: 0,
                     iterableIndex: 0,
-                    latestFork: ZERO_BLOCK,
+                    latestFork: ZERO_HASH,
                     successors: []
                 }
             ];
@@ -89,14 +89,14 @@ contract('Testimonium', async (accounts) => {
                     block: block1,
                     orderedIndex: 0,
                     iterableIndex: 0,
-                    latestFork: ZERO_BLOCK,
+                    latestFork: ZERO_HASH,
                     successors: [block2.hash]
                 },
                 {
                     block: block2,
                     orderedIndex: 0,
                     iterableIndex: 0,
-                    latestFork: ZERO_BLOCK,
+                    latestFork: ZERO_HASH,
                     successors: []
                 }
             ];
@@ -359,14 +359,14 @@ contract('Testimonium', async (accounts) => {
                     block: block1,
                     orderedIndex: 0,
                     iterableIndex: 0,
-                    latestFork: ZERO_BLOCK,
+                    latestFork: ZERO_HASH,
                     successors: [block2.hash]
                 },
                 {
                     block: block2,
                     orderedIndex: 0,
                     iterableIndex: 0,
-                    latestFork: ZERO_BLOCK,
+                    latestFork: ZERO_HASH,
                     successors: [block3.hash, block5.hash]
                 },
                 {
@@ -430,7 +430,7 @@ contract('Testimonium', async (accounts) => {
                     block: block1,
                     orderedIndex: 0,
                     iterableIndex: 0,
-                    latestFork: ZERO_BLOCK,
+                    latestFork: ZERO_HASH,
                     successors: []
                 }
             ];
@@ -518,7 +518,7 @@ contract('Testimonium', async (accounts) => {
             const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const txHash = web3.utils.hexToBytes(block4.transactions[0]);
 
-            block4.nonce += 1;
+            block4.nonce = addToHex(block4.nonce, 1);
             block4.hash = calculateBlockHash(block4);
 
             const requestedBlockHash = web3.utils.hexToBytes(block4.hash);
@@ -584,7 +584,7 @@ contract('Testimonium', async (accounts) => {
             const block12 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 9);
             const txHash  = web3.utils.hexToBytes(block1.transactions[0]);
 
-            block4.nonce += 1;
+            block4.nonce = addToHex(block4.nonce, 1);;
             block4.hash = calculateBlockHash(block4);
 
             block5.parentHash = block4.hash;
@@ -592,7 +592,7 @@ contract('Testimonium', async (accounts) => {
 
             block6.parentHash = block5.hash;
             block6.hash = calculateBlockHash(block6);
-            block7.nonce += 1;
+            block7.nonce = addToHex(block7.nonce, 1);
             block7.parentHash = block5.hash;
             block7.hash = calculateBlockHash(block7);
 
@@ -604,7 +604,7 @@ contract('Testimonium', async (accounts) => {
 
             block10.parentHash = block9.hash;
             block10.hash = calculateBlockHash(block10);
-            block11.nonce += 1;
+            block11.nonce = addToHex(block11.nonce, 1);
             block11.parentHash = block9.hash;
             block11.hash = calculateBlockHash(block11);
 
@@ -690,7 +690,7 @@ contract('Testimonium', async (accounts) => {
             const block12 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 7);
             const txHash  = web3.utils.hexToBytes(block2.transactions[0]);
 
-            block2.nonce += 1;
+            block2.nonce = addToHex(block2.nonce, 1);
             block2.hash = calculateBlockHash(block2);
 
             block3.parentHash = block2.hash;
@@ -698,25 +698,25 @@ contract('Testimonium', async (accounts) => {
 
             block4.parentHash = block3.hash;
             block4.hash = calculateBlockHash(block4);
-            block5.nonce += 1;
+            block5.nonce = addToHex(block5.nonce, 1);
             block5.parentHash = block3.hash;
             block5.hash = calculateBlockHash(block5);
 
             block6.parentHash = block4.hash;
             block6.hash = calculateBlockHash(block6);
-            block7.nonce += 1;
+            block7.nonce = addToHex(block7.nonce, 1);
             block7.parentHash = block4.hash;
             block7.hash = calculateBlockHash(block7);
 
             block8.parentHash = block6.hash;
             block8.hash = calculateBlockHash(block8);
-            block9.nonce += 1;
+            block9.nonce = addToHex(block9.nonce, 1);
             block9.parentHash = block6.hash;
             block9.hash = calculateBlockHash(block9);
 
             block10.parentHash = block8.hash;
             block10.hash = calculateBlockHash(block10);
-            block11.nonce += 1;
+            block11.nonce = addToHex(block11.nonce, 1);
             block11.parentHash = block8.hash;
             block11.hash = calculateBlockHash(block11);
 
@@ -781,12 +781,12 @@ contract('Testimonium', async (accounts) => {
 
     describe('DisputeBlock', function () {
 
-        // Test Scenario 4:
+        // Test Scenario 1:
         //
         // (0)---(1)-X-(2)---(3)---(4)
         //
         //
-        it('should make the parent the endpoint when pruning at a non-fork', async () => {
+        it('should correctly execute test scenario 1', async () => {
             // Create expected chain
             const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -811,7 +811,7 @@ contract('Testimonium', async (accounts) => {
                     block: block1,
                     orderedIndex: 0,
                     iterableIndex: 0,
-                    latestFork: ZERO_BLOCK,
+                    latestFork: ZERO_HASH,
                     successors: [],
                     lockedUntil: blocksToSubmit[0].lockedUntil
                 }
@@ -826,6 +826,431 @@ contract('Testimonium', async (accounts) => {
                 expect(removedBlock.blockNumber).to.be.bignumber.equal(new BN(0));
                 expect(removedBlock.nonce).to.be.bignumber.equal(new BN(0));
             }
+
+        });
+
+        // Test Scenario 2:
+        //
+        // (0)---(1)-X-(2)---(4)---(5)
+        //          \
+        //            -(3)---(6)
+        //
+        it('should correctly execute test scenario 2', async () => {
+            // Create expected chain
+            const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+
+            block3.nonce = addToHex(block3.nonce, 1);
+            block3.hash = calculateBlockHash(block3);
+
+            block6.parentHash = block3.hash;
+            block6.hash = calculateBlockHash(block6);
+
+            const blocksToSubmit = [
+                { block: block1 },
+                { block: block2 },
+                { block: block3 },
+                { block: block4 },
+                { block: block5 },
+                { block: block6 }
+            ];
+
+            blocksToSubmit.forEach((block) => {
+               console.log(block.block.hash);
+            });
+
+            // Submit and dispute blocks
+            await submitBlockHeaders(blocksToSubmit);
+            await testimonium.disputeBlock(web3.utils.hexToBytes(block2.hash));
+
+            // Check
+            const expectedBlocks = [
+                {
+                    block: block1,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: ZERO_HASH,
+                    successors: [block3.hash],
+                    lockedUntil: blocksToSubmit[0].lockedUntil
+                },
+                {
+                    block: block3,
+                    orderedIndex: 1,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [block6.hash],
+                    lockedUntil: blocksToSubmit[2].lockedUntil
+                },
+                {
+                    block: block6,
+                    orderedIndex: 1,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [],
+                    lockedUntil: blocksToSubmit[5].lockedUntil
+                }
+            ];
+            const expectedEndpoints = [ block6 ];
+            const expectedZeroBlocks = [block2, block4, block5];
+            await checkExpectedEndpoints(expectedEndpoints);
+            await checkExpectedBlockHeaders(expectedBlocks);
+            await checkExpectedZeroBlocks(expectedZeroBlocks);
+
+        });
+
+        // Test Scenario 3:
+        //
+        // (0)---(1)---(2)---(4)---(5)
+        //          \
+        //           X-(3)---(6)
+        //
+        it('should correctly execute test scenario 3', async () => {
+            // Create expected chain
+            const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+
+            block3.nonce = addToHex(block3.nonce, 1);
+            block3.hash = calculateBlockHash(block3);
+
+            block6.parentHash = block3.hash;
+            block6.hash = calculateBlockHash(block6);
+
+            const blocksToSubmit = [
+                { block: block1 },
+                { block: block2 },
+                { block: block3 },
+                { block: block4 },
+                { block: block5 },
+                { block: block6 }
+            ];
+
+            // Submit and dispute blocks
+            await submitBlockHeaders(blocksToSubmit);
+            await testimonium.disputeBlock(web3.utils.hexToBytes(block3.hash));
+
+            // Check
+            const expectedBlocks = [
+                {
+                    block: block1,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: ZERO_HASH,
+                    successors: [block2.hash],
+                    lockedUntil: blocksToSubmit[0].lockedUntil
+                },
+                {
+                    block: block2,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [block4.hash],
+                    lockedUntil: blocksToSubmit[1].lockedUntil
+                },
+                {
+                    block: block4,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [block5.hash],
+                    lockedUntil: blocksToSubmit[3].lockedUntil
+                },
+                {
+                    block: block5,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [],
+                    lockedUntil: blocksToSubmit[4].lockedUntil
+                }
+            ];
+            const expectedEndpoints = [ block5 ];
+            const expectedZeroBlocks = [block3, block6];
+            await checkExpectedBlockHeaders(expectedBlocks);
+            await checkExpectedEndpoints(expectedEndpoints);
+            await checkExpectedZeroBlocks(expectedZeroBlocks);
+
+        });
+
+        // Test Scenario 4:
+        //
+        //            -(2)---(5)
+        //          /
+        // (0)---(1)---(3)---(6)---(8)
+        //          \
+        //           X-(4)---(7)
+        //
+        it('should correctly execute test scenario 4', async () => {
+            // Create expected chain
+            const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block7  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block8  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+
+            block3.nonce = addToHex(block3.nonce, 1);
+            block3.hash = calculateBlockHash(block3);
+            block4.nonce = addToHex(block4.nonce, 2);
+            block4.hash = calculateBlockHash(block4);
+
+            block6.parentHash = block3.hash;
+            block6.hash = calculateBlockHash(block6);
+            block8.parentHash = block6.hash;
+            block8.hash = calculateBlockHash(block8);
+
+            block7.parentHash = block4.hash;
+            block7.hash = calculateBlockHash(block7);
+
+            const blocksToSubmit = [
+                { block: block1 },
+                { block: block2 },
+                { block: block3 },
+                { block: block4 },
+                { block: block5 },
+                { block: block6 },
+                { block: block7 },
+                { block: block8 }
+            ];
+
+            // Submit and dispute blocks
+            await submitBlockHeaders(blocksToSubmit);
+            await testimonium.disputeBlock(web3.utils.hexToBytes(block4.hash));
+
+            // Check
+            const expectedBlocks = [
+                {
+                    block: block1,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: ZERO_HASH,
+                    successors: [block2.hash, block3.hash],
+                    lockedUntil: blocksToSubmit[0].lockedUntil
+                },
+                {
+                    block: block2,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [block5.hash],
+                    lockedUntil: blocksToSubmit[1].lockedUntil
+                },
+                {
+                    block: block3,
+                    orderedIndex: 1,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [block6.hash],
+                    lockedUntil: blocksToSubmit[2].lockedUntil
+                },
+                {
+                    block: block5,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [],
+                    lockedUntil: blocksToSubmit[4].lockedUntil
+                },
+                {
+                    block: block6,
+                    orderedIndex: 1,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [block8.hash],
+                    lockedUntil: blocksToSubmit[5].lockedUntil
+                },
+                {
+                    block: block8,
+                    orderedIndex: 1,
+                    iterableIndex: 1,
+                    latestFork: block1.hash,
+                    successors: [],
+                    lockedUntil: blocksToSubmit[7].lockedUntil
+                }
+            ];
+            const expectedEndpoints = [ block5, block8 ];
+            const expectedZeroBlocks = [block4, block7];
+            await checkExpectedBlockHeaders(expectedBlocks);
+            await checkExpectedEndpoints(expectedEndpoints);
+            await checkExpectedZeroBlocks(expectedZeroBlocks);
+
+        });
+
+        // Test Scenario 5:
+        //
+        //            -(2)---(5)
+        //          /
+        // (0)---(1)-X-(3)---(6)---(7)
+        //          \
+        //            -(4)
+        //
+        it('should correctly execute test scenario 5', async () => {
+            // Create expected chain
+            const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block7  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+
+            block3.nonce = addToHex(block3.nonce, 1);
+            block3.hash = calculateBlockHash(block3);
+            block4.nonce = addToHex(block4.nonce, 2);
+            block4.hash = calculateBlockHash(block4);
+
+            block6.parentHash = block3.hash;
+            block6.hash = calculateBlockHash(block6);
+
+            block7.parentHash = block6.hash;
+            block7.hash = calculateBlockHash(block7);
+
+            const blocksToSubmit = [
+                { block: block1 },
+                { block: block2 },
+                { block: block3 },
+                { block: block4 },
+                { block: block5 },
+                { block: block6 },
+                { block: block7 }
+            ];
+
+            // Submit and dispute blocks
+            await submitBlockHeaders(blocksToSubmit);
+            await testimonium.disputeBlock(web3.utils.hexToBytes(block3.hash));
+
+            // Check
+            const expectedBlocks = [
+                {
+                    block: block1,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: ZERO_HASH,
+                    successors: [block2.hash, block4.hash],
+                    lockedUntil: blocksToSubmit[0].lockedUntil
+                },
+                {
+                    block: block2,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [block5.hash],
+                    lockedUntil: blocksToSubmit[1].lockedUntil
+                },
+                {
+                    block: block4,
+                    orderedIndex: 2,
+                    iterableIndex: 1,
+                    latestFork: block1.hash,
+                    successors: [],
+                    lockedUntil: blocksToSubmit[3].lockedUntil
+                },
+                {
+                    block: block5,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [],
+                    lockedUntil: blocksToSubmit[4].lockedUntil
+                }
+            ];
+            const expectedEndpoints = [ block5, block4 ];
+            const expectedZeroBlocks = [block3, block6, block7];
+            await checkExpectedBlockHeaders(expectedBlocks);
+            await checkExpectedEndpoints(expectedEndpoints);
+            await checkExpectedZeroBlocks(expectedZeroBlocks);
+
+        });
+
+        // Test Scenario 6:
+        //
+        //           X-(2)---(5)---(7)
+        //          /
+        // (0)---(1)---(3)---(6)
+        //          \
+        //            -(4)
+        //
+        it('should correctly execute test scenario 6', async () => {
+            // Create expected chain
+            const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block7  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+
+            block3.nonce = addToHex(block3.nonce, 1);
+            block3.hash = calculateBlockHash(block3);
+            block4.nonce = addToHex(block4.nonce, 2);
+            block4.hash = calculateBlockHash(block4);
+
+            block6.parentHash = block3.hash;
+            block6.hash = calculateBlockHash(block6);
+
+            const blocksToSubmit = [
+                { block: block1 },
+                { block: block2 },
+                { block: block3 },
+                { block: block4 },
+                { block: block5 },
+                { block: block6 },
+                { block: block7 }
+            ];
+
+            // Submit and dispute blocks
+            await submitBlockHeaders(blocksToSubmit);
+            await testimonium.disputeBlock(web3.utils.hexToBytes(block2.hash));
+
+            // Check
+            const expectedBlocks = [
+                {
+                    block: block1,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: ZERO_HASH,
+                    successors: [block4.hash, block3.hash],
+                    lockedUntil: blocksToSubmit[0].lockedUntil
+                },
+                {
+                    block: block3,
+                    orderedIndex: 1,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [block6.hash],
+                    lockedUntil: blocksToSubmit[2].lockedUntil
+                },
+                {
+                    block: block4,
+                    orderedIndex: 2,
+                    iterableIndex: 0,
+                    latestFork: block1.hash,
+                    successors: [],
+                    lockedUntil: blocksToSubmit[3].lockedUntil
+                },
+                {
+                    block: block6,
+                    orderedIndex: 1,
+                    iterableIndex: 1,
+                    latestFork: block1.hash,
+                    successors: [],
+                    lockedUntil: blocksToSubmit[5].lockedUntil
+                }
+            ];
+            const expectedEndpoints = [ block4, block6 ];
+            const expectedZeroBlocks = [block2, block5, block7];
+            await checkExpectedBlockHeaders(expectedBlocks);
+            await checkExpectedEndpoints(expectedEndpoints);
+            await checkExpectedZeroBlocks(expectedZeroBlocks);
 
         });
     });
@@ -855,12 +1280,20 @@ contract('Testimonium', async (accounts) => {
         });
     };
 
+    const checkExpectedZeroBlocks = async (expectedZeroBlocks) => {
+        await asyncForEach(expectedZeroBlocks, async expectedZero => {
+            const removedBlock = await testimonium.headers(web3.utils.hexToBytes(expectedZero.hash));
+            expect(removedBlock.blockNumber).to.be.bignumber.equal(new BN(0));
+            expect(removedBlock.nonce).to.be.bignumber.equal(new BN(0));
+        });
+    };
+
     // checks if expectedEndpoints array is correct and if longestChainEndpoints contains hash of block with highest difficulty
     const checkExpectedEndpoints = async (expectedEndpoints) => {
         expect(await testimonium.getNoOfForks()).to.be.bignumber.equal(new BN(expectedEndpoints.length));
 
         let expectedLongestChainEndpoint = expectedEndpoints[0];
-        await expectedEndpoints.forEach(async (expected, index) => {
+        await asyncForEach(expectedEndpoints, async (expected, index) => {
             expect(await testimonium.getBlockHashOfEndpoint(index)).to.equal(expected.hash);
             if (expectedLongestChainEndpoint.totalDifficulty < expected.totalDifficulty) {
                 expectedLongestChainEndpoint = expected;

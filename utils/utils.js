@@ -2,9 +2,14 @@ const RLP = require('rlp');
 const Web3 = require('web3');
 const web3 = new Web3(Web3.givenProvider || 'https://mainnet.infura.io', null, {});
 const BN = web3.utils.BN;
+const BigNumber = require('bignumber.js');
 
 const calculateBlockHash = (block) => {
     return web3.utils.keccak256(createRLPHeader(block));
+};
+
+const addToHex = (hexString, number) => {
+  return web3.utils.toHex((new BigNumber(hexString).plus(number)));
 };
 
 const createRLPHeader = (block) => {
@@ -47,5 +52,6 @@ const createRLPHeaderWithoutNonce = (block) => {
 module.exports = {
     calculateBlockHash,
     createRLPHeader,
-    createRLPHeaderWithoutNonce
+    createRLPHeaderWithoutNonce,
+    addToHex
 };

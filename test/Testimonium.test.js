@@ -779,6 +779,39 @@ contract('Testimonium', async (accounts) => {
         });
     });
 
+    describe('DisputeBlock', function () {
+
+        // Test Scenario 4:
+        //
+        // (0)---(1)-X-(2)---(3)---(4)
+        //
+        //
+        it.only('should make the parent the endpoint when pruning at a non-fork', async () => {
+            // Create expected chain
+            const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+
+            const expectedBlocks = [
+                { block: block1 },
+                { block: block2 },
+                { block: block3 },
+                { block: block4 },
+            ];
+
+            const expectedEndpoints = [ block1 ];
+
+            await submitBlockHeaders(expectedBlocks);
+            console.log(await testimonium.getNoOfForks());
+            await testimonium.disputeBlock(web3.utils.hexToBytes(block2.hash));
+            console.log(await testimonium.getNoOfForks());
+
+            await checkExpectedEndpoints(expectedEndpoints);
+
+        });
+    });
+
 
     const submitBlockHeaders = async (expectedHeaders) => {
         await asyncForEach(expectedHeaders, async expected => {
@@ -819,6 +852,7 @@ contract('Testimonium', async (accounts) => {
         expect(await testimonium.longestChainEndpoint()).to.equal(expectedLongestChainEndpoint.hash);
 
     };
+
 });
 
 

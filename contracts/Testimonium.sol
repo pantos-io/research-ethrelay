@@ -240,6 +240,9 @@ contract Testimonium {
     function removeBranch(bytes32 rootHash) private {
         bytes32 parentHash = headers[rootHash].parent;
         BlockHeader storage parentHeader = headers[parentHash];
+
+        pruneBranch(rootHash);
+
         if (parentHeader.successors.length == 1) {
             // parentHeader has only one successor --> parentHeader will be an endpoint after pruning
             orderedEndpoints[parentHeader.orderedIndex] = parentHash;
@@ -255,7 +258,15 @@ contract Testimonium {
                 break;  // we remove at most one element
             }
         }
-        pruneBranch(rootHash);
+
+        // find new longest chain endpoint
+        longestChainEndpoint = iterableEndpoints[0];
+        for (uint i=1; i<iterableEndpoints.length; i++) {
+            if (headers[iterableEndpoints[i]].totalDifficulty > headers[longestChainEndpoint].totalDifficulty) {
+                longestChainEndpoint = iterableEndpoints[i];
+            }
+        }
+
         emit RemoveBranch(rootHash);
     }
 

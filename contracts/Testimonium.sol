@@ -2,9 +2,18 @@ pragma solidity ^0.5.10;
 
 import "./RLP.sol";
 
+contract EthashInterface {
+    function verifyPoW(uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint nonce, uint difficulty,
+        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (bool, uint, uint);
+    function test(uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint nonce, uint difficulty,
+        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (bool);
+}
+
 contract Testimonium {
 
     using RLP for *;
+
+    EthashInterface ethashContract;
 
     struct BlockHeader {
         bytes32 parent;
@@ -16,6 +25,7 @@ contract Testimonium {
         bytes32 rlpHeaderHashWithoutNonce;   // sha3 hash of the header without nonce and mix fields
         uint nonce;                        // blockNumber, rlpHeaderHashWithoutNonce and nonce are needed for verifying PoW
         uint lockedUntil;                   // timestamp until which it is possible to dispute a given block
+        uint difficulty;
         uint totalDifficulty;
         uint orderedIndex;     // index at which the block header is/was stored in the ordered endpoints array
         uint iterableIndex;     // index at which the block header is/was stored in the iterable endpoints array
@@ -31,7 +41,7 @@ contract Testimonium {
 
     // The contract is initialized with block 8084509 and the total difficulty of that same block.
     // The contract creator needs to make sure that these values represent a valid block of the tracked blockchain.
-    constructor (bytes memory _rlpHeader, uint totalDifficulty) public {
+    constructor (bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) public {
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
         (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
@@ -41,6 +51,8 @@ contract Testimonium {
         newHeader.totalDifficulty = totalDifficulty;
         headers[newBlockHash] = newHeader;
         longestChainEndpoint = newBlockHash;
+
+        ethashContract = EthashInterface(_ethashContractAddr);
     }
 
     function getNoOfForks() public view returns (uint) {
@@ -101,16 +113,26 @@ contract Testimonium {
         headers[newBlockHash] = newHeader; // make sure to persist the header only AFTER all property changes
     }
 
-    function disputeBlock(bytes32 blockHash) public {
+    event PoWEvaluationResult(bool isPoWValid, uint errorCode, uint errorInfo);
+
+    function disputeBlock(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
         // Currently, once the dispute period is over and the block is unlocked we accept it as valid.
         // In that case, no validation is carried out anymore.
         // TO DISCUSS: There might not be a problem to accept disputes even after a block has been unlocked.
         // If an already unlocked block is disputed, certain transactions might have been illegally verified.
         require(!isUnlocked(blockHash), "dispute period is expired");
+        BlockHeader memory header = headers[blockHash];
+        bool isPoWCorrect;
+        uint errorCode;
+        uint errorInfo;
+        (isPoWCorrect, errorCode, errorInfo) = ethashContract.verifyPoW(header.blockNumber, header.rlpHeaderHashWithoutNonce,
+            header.nonce, header.difficulty, dataSetLookup, witnessForLookup);
+        emit PoWEvaluationResult(isPoWCorrect, errorCode, errorInfo);
 
         // todo: do light validation
-        // todo: do full validation (via SPV or majority vote)
-        removeBranch(blockHash);
+        if (!isPoWCorrect) {
+            removeBranch(blockHash);
+        }
     }
 
     // @dev Verifies the existence of a transaction ('txHash') within a certain block ('blockHash').
@@ -294,10 +316,9 @@ contract Testimonium {
         }
     }
 
-    event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, bytes32 parent );
+    event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent );
     function parseAndValidateBlockHeader( bytes memory rlpHeader ) internal returns(bytes32, BlockHeader memory) {
         BlockHeader memory header;
-        uint difficulty;
 
         RLP.Iterator memory it = rlpHeader.toRLPItem().iterator();
         uint idx;
@@ -306,7 +327,7 @@ contract Testimonium {
             else if ( idx == 3 ) header.stateRoot = it.next().toBytes32();
             else if ( idx == 4 ) header.transactionsRoot = it.next().toBytes32();
             else if ( idx == 5 ) header.receiptsRoot = it.next().toBytes32();
-            else if ( idx == 7 ) difficulty = it.next().toUint();
+            else if ( idx == 7 ) header.difficulty = it.next().toUint();
             else if ( idx == 8 ) header.blockNumber = it.next().toUint();
 //            else if ( idx == 9 ) header.gasLimit = it.next().toUint();
 //            else if ( idx == 11 ) header.timestamp = it.next().toUint();
@@ -333,9 +354,9 @@ contract Testimonium {
 
         // Get parent header and set total difficulty
         BlockHeader storage parentHeader = headers[header.parent];
-        header.totalDifficulty = parentHeader.totalDifficulty + difficulty;
+        header.totalDifficulty = parentHeader.totalDifficulty + header.difficulty;
 
-        emit SubmitBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.parent);
+        emit SubmitBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.difficulty, header.parent);
         return (blockHash, header);
     }
 

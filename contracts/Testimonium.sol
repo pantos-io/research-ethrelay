@@ -5,8 +5,6 @@ import "./RLP.sol";
 contract EthashInterface {
     function verifyPoW(uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint nonce, uint difficulty,
         uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (bool, uint, uint);
-    function test(uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint nonce, uint difficulty,
-        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (bool);
 }
 
 contract Testimonium {

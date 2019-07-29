@@ -1292,7 +1292,7 @@ contract('Testimonium', async (accounts) => {
         // (0)---(1)-X-(2)---(3)---(4)      // try to dispute a valid block -> should not prone any header
         //
         //
-        it.only('should correctly execute test scenario 7', async () => {
+        it('should correctly execute test scenario 7', async () => {
             // Create expected chain
             const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);

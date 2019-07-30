@@ -128,7 +128,7 @@ contract Testimonium {
         emit PoWValidationResult(isPoWCorrect, errorCode, errorInfo);
 
         // todo: do light validation
-        if (!isPoWCorrect) {
+        if (!isPoWCorrect && errorCode == 2) {   // remove branch only if difficulty is too low (errorCode == 2)
             removeBranch(blockHash);
         }
     }

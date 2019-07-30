@@ -111,7 +111,7 @@ contract Testimonium {
         headers[newBlockHash] = newHeader; // make sure to persist the header only AFTER all property changes
     }
 
-    event PoWEvaluationResult(bool isPoWValid, uint errorCode, uint errorInfo);
+    event PoWValidationResult(bool isPoWValid, uint errorCode, uint errorInfo);
 
     function disputeBlock(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
         // Currently, once the dispute period is over and the block is unlocked we accept it as valid.
@@ -125,7 +125,7 @@ contract Testimonium {
         uint errorInfo;
         (isPoWCorrect, errorCode, errorInfo) = ethashContract.verifyPoW(header.blockNumber, header.rlpHeaderHashWithoutNonce,
             header.nonce, header.difficulty, dataSetLookup, witnessForLookup);
-        emit PoWEvaluationResult(isPoWCorrect, errorCode, errorInfo);
+        emit PoWValidationResult(isPoWCorrect, errorCode, errorInfo);
 
         // todo: do light validation
         if (!isPoWCorrect) {

@@ -417,8 +417,33 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the parent of a submitted block header does not exist', async () => {
             const blockWithNonExistentParent = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
             const rlpHeader = createRLPHeader(blockWithNonExistentParent);
-            await expectRevert(testimonium.submitHeader(rlpHeader), 'Non-existent parent');
+            await expectRevert(testimonium.submitHeader(rlpHeader), 'non-existent parent');
         });
+
+        it('should revert when the block number is not incremented by one (too high)', async () => {
+            const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithWrongBlockNumber.number = GENESIS_BLOCK + 2;
+            blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
+            const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
+            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number')
+        });
+
+        it('should revert when the block number is not incremented by one (too low)', async () => {
+            const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithWrongBlockNumber.number = GENESIS_BLOCK - 1;
+            blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
+            const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
+            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number')
+        });
+
+        it('should revert when the block number is not incremented by one (equal)', async () => {
+            const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithWrongBlockNumber.number = GENESIS_BLOCK;
+            blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
+            const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
+            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number')
+        });
+
 
         // Test Scenario:
         //

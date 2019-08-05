@@ -305,13 +305,17 @@ contract Testimonium {
     }
 
     function checkHeaderValidity(BlockHeader memory header) private view {
-        if (orderedEndpoints.length > 0) {
-            require(headers[header.parent].nonce != 0, "non-existent parent");
-            // todo: check block number increment
+        if (orderedEndpoints.length == 0) {
+            // we do not check header validity for the genesis block
+            // since the genesis block is submitted at contract creation.
+            return;
+        }
+
+        require(headers[header.parent].nonce != 0, "non-existent parent");
+        require(headers[header.parent].blockNumber + 1 == header.blockNumber, "illegal block number");
             // todo: check difficulty
             // todo: check gas limit
             // todo: check timestamp
-        }
     }
 
     event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent );

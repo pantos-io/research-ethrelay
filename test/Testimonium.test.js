@@ -428,7 +428,7 @@ contract('Testimonium', async (accounts) => {
             await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number')
         });
 
-        it('should revert when the block number is not incremented by one (too low)', async () => {
+        it('should revert when the number of the submitted block is not incremented by one (too low)', async () => {
             const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithWrongBlockNumber.number = GENESIS_BLOCK - 1;
             blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
@@ -436,12 +436,38 @@ contract('Testimonium', async (accounts) => {
             await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number')
         });
 
-        it('should revert when the block number is not incremented by one (equal)', async () => {
+        it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
             const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithWrongBlockNumber.number = GENESIS_BLOCK;
             blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
             await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number')
+        });
+
+        it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
+            const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithWrongBlockNumber.number = GENESIS_BLOCK;
+            blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
+            const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
+            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number')
+        });
+
+        it('should revert when the timestamp of the submitted block is not in the future (equal)', async () => {
+            const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+            const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithPastTimestamp.timestamp = genesisBlock.timestamp;
+            blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
+            const rlpHeader = createRLPHeader(blockWithPastTimestamp);
+            await expectRevert(testimonium.submitHeader(rlpHeader),'illegal timestamp')
+        });
+
+        it('should revert when the timestamp of the submitted block is not in the future (older)', async () => {
+            const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+            const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithPastTimestamp.timestamp = genesisBlock.timestamp - 1;
+            blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
+            const rlpHeader = createRLPHeader(blockWithPastTimestamp);
+            await expectRevert(testimonium.submitHeader(rlpHeader),'illegal timestamp')
         });
 
 
@@ -1481,6 +1507,7 @@ const assertBlocksEqual = (actual, expected) => {
     expect(actual.stateRoot).to.equal(expected.stateRoot);
     expect(actual.transactionsRoot).to.equal(expected.transactionsRoot);
     expect(actual.receiptsRoot).to.equal(expected.receiptsRoot);
+    expect(actual.timestamp).to.be.bignumber.equal(web3.utils.toBN(expected.timestamp));
     expect(actual.nonce).to.be.bignumber.equal(web3.utils.toBN(expected.nonce));
     expect(actual.rlpHeaderHashWithoutNonce).to.equal(web3.utils.keccak256(createRLPHeaderWithoutNonce(expected)));
 };

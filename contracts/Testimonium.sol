@@ -21,6 +21,7 @@ contract Testimonium {
         bytes32 receiptsRoot;
         uint blockNumber;
         bytes32 rlpHeaderHashWithoutNonce;   // sha3 hash of the header without nonce and mix fields
+        uint timestamp;                     // block timestamp is needed for difficulty calculation
         uint nonce;                        // blockNumber, rlpHeaderHashWithoutNonce and nonce are needed for verifying PoW
         uint lockedUntil;                   // timestamp until which it is possible to dispute a given block
         uint difficulty;
@@ -313,9 +314,9 @@ contract Testimonium {
 
         require(headers[header.parent].nonce != 0, "non-existent parent");
         require(headers[header.parent].blockNumber + 1 == header.blockNumber, "illegal block number");
-            // todo: check difficulty
-            // todo: check gas limit
-            // todo: check timestamp
+        require(headers[header.parent].timestamp < header.timestamp, "illegal timestamp");
+        // todo: check difficulty
+        // todo: check gas limit
     }
 
     event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent );
@@ -332,7 +333,7 @@ contract Testimonium {
             else if ( idx == 7 ) header.difficulty = it.next().toUint();
             else if ( idx == 8 ) header.blockNumber = it.next().toUint();
 //            else if ( idx == 9 ) header.gasLimit = it.next().toUint();
-//            else if ( idx == 11 ) header.timestamp = it.next().toUint();
+            else if ( idx == 11 ) header.timestamp = it.next().toUint();
             else if ( idx == 14 ) header.nonce = it.next().toUint();
             else it.next();
 

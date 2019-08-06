@@ -460,8 +460,10 @@ contract('Testimonium', async (accounts) => {
             const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
             const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
             const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
-            const txHash = web3.utils.hexToBytes(block1.transactions[0]);
             const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
+            const rlpEncodedTx = web3.utils.hexToBytes("0xf86b028502540be40082520894c5764928a94f13945ac9bed4613ee736f1cf65fc870cd082d184e0008026a024630f181ee975d3acf71d91eef1eebc565e723e394adbbf0b346f77d83af0f4a074c4e8e6a7f6ab446660637682efe2809bd6adc1cd9ddd288c0fbc5f2d12c89c");
+            const path = web3.utils.hexToBytes("0x81a8");
+            const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf904ccb90134f90131a064e0f904be2c8f5d2bcf26b7546c6e5c685309aca6b64a4d7bbae8ff64ab369ea0b476aa430c8d17551dd4023c7d19bfe2ed867df51d9bd996ea82fb3b94bb8e60a078a3ba904db716bed50e89e67e4d1fc152338347542bcab7935febb02e5471c0a06f21f1f73702d35bca8f57c9e1656b747f0004f23a073061d8ed88649427810ca0242eb705b81f0ae1e11977b02481ce31a37d8dd11d2d84af7420834b93343332a068d3fce6c253a3580d01b4a2755cc4d92fed085fd567b8baf1d77161ac1b41cca00b259ae6f5eeda338fdabe23b830922515a632eb640c884ab477cb12d55bccf9a0d23bc74430048459efcd8820829207e705c1d9fb76aa4ce7daf76bcbbfad7ad0a068b734aa7e95bcb0e97611d0e5488556c1c6655889273c6f6e6ec43b6400fb3c8080808080808080b853f851a0f929cf7b8348dc73646c4058ef112ebaf9a1f041513f0becb221d50ac9b0ee88a062f1af03226a331c42918432660614140f99fa2f92a26b7fb6bd0f42dd3878c9808080808080808080808080808080b8b3f8b18080808080808080a094aac73e4c058372d5a80c0b7653bdea9276e6ce9a71b055ee059e6845f83890a0b27b821e7f47ae0bf86af752646b72bcca32f59471ee41be46db7ec4ff462408a0ca1bafc752d8e980bd9ecd8970f72b3fd3ef8ba5dae60f85a35058b7b1753445a05d193325ca6ccd69d2d667d3db9df9062b37b158fa62d89fdcf66d064d8225c7a01ac9ae461be3985c9197334cd2c69d7d534a8f49e9f358bc4ef48e220935db8e80808080b90214f90211a0c829cc875c044dcb90b86098de7598f32abeab6a7b2d6bd23199c2671b551a08a0eb92fc5d9df9f4a82759be2f37c2f3a153de2ebfde585ce8bf94d561c97e472ca01650b87c9e0ee4844079d9c38ccfbaaf9004864a3b03495be1a81b050df5ec1aa0a2de5fb828582d1ec48cd0ce73505b7d0a2284df43285f603d1e86185377def0a09f5baaf424d1338a896e8f61bab3f495a29f73e036a0bfe76f37fd1d84562b49a0688b365dd6c76cadfdaf5b35bb2c17f37fd358a568f3d056ae79ab9f18f2b4a9a0abe293657be1ed9f862868afe7dfde1ac207795493bef33f6f6bb029834d9a4ca0275a4fed8762b3f422b5fe8b3aacefb1675eb89a05144afbbd068b3626b617d7a0dcecfdec736d7883c8665729aaf02505a1d89622e1e25c962454633eed8cdb16a0a2a95bd9e724d1fc8b4acbd2e1e61e101272263b775c3e97ac9132dd973d474da0c9fb78deadf234efd43c925ce16a76198c47586f492aefd7d459396608fc2bdea06e855d3813257697fb66a03ef94119c73f98c71c2e1c3290cb15042a27ac8e1ca01d9e91bc3a6601979ad66e2139d2bb186ffc822b80260f6470aa60742bb87f08a0f860f5e1d3f5c6d7c8721d343f7a5aebb163aa1ea9318fbd7110ab3b5b8089a1a02aaa99a83589062b6c07157ee84e222427db1189edc8a78e311993217827259ba0b8bb75030b74f508233b200c70bf64906332138cef2678710e00585ea39a72f580b872f87020b86df86b028502540be40082520894c5764928a94f13945ac9bed4613ee736f1cf65fc870cd082d184e0008026a024630f181ee975d3acf71d91eef1eebc565e723e394adbbf0b346f77d83af0f4a074c4e8e6a7f6ab446660637682efe2809bd6adc1cd9ddd288c0fbc5f2d12c89c");
             const expectedBlocks = [
                 {
                     block: block1,
@@ -489,10 +491,10 @@ contract('Testimonium', async (accounts) => {
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
                 console.log((await time.latest()).toString());
                 for (let j = 0; j < i; j++) {
-                    expect(await testimonium.verifyTransaction(txHash, requestedBlockHash, j)).to.equal(true);
+                    expect(await testimonium.verifyTransaction(requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes)).to.be.bignumber.equal(new BN(0));
                 }
                 for (let j = i; j < expectedBlocks.length; j++) {
-                    expect(await testimonium.verifyTransaction(txHash, requestedBlockHash, j)).to.equal(false);
+                    expect(await testimonium.verifyTransaction(requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes)).to.be.bignumber.equal(new BN(2));
                 }
 
                 if (i < expectedBlocks.length) {
@@ -517,7 +519,10 @@ contract('Testimonium', async (accounts) => {
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
             const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
             const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            const txHash = web3.utils.hexToBytes(block4.transactions[0]);
+            const rlpEncodedTx = web3.utils.hexToBytes("0xf8708304286e8506fc23ac0083015f909457820da35b7e9860e6bb0711dce29e578d568a10880de0b6b3a76400008026a07c1b529ca6d841c7362a9b997cdf874d53ae800c18f145255b7ef6395fdc3455a066dcd517deef270926b06f966e02818dc9cc6b5d585fabf8f844819b1fc67595");
+            const path = web3.utils.hexToBytes("0x02");
+            const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90325b8b3f8b1a054980e549ea3a4ccdb8b047f351341f44599e7c8a8b496b520870e8c43e79450a07d08d43bcbc7e7395bb006b40e69fff8ea0b8bb4a39034885b26837c76bc5487a09009f6556cb833e88a57d0eb6cb5fdcb484e0a0f1d273eedb0ef9bf208ee1b5da0c65664cbe89512a3463985b7f27a407a475b979d30beb05cdc892ccbc3e9434380808080a07e1a7c93fb29bbba01e9625db3e63b3ace7a63ac7516ecb4bd1c38c786cb7b368080808080808080b901f4f901f180a02b832368cbfb0a13096eeadeee0a9b61ed9bbc4b6210b4b0750da1fc6c34aefda04bb39354770c4aa78921224ac8b7f23bf773cde8f3f1618d5e6257d317705984a0e683477ea3f9db3774ee44df12304bbec6c1c6b7fc6ed4cb00eecce286869ef0a09ded71fadc57426bc6a8a9fa54079877602a6f481b4281207f87d8189005257fa01416b09974d9a181cf3c010ec99356c3b9a54db8c4027abcf48993a2d6e5ee13a0cbff57a31f74c33d9719988926d3af96b9f9bd091fcb8f6088f6f6b3a9bc5278a0a1bb4ef4297300f93a8c7c2b6beb2b3d8cb6351fef52be72bfc70f4ec4f26ee2a03071e52831b1a2aa5e01a3c752db1df4d58c998d4d4ee66e1c22e5624f6e1420a0e43e77900f3fa78304d4f751f2fd3eab3ab7098d37513c31728fda49fa4513fca0d8b886898eb9cd3fdc7b366fef8efef4b6058b6e83930abfe1d80bd9de55fb22a05951758b6c065734e403742b887a1993e78a82844b8cedf41c7f777a1c8f2535a011631c16acd7bead965c2efe7715e2574fe9b36d8fc4b77add6054c25914f114a0e927e8e8633f2666563f51a0a33f9832cef8b1c04657444afd2f40113f321205a02c0662cd003855a0fac136b3e8371dd896123304c543f5f9d8d1320e098862c1a0c5945b0830f16ee2403ce83ef1dd758ceb49cfbd222a34abf5d2ff388574830780b877f87520b872f8708304286e8506fc23ac0083015f909457820da35b7e9860e6bb0711dce29e578d568a10880de0b6b3a76400008026a07c1b529ca6d841c7362a9b997cdf874d53ae800c18f145255b7ef6395fdc3455a066dcd517deef270926b06f966e02818dc9cc6b5d585fabf8f844819b1fc67595");
+
 
             block4.nonce = addToHex(block4.nonce, 1);
             block4.hash = calculateBlockHash(block4);
@@ -548,7 +553,7 @@ contract('Testimonium', async (accounts) => {
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
                 console.log((await time.latest()).toString());
                 for (let j = 0; j < expectedBlocks.length; j++) {
-                    expect(await testimonium.verifyTransaction(txHash, requestedBlockHash, j)).to.equal(false);
+                    expect(await testimonium.verifyTransaction(requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes)).to.be.bignumber.equal(new BN(2));
                 }
                 if (i < expectedBlocks.length) {
                     await time.increaseTo(expectedBlocks[i].lockedUntil);
@@ -583,7 +588,10 @@ contract('Testimonium', async (accounts) => {
             const block10 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 8);
             const block11 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 8);
             const block12 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 9);
-            const txHash  = web3.utils.hexToBytes(block1.transactions[0]);
+            const rlpEncodedTx = web3.utils.hexToBytes("0xf86b028502540be40082520894c5764928a94f13945ac9bed4613ee736f1cf65fc870cd082d184e0008026a024630f181ee975d3acf71d91eef1eebc565e723e394adbbf0b346f77d83af0f4a074c4e8e6a7f6ab446660637682efe2809bd6adc1cd9ddd288c0fbc5f2d12c89c");
+            const path = web3.utils.hexToBytes("0x81a8");
+            const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf904ccb90134f90131a064e0f904be2c8f5d2bcf26b7546c6e5c685309aca6b64a4d7bbae8ff64ab369ea0b476aa430c8d17551dd4023c7d19bfe2ed867df51d9bd996ea82fb3b94bb8e60a078a3ba904db716bed50e89e67e4d1fc152338347542bcab7935febb02e5471c0a06f21f1f73702d35bca8f57c9e1656b747f0004f23a073061d8ed88649427810ca0242eb705b81f0ae1e11977b02481ce31a37d8dd11d2d84af7420834b93343332a068d3fce6c253a3580d01b4a2755cc4d92fed085fd567b8baf1d77161ac1b41cca00b259ae6f5eeda338fdabe23b830922515a632eb640c884ab477cb12d55bccf9a0d23bc74430048459efcd8820829207e705c1d9fb76aa4ce7daf76bcbbfad7ad0a068b734aa7e95bcb0e97611d0e5488556c1c6655889273c6f6e6ec43b6400fb3c8080808080808080b853f851a0f929cf7b8348dc73646c4058ef112ebaf9a1f041513f0becb221d50ac9b0ee88a062f1af03226a331c42918432660614140f99fa2f92a26b7fb6bd0f42dd3878c9808080808080808080808080808080b8b3f8b18080808080808080a094aac73e4c058372d5a80c0b7653bdea9276e6ce9a71b055ee059e6845f83890a0b27b821e7f47ae0bf86af752646b72bcca32f59471ee41be46db7ec4ff462408a0ca1bafc752d8e980bd9ecd8970f72b3fd3ef8ba5dae60f85a35058b7b1753445a05d193325ca6ccd69d2d667d3db9df9062b37b158fa62d89fdcf66d064d8225c7a01ac9ae461be3985c9197334cd2c69d7d534a8f49e9f358bc4ef48e220935db8e80808080b90214f90211a0c829cc875c044dcb90b86098de7598f32abeab6a7b2d6bd23199c2671b551a08a0eb92fc5d9df9f4a82759be2f37c2f3a153de2ebfde585ce8bf94d561c97e472ca01650b87c9e0ee4844079d9c38ccfbaaf9004864a3b03495be1a81b050df5ec1aa0a2de5fb828582d1ec48cd0ce73505b7d0a2284df43285f603d1e86185377def0a09f5baaf424d1338a896e8f61bab3f495a29f73e036a0bfe76f37fd1d84562b49a0688b365dd6c76cadfdaf5b35bb2c17f37fd358a568f3d056ae79ab9f18f2b4a9a0abe293657be1ed9f862868afe7dfde1ac207795493bef33f6f6bb029834d9a4ca0275a4fed8762b3f422b5fe8b3aacefb1675eb89a05144afbbd068b3626b617d7a0dcecfdec736d7883c8665729aaf02505a1d89622e1e25c962454633eed8cdb16a0a2a95bd9e724d1fc8b4acbd2e1e61e101272263b775c3e97ac9132dd973d474da0c9fb78deadf234efd43c925ce16a76198c47586f492aefd7d459396608fc2bdea06e855d3813257697fb66a03ef94119c73f98c71c2e1c3290cb15042a27ac8e1ca01d9e91bc3a6601979ad66e2139d2bb186ffc822b80260f6470aa60742bb87f08a0f860f5e1d3f5c6d7c8721d343f7a5aebb163aa1ea9318fbd7110ab3b5b8089a1a02aaa99a83589062b6c07157ee84e222427db1189edc8a78e311993217827259ba0b8bb75030b74f508233b200c70bf64906332138cef2678710e00585ea39a72f580b872f87020b86df86b028502540be40082520894c5764928a94f13945ac9bed4613ee736f1cf65fc870cd082d184e0008026a024630f181ee975d3acf71d91eef1eebc565e723e394adbbf0b346f77d83af0f4a074c4e8e6a7f6ab446660637682efe2809bd6adc1cd9ddd288c0fbc5f2d12c89c");
+
 
             block4.nonce = addToHex(block4.nonce, 1);;
             block4.hash = calculateBlockHash(block4);
@@ -656,8 +664,8 @@ contract('Testimonium', async (accounts) => {
                 console.log(`Unlocked block: ${i}`);
 
                 for (let j=0; j < expectedVerificationResults[i].length; j++) {
-                    expect(await testimonium.verifyTransaction(txHash, requestedBlockHash, j))
-                        .to.equal(expectedVerificationResults[i][j]);
+                    expect(await testimonium.verifyTransaction(requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes))
+                        .to.be.bignumber.equal(new BN(expectedVerificationResults[i][j]));
                 }
 
                 if (i < expectedBlocks.length) {
@@ -689,7 +697,10 @@ contract('Testimonium', async (accounts) => {
             const block10 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 6);
             const block11 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 6);
             const block12 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 7);
-            const txHash  = web3.utils.hexToBytes(block2.transactions[0]);
+            const rlpEncodedTx = web3.utils.hexToBytes("0xf86c808504a817c800825208940fad8f64f092293818235c058f11a61ddccf05a6880161c77b7ebbc0008026a00f399380cf02d865962eca73a7b12253ed2baf0f7ed63a31a90c9a80544ffbc1a068f02584d62d3cce109e327120832cb7d4025545fac369a6dca69732f93a7655");
+            const path = web3.utils.hexToBytes("0x32");
+            const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf903c3b90134f90131a064e0f904be2c8f5d2bcf26b7546c6e5c685309aca6b64a4d7bbae8ff64ab369ea0b476aa430c8d17551dd4023c7d19bfe2ed867df51d9bd996ea82fb3b94bb8e60a078a3ba904db716bed50e89e67e4d1fc152338347542bcab7935febb02e5471c0a06f21f1f73702d35bca8f57c9e1656b747f0004f23a073061d8ed88649427810ca0242eb705b81f0ae1e11977b02481ce31a37d8dd11d2d84af7420834b93343332a068d3fce6c253a3580d01b4a2755cc4d92fed085fd567b8baf1d77161ac1b41cca00b259ae6f5eeda338fdabe23b830922515a632eb640c884ab477cb12d55bccf9a0d23bc74430048459efcd8820829207e705c1d9fb76aa4ce7daf76bcbbfad7ad0a068b734aa7e95bcb0e97611d0e5488556c1c6655889273c6f6e6ec43b6400fb3c8080808080808080b90214f90211a0e0fb221a5bc741ee9a2b984f46b20ace32f11c2a8f4042a72055fc3e356e59baa0a5319a54166cfdd92de6375e0af3e06fcfb6c462f263598e8649faa1cb5dbbd4a0680d16ce63aba5b549658d0536db94343108cfc1b1318ca87b9ad281c93bae5ea077cc8af2068d51385c2943eb305d4d50a89f314ed09685a6c5cecdc56ac09e3da06df04275dd99fa9d67759c557015e6b6fed56d0fba48838eb9338afec3a38210a0525c1ab5f6a1245046e2f92ab036e6043c466b5743b784e1ca77deb8ac27f36ba020c7311ba84506263dca336e10396cbf47208c4b7f93e2662818f991a68ad5eea094012e0571fcab80349b6256ed6af3bbda54eee9255a44559ea73b4c479744f4a08fded98df52d374f0e81601188e2dd57eabe5d3225f781c8e758022eed58279ca079989deea04d7b22ce8cdaad3e39d496b9945f23475a256b7292f16dc7bdc09ea0f8c6d10645f827232cff711f25a9b2370a8cca5167fd1cc940b6752ccd671e17a0cf5a17d859d62e00bf4582a9d43d7c17abc19d206a2806bd47171d4306863411a0e9f20a906e8f5c92a433fd59592a9f7ffcc6298d6907b3539759439307cf6bb8a043544ad9727d4a956513a6e8b4f62978eb282b325c42a014ac3c1a5464b67d18a0170870f37b8cd6530380336836a3f7ff27eac9ffd4e0fd4d8b273c30b7fb582ea0eb7763b97601dc8433a7efb3ef65dceff850123b126b7895e251d1f26ea3219b80b873f87120b86ef86c808504a817c800825208940fad8f64f092293818235c058f11a61ddccf05a6880161c77b7ebbc0008026a00f399380cf02d865962eca73a7b12253ed2baf0f7ed63a31a90c9a80544ffbc1a068f02584d62d3cce109e327120832cb7d4025545fac369a6dca69732f93a7655");
+
 
             block2.nonce = addToHex(block2.nonce, 1);
             block2.hash = calculateBlockHash(block2);
@@ -768,8 +779,8 @@ contract('Testimonium', async (accounts) => {
                 console.log(`Unlocked block: ${i}`);
 
                 for (let j=0; j < expectedVerificationResults[i].length; j++) {
-                    expect(await testimonium.verifyTransaction(txHash, requestedBlockHash, j))
-                        .to.equal(expectedVerificationResults[i][j]);
+                    expect(await testimonium.verifyTransaction(requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes))
+                        .to.be.bignumber.equal(new BN(expectedVerificationResults[i][j]));
                 }
 
                 if (i < expectedBlocks.length) {
@@ -1468,8 +1479,8 @@ async function asyncForEach(array, callback) {
 
 const generateBooleanArray = (numberOfTrue, size) => {
     let array = Array(size);
-    array.fill(true, 0, numberOfTrue);
-    array.fill(false, numberOfTrue, array.length);
+    array.fill(0, 0, numberOfTrue);
+    array.fill(2, numberOfTrue, array.length);
 
     return array;
 };

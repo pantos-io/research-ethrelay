@@ -1,6 +1,7 @@
 pragma solidity ^0.5.10;
 
 import "./RLP.sol";
+import "./MerklePatriciaProof.sol";
 
 contract EthashInterface {
     function verifyPoW(uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint nonce, uint difficulty,
@@ -185,7 +186,8 @@ contract Testimonium {
             return false;
         }
 
-        return verifyMerkleProof();
+//        return verifyMerkleProof();   // TODO: uncomment
+        return true;
     }
 
     function isUnlocked(bytes32 blockHash) public view returns (bool) {
@@ -235,9 +237,13 @@ contract Testimonium {
         return hasEnoughConfirmations(headers[start].successors[0], noOfConfirmations - 1);
     }
 
-    function verifyMerkleProof() private pure returns (bool) {
+    event VerifyMerkleProofForTx(uint returnCode);
+    function verifyMerkleProofForTx(bytes32 blockHash, bytes memory rlpEncodedTx, bytes memory path, bytes memory rlpEncodedNodes) public returns (bool) {
         // todo: check Merkle Proof
-        return true;
+        uint256 returnCode = MerklePatriciaProof.verify(rlpEncodedTx, path, rlpEncodedNodes, headers[blockHash].transactionsRoot);
+        emit VerifyMerkleProofForTx(returnCode);
+
+        return returnCode == 0;
     }
 
     function setLatestForkAtSuccessors(BlockHeader storage header, bytes32 latestFork) private {
@@ -314,7 +320,7 @@ contract Testimonium {
         }
     }
 
-    event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent );
+    event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent, bytes32 transactionsRoot );
     function parseAndValidateBlockHeader( bytes memory rlpHeader ) internal returns(bytes32, BlockHeader memory) {
         BlockHeader memory header;
 
@@ -354,7 +360,7 @@ contract Testimonium {
         BlockHeader storage parentHeader = headers[header.parent];
         header.totalDifficulty = parentHeader.totalDifficulty + header.difficulty;
 
-        emit SubmitBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.difficulty, header.parent);
+        emit SubmitBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.difficulty, header.parent, header.transactionsRoot);
         return (blockHash, header);
     }
 

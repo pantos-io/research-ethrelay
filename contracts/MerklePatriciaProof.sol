@@ -1,11 +1,11 @@
 /*
  * @title MerklePatriciaVerifier
  * @author Sam Mayo (sammayo888@gmail.com)
+ *         Changes: Philipp Frauenthaler, Marten Sigwart
  *
  * @dev Library for verifing merkle patricia proofs.
  */
 pragma solidity ^0.5.10;
-import "./RLP.sol";
 import "./RLPReader.sol";
 
 library MerklePatriciaProof {
@@ -15,63 +15,66 @@ library MerklePatriciaProof {
      * @param path The path in the trie leading to value.
      * @param rlpParentNodes The rlp encoded stack of nodes.
      * @param root The root hash of the trie.
-     * @return The boolean validity of the proof.
+     * @return return code indicating result. Return code 0 indicates a positive verification
      */
-    function verify(bytes memory value, bytes memory encodedPath, bytes memory rlpParentNodes, bytes32 root) internal pure returns (uint, int, bytes memory) {
-        RLP.RLPItem memory item = RLP.toRLPItem(rlpParentNodes);
-        RLP.RLPItem[] memory parentNodes = RLP.toList(item);
-
-//        RLPReader.RLPItem memory rlpItem = RLPReader.toRlpItem(rlpParentNodes);
+    function verify(bytes memory value, bytes memory encodedPath, bytes memory rlpParentNodes, bytes32 root) internal pure returns (uint) {
+        RLPReader.RLPItem memory item = RLPReader.toRlpItem(rlpParentNodes);
+        RLPReader.RLPItem[] memory parentNodes = RLPReader.toList(item);
 
         bytes memory currentNode;
-        RLP.RLPItem[] memory currentNodeList;
+        RLPReader.RLPItem[] memory currentNodeList;
 
         bytes32 nodeKey = root;
         uint pathPtr = 0;
 
-        bytes memory dummy; // TODO: remove
-
         bytes memory path = _getNibbleArray(encodedPath);
-        if (path.length == 0) {return (1, -1, dummy);}
+        if (path.length == 0) {return (1);}
 
         for (uint i = 0; i < parentNodes.length; i++) {
-            if (pathPtr > path.length) {return (2, int(i), dummy);}
+            if (pathPtr > path.length) {
+                return (2);
+            }
 
-            currentNode = RLP.toBytes(parentNodes[i]);
-            if (nodeKey != keccak256(currentNode)) {return (3, int(i), currentNode);}
-            currentNodeList = RLP.toList(parentNodes[i]);
+            currentNode = RLPReader.toBytes(parentNodes[i]);
+            if (nodeKey != keccak256(currentNode)) {
+                return (3);
+            }
+            currentNodeList = RLPReader.toList(RLPReader.toRlpItem(currentNode));
 
             if (currentNodeList.length == 17) {
                 if (pathPtr == path.length) {
-                    if (keccak256(RLP.toBytes(currentNodeList[16])) == keccak256(value)) {
-                        return (0, int(i), dummy);
+                    if (keccak256(RLPReader.toBytes(currentNodeList[16])) == keccak256(value)) {
+                        return (0);
                     } else {
-                        return (4, int(i), dummy);
+                        return (4);
                     }
                 }
 
                 uint8 nextPathNibble = uint8(path[pathPtr]);
-                if (nextPathNibble > 16) {return (0, int(i), dummy);}
-                nodeKey = RLP.toBytes32(currentNodeList[nextPathNibble]);
+                if (nextPathNibble > 16) {
+                    return (5);
+                }
+
+                nodeKey = bytes32(RLPReader.toUint(currentNodeList[nextPathNibble]));
                 pathPtr += 1;
             } else if (currentNodeList.length == 2) {
-                pathPtr += _nibblesToTraverse(RLP.toData(currentNodeList[0]), path, pathPtr);
+                pathPtr += _nibblesToTraverse(RLPReader.toBytes(currentNodeList[0]), path, pathPtr);
 
                 if (pathPtr == path.length) {//leaf node
-                    if (keccak256(RLP.toData(currentNodeList[1])) == keccak256(value)) {
-                        return (0, int(i), dummy);
+                    if (keccak256(RLPReader.toBytes(currentNodeList[1])) == keccak256(value)) {
+                        return (0);
                     } else {
-                        return (6, int(i), dummy);
+                        return (6);
                     }
                 }
                 //extension node
-                if (_nibblesToTraverse(RLP.toData(currentNodeList[0]), path, pathPtr) == 0) {
-                    return (7, int(i), dummy);
+                if (_nibblesToTraverse(RLPReader.toBytes(currentNodeList[0]), path, pathPtr) == 0) {
+                    return (7);
                 }
 
-                nodeKey = RLP.toBytes32(currentNodeList[1]);
+                nodeKey = bytes32(RLPReader.toUint(currentNodeList[1]));
             } else {
-                return (8, int(i), dummy);
+                return (8);
             }
         }
     }
@@ -124,7 +127,9 @@ library MerklePatriciaProof {
     // normal byte array, no encoding used
     function _getNibbleArray(bytes memory b) private pure returns (bytes memory) {
         bytes memory nibbles = new bytes(b.length*2);
-        for (uint i = 0; i < nibbles.length; i++) nibbles[i] = _getNthNibbleOfBytes(i, b);
+        for (uint i = 0; i < nibbles.length; i++) {
+            nibbles[i] = _getNthNibbleOfBytes(i, b);
+        }
         return nibbles;
     }
 
@@ -137,4 +142,5 @@ library MerklePatriciaProof {
     function _getNthNibbleOfBytes(uint n, bytes memory str) private pure returns (byte) {
         return byte(n%2==0 ? uint8(str[n/2])/0x10 : uint8(str[n/2])%0x10);
     }
+
 }

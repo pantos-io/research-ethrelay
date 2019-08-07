@@ -13,25 +13,32 @@ contract Testimonium {
 
     EthashInterface ethashContract;
 
+    bytes32 constant emptyUncleHash = hex"1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347";
+
+    struct MetaInfo {
+        bytes32[] successors;    // in case of forks a blockchain can have multiple successors
+        uint orderedIndex;       // index at which the block header is/was stored in the ordered endpoints array
+        uint iterableIndex;      // index at which the block header is/was stored in the iterable endpoints array
+        bytes32 latestFork;      // contains the hash of the latest node where the current fork branched off
+        uint lockedUntil;        // timestamp until which it is possible to dispute a given block
+    }
+
     struct BlockHeader {
         bytes32 parent;
-        bytes32[] successors;    // in case of forks a blockchain can have multiple successors
+        bytes32 uncleHash;
         bytes32 stateRoot;
         bytes32 transactionsRoot;
         bytes32 receiptsRoot;
         uint blockNumber;
         bytes32 rlpHeaderHashWithoutNonce;   // sha3 hash of the header without nonce and mix fields
-        uint timestamp;                     // block timestamp is needed for difficulty calculation
-        uint nonce;                        // blockNumber, rlpHeaderHashWithoutNonce and nonce are needed for verifying PoW
-        uint lockedUntil;                   // timestamp until which it is possible to dispute a given block
+        uint timestamp;                      // block timestamp is needed for difficulty calculation
+        uint nonce;                          // blockNumber, rlpHeaderHashWithoutNonce and nonce are needed for verifying PoW
         uint difficulty;
         uint totalDifficulty;
-        uint orderedIndex;     // index at which the block header is/was stored in the ordered endpoints array
-        uint iterableIndex;     // index at which the block header is/was stored in the iterable endpoints array
-        bytes32 latestFork;  // contains the hash of the latest node where the current fork branched off
+        MetaInfo meta;
     }
 
-    mapping (bytes32 => BlockHeader) public headers;  // sha3 hash -> Header
+    mapping (bytes32 => BlockHeader) private headers;  // sha3 hash -> Header
     uint constant lockPeriodInMin = 5 minutes;
     uint constant requiredSucceedingBlocks = 3;
     bytes32[] orderedEndpoints;   // contains the hash of each fork's recent block
@@ -44,27 +51,56 @@ contract Testimonium {
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
         (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
-        newHeader.orderedIndex = orderedEndpoints.push(newBlockHash) - 1;
-        newHeader.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
-        newHeader.lockedUntil = now;    // the first block does not need a confirmation period
         newHeader.totalDifficulty = totalDifficulty;
+        newHeader.meta.orderedIndex = orderedEndpoints.push(newBlockHash) - 1;
+        newHeader.meta.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
+        newHeader.meta.lockedUntil = now;    // the first block does not need a confirmation period
         headers[newBlockHash] = newHeader;
         longestChainEndpoint = newBlockHash;
 
         ethashContract = EthashInterface(_ethashContractAddr);
     }
 
+    function getHeader(bytes32 blockHash) public view returns (
+        bytes32 parent, bytes32 uncleHash, bytes32 stateRoot, bytes32 transactionsRoot, bytes32 receiptsRoot,
+        uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint timestamp, uint nonce, uint difficulty, uint totalDifficulty
+    ) {
+        BlockHeader storage header = headers[blockHash];
+        return (
+            header.parent,
+            header.uncleHash,
+            header.stateRoot,
+            header.transactionsRoot,
+            header.receiptsRoot,
+            header.blockNumber,
+            header.rlpHeaderHashWithoutNonce,
+            header.timestamp,
+            header.nonce,
+            header.difficulty,
+            header.totalDifficulty
+        );
+    }
+
+    function getHeaderMetaInfo(bytes32 blockHash) public view returns (
+        bytes32[] memory successors, uint orderedIndex, uint iterableIndex, bytes32 latestFork, uint lockedUntil
+    ) {
+        BlockHeader storage header = headers[blockHash];
+        return (
+            header.meta.successors,
+            header.meta.orderedIndex,
+            header.meta.iterableIndex,
+            header.meta.latestFork,
+            header.meta.lockedUntil
+        );
+    }
+
     function getNoOfForks() public view returns (uint) {
-        return iterableEndpoints.length;
+        return iterableEndpoints.length;    // Important: do not use orderedEndpoints.length since that array contains gaps
     }
 
     // @dev Returns the block hash of the endpoint at the specified index
     function getBlockHashOfEndpoint(uint index) public view returns (bytes32) {
         return iterableEndpoints[index];
-    }
-
-    function getSuccessors(bytes32 blockHash) public view returns (bytes32[] memory) {
-        return headers[blockHash].successors;
     }
 
     function isBlock(bytes32 hash) public view returns (bool) {
@@ -78,30 +114,30 @@ contract Testimonium {
 
         // Get parent header and set next pointer to newHeader
         BlockHeader storage parentHeader = headers[newHeader.parent];
-        parentHeader.successors.push(newBlockHash);
+        parentHeader.meta.successors.push(newBlockHash);
 
-        newHeader.lockedUntil = now + lockPeriodInMin;
+        newHeader.meta.lockedUntil = now + lockPeriodInMin;
 
         // check if parent is an endpoint
-        if (orderedEndpoints[parentHeader.orderedIndex] == newHeader.parent) {
+        if (orderedEndpoints[parentHeader.meta.orderedIndex] == newHeader.parent) {
             // parentHeader is an endpoint (and no fork) -> replace parentHeader in endpoints by new header (since new header becomes new endpoint)
-            orderedEndpoints[parentHeader.orderedIndex] = newBlockHash;
-            newHeader.orderedIndex = parentHeader.orderedIndex;
-            iterableEndpoints[parentHeader.iterableIndex] = newBlockHash;
-            newHeader.iterableIndex = parentHeader.iterableIndex;
-            delete parentHeader.iterableIndex;
-            newHeader.latestFork = parentHeader.latestFork;
+            orderedEndpoints[parentHeader.meta.orderedIndex] = newBlockHash;
+            newHeader.meta.orderedIndex = parentHeader.meta.orderedIndex;
+            iterableEndpoints[parentHeader.meta.iterableIndex] = newBlockHash;
+            newHeader.meta.iterableIndex = parentHeader.meta.iterableIndex;
+            delete parentHeader.meta.iterableIndex;
+            newHeader.meta.latestFork = parentHeader.meta.latestFork;
         }
         else {
             // parentHeader is forked
-            newHeader.orderedIndex = orderedEndpoints.push(newBlockHash) - 1;
-            newHeader.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
-            newHeader.latestFork = newHeader.parent;
+            newHeader.meta.orderedIndex = orderedEndpoints.push(newBlockHash) - 1;
+            newHeader.meta.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
+            newHeader.meta.latestFork = newHeader.parent;
 
-            if (parentHeader.successors.length == 2) {
+            if (parentHeader.meta.successors.length == 2) {
                 // a new fork was created, so we set the latest fork of the original branch to the newly created fork
                 // this has to be done only the first time a fork is created
-                setLatestForkAtSuccessors(headers[parentHeader.successors[0]], newHeader.parent);
+                setLatestForkAtSuccessors(headers[parentHeader.meta.successors[0]], newHeader.parent);
             }
         }
 
@@ -129,7 +165,7 @@ contract Testimonium {
         emit PoWValidationResult(isPoWCorrect, errorCode, errorInfo);
 
         // todo: do light validation
-        if (!isPoWCorrect && errorCode == 2) {   // remove branch only if difficulty is too low (errorCode == 2)
+        if (!isPoWCorrect && errorCode == 2) {   // remove branch only if now enough work was performed is too low (errorCode == 2)
             removeBranch(blockHash);
         }
     }
@@ -169,17 +205,17 @@ contract Testimonium {
                 }
             }
 
-            if (headers[current].orderedIndex < headers[requested].orderedIndex) {
+            if (headers[current].meta.orderedIndex < headers[requested].meta.orderedIndex) {
                 return false;   // the requested block is NOT part of the longest chain
             }
 
-            if (headers[current].orderedIndex == headers[requested].orderedIndex) {
+            if (headers[current].meta.orderedIndex == headers[requested].meta.orderedIndex) {
                 break;  // the requested block is part of the longest chain --> jump out of the loop
             }
 
             // go to next fork
             last = current;
-            current = headers[current].latestFork;
+            current = headers[current].meta.latestFork;
         }
 
         if (!confirmed && !hasEnoughConfirmations(checkpoint, noOfConfirmations)) {
@@ -190,7 +226,7 @@ contract Testimonium {
     }
 
     function isUnlocked(bytes32 blockHash) public view returns (bool) {
-        return headers[blockHash].lockedUntil < now;
+        return headers[blockHash].meta.lockedUntil < now;
     }
 
     // @dev Returns the successor of the given block ('blockHash').
@@ -198,14 +234,14 @@ contract Testimonium {
     // If a block only has one successor, that successor is returned.
     // If a block has multiple successors, the successor in the direction of the next fork ('nextFork') is returned.
     function getSuccessor(bytes32 blockHash, bytes32 nextFork) private view returns (bytes32) {
-        if (headers[blockHash].successors.length == 1) {
-            return headers[blockHash].successors[0];
+        if (headers[blockHash].meta.successors.length == 1) {
+            return headers[blockHash].meta.successors[0];
         }
 
-        if (headers[blockHash].successors.length > 1) {
-            for (uint i = 0; i<headers[blockHash].successors.length; i++) {
-                bytes32 successor = headers[blockHash].successors[i];
-                if (headers[successor].orderedIndex == headers[nextFork].orderedIndex) {
+        if (headers[blockHash].meta.successors.length > 1) {
+            for (uint i = 0; i<headers[blockHash].meta.successors.length; i++) {
+                bytes32 successor = headers[blockHash].meta.successors[i];
+                if (headers[successor].meta.orderedIndex == headers[nextFork].meta.orderedIndex) {
                     return successor;
                 }
             }
@@ -228,12 +264,12 @@ contract Testimonium {
             return true;    // --> block is unlocked and no more confirmations are required
         }
 
-        if (headers[start].successors.length == 0) {
+        if (headers[start].meta.successors.length == 0) {
             // More confirmations are required but block has no more successors.
             return false;
         }
 
-        return hasEnoughConfirmations(headers[start].successors[0], noOfConfirmations - 1);
+        return hasEnoughConfirmations(headers[start].meta.successors[0], noOfConfirmations - 1);
     }
 
     function verifyMerkleProof() private pure returns (bool) {
@@ -242,15 +278,15 @@ contract Testimonium {
     }
 
     function setLatestForkAtSuccessors(BlockHeader storage header, bytes32 latestFork) private {
-        if (header.latestFork == latestFork) {
+        if (header.meta.latestFork == latestFork) {
             // latest fork has already been set
             return;
         }
 
-        header.latestFork = latestFork;
+        header.meta.latestFork = latestFork;
 
-        if (header.successors.length == 1) {
-            setLatestForkAtSuccessors(headers[header.successors[0]], latestFork);
+        if (header.meta.successors.length == 1) {
+            setLatestForkAtSuccessors(headers[header.meta.successors[0]], latestFork);
         }
     }
 
@@ -262,18 +298,18 @@ contract Testimonium {
 
         pruneBranch(rootHash);
 
-        if (parentHeader.successors.length == 1) {
+        if (parentHeader.meta.successors.length == 1) {
             // parentHeader has only one successor --> parentHeader will be an endpoint after pruning
-            orderedEndpoints[parentHeader.orderedIndex] = parentHash;
-            parentHeader.iterableIndex = iterableEndpoints.push(parentHash) - 1;
+            orderedEndpoints[parentHeader.meta.orderedIndex] = parentHash;
+            parentHeader.meta.iterableIndex = iterableEndpoints.push(parentHash) - 1;
         }
 
         // remove root (which will be pruned) from the parent's successor list
-        for (uint i=0; i<parentHeader.successors.length; i++) {
-            if (parentHeader.successors[i] == rootHash) {
+        for (uint i=0; i<parentHeader.meta.successors.length; i++) {
+            if (parentHeader.meta.successors[i] == rootHash) {
                 // overwrite root with last successor and delete last successor
-                parentHeader.successors[i] = parentHeader.successors[parentHeader.successors.length - 1];
-                parentHeader.successors.length--;
+                parentHeader.meta.successors[i] = parentHeader.meta.successors[parentHeader.meta.successors.length - 1];
+                parentHeader.meta.successors.length--;
                 break;  // we remove at most one element
             }
         }
@@ -291,32 +327,18 @@ contract Testimonium {
 
     function pruneBranch(bytes32 root) private {
         BlockHeader storage rootHeader = headers[root];
-        for (uint i=0; i<rootHeader.successors.length; i++) {
-            pruneBranch(rootHeader.successors[i]);
+        for (uint i=0; i<rootHeader.meta.successors.length; i++) {
+            pruneBranch(rootHeader.meta.successors[i]);
         }
-        if (orderedEndpoints[rootHeader.orderedIndex] == root) {
+        if (orderedEndpoints[rootHeader.meta.orderedIndex] == root) {
             // root is an endpoint --> delete root in endpoints array, since root will be deleted and thus can no longer be an endpoint
-            delete orderedEndpoints[rootHeader.orderedIndex];
+            delete orderedEndpoints[rootHeader.meta.orderedIndex];
             bytes32 lastIterableElement = iterableEndpoints[iterableEndpoints.length - 1];
-            iterableEndpoints[rootHeader.iterableIndex] = lastIterableElement;
+            iterableEndpoints[rootHeader.meta.iterableIndex] = lastIterableElement;
             iterableEndpoints.length--;
-            headers[lastIterableElement].iterableIndex = rootHeader.iterableIndex;
+            headers[lastIterableElement].meta.iterableIndex = rootHeader.meta.iterableIndex;
         }
         delete headers[root];
-    }
-
-    function checkHeaderValidity(BlockHeader memory header) private view {
-        if (orderedEndpoints.length == 0) {
-            // we do not check header validity for the genesis block
-            // since the genesis block is submitted at contract creation.
-            return;
-        }
-
-        require(headers[header.parent].nonce != 0, "non-existent parent");
-        require(headers[header.parent].blockNumber + 1 == header.blockNumber, "illegal block number");
-        require(headers[header.parent].timestamp < header.timestamp, "illegal timestamp");
-        // todo: check difficulty
-        // todo: check gas limit
     }
 
     event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent );
@@ -327,6 +349,7 @@ contract Testimonium {
         uint idx;
         while(it.hasNext()) {
             if( idx == 0 ) header.parent = it.next().toBytes32();
+            else if ( idx == 1 ) header.uncleHash = it.next().toBytes32();
             else if ( idx == 3 ) header.stateRoot = it.next().toBytes32();
             else if ( idx == 4 ) header.transactionsRoot = it.next().toBytes32();
             else if ( idx == 5 ) header.receiptsRoot = it.next().toBytes32();
@@ -375,5 +398,65 @@ contract Testimonium {
         }
 
         return newArray;
+    }
+
+    function checkHeaderValidity(BlockHeader memory header) private {
+        if (orderedEndpoints.length == 0) {
+            // we do not check header validity for the genesis block
+            // since the genesis block is submitted at contract creation.
+            return;
+        }
+
+        BlockHeader storage parent = headers[header.parent];
+        require(parent.nonce != 0, "non-existent parent");
+        require(parent.blockNumber + 1 == header.blockNumber, "illegal block number");
+        require(parent.timestamp < header.timestamp, "illegal timestamp");
+
+        // validate difficulty
+        uint expectedDifficulty = calculateDifficulty(parent, header.timestamp);
+        require(expectedDifficulty == header.difficulty, "wrong difficulty");
+
+        // todo: check gas limit
+    }
+
+    // diff = (parent_diff +
+    //         (parent_diff / 2048 * max((2 if len(parent.uncles) else 1) - ((timestamp - parent.timestamp) // 9), -99))
+    //        ) + 2^(periodCount - 2)
+    // https://github.com/ethereum/go-ethereum/blob/aa6005b469fdd1aa7a95f501ce87908011f43159/consensus/ethash/consensus.go#L335
+    function calculateDifficulty(BlockHeader memory parent, uint timestamp) private pure returns (uint) {
+        int x = int((timestamp - parent.timestamp) / 9);
+
+        // take into consideration uncles of parent
+        if (parent.uncleHash == emptyUncleHash) {
+            x = 1 - x;
+        } else {
+            x = 2 - x;
+        }
+
+        if (x < -99) {
+            x = -99;
+        }
+        x = int(parent.difficulty) + int(parent.difficulty) / 2048 * x;
+        // minimum difficulty = 131072
+        if (x < 131072) {
+            x = 131072;
+        }
+        uint bombDelayFromParent = 5000000 - 1;
+
+        // calculate a fake block number for the ice-age delay
+        // Specification: https://eips.ethereum.org/EIPS/eip-1234
+        uint fakeBlockNumber = 0;
+        if (parent.blockNumber >= bombDelayFromParent) {
+            fakeBlockNumber = parent.blockNumber - bombDelayFromParent;
+        }
+        // for the exponential factor
+        uint periodCount = fakeBlockNumber / 100000;
+
+        // the exponential factor, commonly referred to as "the bomb"
+        // diff = diff + 2^(periodCount - 2)
+        if (periodCount > 1) {
+            return uint(x) + 2**(periodCount - 2);
+        }
+        return uint(x);
     }
 }

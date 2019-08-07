@@ -261,7 +261,7 @@ contract('Testimonium', async (accounts) => {
 
         // Test Scenario 7:
         //
-        //      -(1)---(2)---(3)
+        //      -(1)---(2)---(3)---(5)
         //    /
         // (0)
         //    \
@@ -272,6 +272,7 @@ contract('Testimonium', async (accounts) => {
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
             const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
             const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
 
             // change data of block 4
             block4.transactionsRoot = block1.receiptsRoot;
@@ -299,7 +300,7 @@ contract('Testimonium', async (accounts) => {
                     orderedIndex: 0,
                     iterableIndex: 0,
                     latestFork: block1.parentHash,
-                    successors: []
+                    successors: [block5.hash]
                 },
                 {
                     block: block4,
@@ -307,9 +308,16 @@ contract('Testimonium', async (accounts) => {
                     iterableIndex: 1,
                     latestFork: block4.parentHash,
                     successors: []
+                },
+                {
+                    block: block5,
+                    orderedIndex: 0,
+                    iterableIndex: 0,
+                    latestFork: block1.parentHash,
+                    successors: []
                 }
             ];
-            const expectedEndpoints = [block3, block4];
+            const expectedEndpoints = [block5, block4];
             await submitBlockHeaders(expectedBlocks);
 
             // Perform checks
@@ -468,6 +476,15 @@ contract('Testimonium', async (accounts) => {
             blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
             await expectRevert(testimonium.submitHeader(rlpHeader),'illegal timestamp')
+        });
+
+        it('should revert when the difficulty of the submitted block is not correct', async () => {
+            const blockWithIllegalDifficulty = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const newDifficulty = web3.utils.toBN(blockWithIllegalDifficulty.difficulty).add(web3.utils.toBN(1000));
+            blockWithIllegalDifficulty.difficulty = newDifficulty.toString();
+            blockWithIllegalDifficulty.hash = calculateBlockHash(blockWithIllegalDifficulty);
+            const rlpHeader = createRLPHeader(blockWithIllegalDifficulty);
+            await expectRevert(testimonium.submitHeader(rlpHeader),'wrong difficulty')
         });
 
 
@@ -879,17 +896,11 @@ contract('Testimonium', async (accounts) => {
                     lockedUntil: blocksToSubmit[0].lockedUntil
                 }
             ];
+            const expectedZeroBlocks = [block2, block3, block4];
+
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
-
-            // check that all blocks after block 2 have been really removed
-            for (let i=1; i<blocksToSubmit.length; i++) {
-                const removedBlockHash = blocksToSubmit[i].block.hash;
-                const removedBlock = await testimonium.headers(web3.utils.hexToBytes(removedBlockHash));
-                expect(removedBlock.blockNumber).to.be.bignumber.equal(new BN(0));
-                expect(removedBlock.nonce).to.be.bignumber.equal(new BN(0));
-            }
-
+            await checkExpectedZeroBlocks(expectedZeroBlocks);
         });
 
         // Test Scenario 2:
@@ -1428,21 +1439,19 @@ contract('Testimonium', async (accounts) => {
 
     const checkExpectedBlockHeaders = async (expectedHeaders) => {
         await asyncForEach(expectedHeaders, async expected => {
-            const actual = await testimonium.headers(web3.utils.hexToBytes(expected.block.hash));
-            const successors = await testimonium.getSuccessors(web3.utils.hexToBytes(expected.block.hash));  // successors are not returned in first call
-            actual.successors = successors;
-            assertBlocksEqual(actual, expected.block);
-            expect(actual.latestFork).to.equal(expected.latestFork);
-            expect(actual.orderedIndex).to.be.bignumber.equal(new BN(expected.orderedIndex));
-            expect(actual.iterableIndex).to.be.bignumber.equal(new BN(expected.iterableIndex));
-            expect(actual.lockedUntil).to.be.bignumber.equal(expected.lockedUntil);
-            expect(actual.successors).to.deep.equal(expected.successors);
+            // check header data
+            const actualHeader = await testimonium.getHeader(web3.utils.hexToBytes(expected.block.hash));
+            assertHeaderEqual(actualHeader, expected.block);
+
+            // check header meta data
+            const actualMeta = await testimonium.getHeaderMetaInfo(web3.utils.hexToBytes(expected.block.hash));
+            assertMetaEqual(actualMeta, expected);
         });
     };
 
     const checkExpectedZeroBlocks = async (expectedZeroBlocks) => {
         await asyncForEach(expectedZeroBlocks, async expectedZero => {
-            const removedBlock = await testimonium.headers(web3.utils.hexToBytes(expectedZero.hash));
+            const removedBlock = await testimonium.getHeader(web3.utils.hexToBytes(expectedZero.hash));
             expect(removedBlock.blockNumber).to.be.bignumber.equal(new BN(0));
             expect(removedBlock.nonce).to.be.bignumber.equal(new BN(0));
         });
@@ -1500,7 +1509,7 @@ Block.prototype.toString = function blockToString() {
   }`
 };
 
-const assertBlocksEqual = (actual, expected) => {
+const assertHeaderEqual = (actual, expected) => {
     expect(actual.parent).to.equal(expected.parentHash);
     expect(actual.blockNumber).to.be.bignumber.equal(new BN(expected.number));
     expect(actual.totalDifficulty).to.be.bignumber.equal(expected.totalDifficulty);
@@ -1512,11 +1521,19 @@ const assertBlocksEqual = (actual, expected) => {
     expect(actual.rlpHeaderHashWithoutNonce).to.equal(web3.utils.keccak256(createRLPHeaderWithoutNonce(expected)));
 };
 
-async function asyncForEach(array, callback) {
+const assertMetaEqual = (actual, expected) => {
+    expect(actual.latestFork).to.equal(expected.latestFork);
+    expect(actual.orderedIndex).to.be.bignumber.equal(new BN(expected.orderedIndex));
+    expect(actual.iterableIndex).to.be.bignumber.equal(new BN(expected.iterableIndex));
+    expect(actual.lockedUntil).to.be.bignumber.equal(expected.lockedUntil);
+    expect(actual.successors).to.deep.equal(expected.successors);
+};
+
+const asyncForEach = async (array, callback) => {
     for (let index = 0; index < array.length; index++) {
         await callback(array[index], index, array);
     }
-}
+};
 
 const generateBooleanArray = (numberOfTrue, size) => {
     let array = Array(size);

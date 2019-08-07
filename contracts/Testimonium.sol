@@ -1,6 +1,7 @@
 pragma solidity ^0.5.10;
 
 import "./RLP.sol";
+import "./MerklePatriciaProof.sol";
 
 contract EthashInterface {
     function verifyPoW(uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint nonce, uint difficulty,
@@ -10,10 +11,14 @@ contract EthashInterface {
 contract Testimonium {
 
     using RLP for *;
+    uint constant LOCK_PERIOD_IN_MIN = 5 minutes;
+    uint8 constant VALUE_TYPE_TRANSACTION = 0;
+    uint8 constant VALUE_TYPE_RECEIPT = 1;
+    uint8 constant VALUE_TYPE_STATE = 2;
+    bytes32 constant EMPTY_UNCLE_HASH = hex"1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347";
 
     EthashInterface ethashContract;
 
-    bytes32 constant emptyUncleHash = hex"1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347";
 
     struct MetaInfo {
         bytes32[] successors;    // in case of forks a blockchain can have multiple successors
@@ -115,8 +120,7 @@ contract Testimonium {
         // Get parent header and set next pointer to newHeader
         BlockHeader storage parentHeader = headers[newHeader.parent];
         parentHeader.meta.successors.push(newBlockHash);
-
-        newHeader.meta.lockedUntil = now + lockPeriodInMin;
+        newHeader.meta.lockedUntil = now + LOCK_PERIOD_IN_MIN;
 
         // check if parent is an endpoint
         if (orderedEndpoints[parentHeader.meta.orderedIndex] == newHeader.parent) {
@@ -149,7 +153,6 @@ contract Testimonium {
     }
 
     event PoWValidationResult(bool isPoWValid, uint errorCode, uint errorInfo);
-
     function disputeBlock(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
         // Currently, once the dispute period is over and the block is unlocked we accept it as valid.
         // In that case, no validation is carried out anymore.
@@ -164,7 +167,6 @@ contract Testimonium {
             header.nonce, header.difficulty, dataSetLookup, witnessForLookup);
         emit PoWValidationResult(isPoWCorrect, errorCode, errorInfo);
 
-        // todo: do light validation
         if (!isPoWCorrect && errorCode == 2) {   // remove branch only if now enough work was performed is too low (errorCode == 2)
             removeBranch(blockHash);
         }
@@ -175,22 +177,21 @@ contract Testimonium {
     //     1. Verify that the given block is part of the longest Proof of Work chain
     //     2. Verify that the block has passed the dispute period in which the validity of a block can be disputed
     //     3. Verify that the block has been confirmed by at least n succeeding blocks ('noOfConfirmations')
-    //     4. Verify that the transaction is indeed part of the block via a Merkle proof
     //
     // In case we have to check whether enough block confirmations occurred
     // starting from the requested block ('blockHash'), we go to the latest
     // unlocked block on the longest chain path (could be the requested block itself)
     // and count the number of confirmations (i.e. the number of unlocked blocks),
     // starting from the latest unlocked block along the longest chain path.
-    function verifyTransaction(bytes32 txHash, bytes32 requested, uint8 noOfConfirmations) public view returns (bool) {
+    function isBlockConfirmedAndUnlocked(bytes32 blockHash, uint8 noOfConfirmations) private view returns (bool) {
         bytes32 last = longestChainEndpoint;
         bytes32 current = longestChainEndpoint;
-        bytes32 checkpoint = requested;
+        bytes32 checkpoint = blockHash;
         bool confirmed = false;
         while (true) {
-            if (!confirmed && checkpoint == requested) {
+            if (!confirmed && checkpoint == blockHash) {
                 if (isUnlocked(current)) {
-                    if (headers[current].blockNumber >= headers[requested].blockNumber + noOfConfirmations) {
+                    if (headers[current].blockNumber >= headers[blockHash].blockNumber + noOfConfirmations) {
                         // We found a block that is unlocked AND confirms the requested block
                         // by at least 'noOfConfirmations' confirmations
                         confirmed = true;
@@ -200,16 +201,16 @@ contract Testimonium {
                         // enough blocks follow the current block along the longest chain which are also unlocked.
                         // 'Enough' is determined by the number of blocks required for the requested block to be considered confirmed.
                         checkpoint = getSuccessor(current, last);
-                        noOfConfirmations = (uint8)(headers[requested].blockNumber + noOfConfirmations - headers[checkpoint].blockNumber);
+                        noOfConfirmations = (uint8)(headers[blockHash].blockNumber + noOfConfirmations - headers[checkpoint].blockNumber);
                     }
                 }
             }
 
-            if (headers[current].meta.orderedIndex < headers[requested].meta.orderedIndex) {
+            if (headers[current].meta.orderedIndex < headers[blockHash].meta.orderedIndex) {
                 return false;   // the requested block is NOT part of the longest chain
             }
 
-            if (headers[current].meta.orderedIndex == headers[requested].meta.orderedIndex) {
+            if (headers[current].meta.orderedIndex == headers[blockHash].meta.orderedIndex) {
                 break;  // the requested block is part of the longest chain --> jump out of the loop
             }
 
@@ -222,7 +223,45 @@ contract Testimonium {
             return false;
         }
 
-        return verifyMerkleProof();
+        return true;
+    }
+
+    function verifyMerkleProof(bytes32 blockHash, uint8 valueType, uint8 noOfConfirmations, bytes memory rlpEncodedTx,
+        bytes memory path, bytes memory rlpEncodedNodes) private view returns (uint8) {
+        bytes32 merkleRootHash;
+
+        // check if block with blockHash exists
+        if (headers[blockHash].nonce == 0) {
+            return 1;
+        }
+
+        if (!isBlockConfirmedAndUnlocked(blockHash, noOfConfirmations)) {
+            return 2;
+        }
+
+        if (valueType == VALUE_TYPE_TRANSACTION) {
+            merkleRootHash = headers[blockHash].transactionsRoot;
+        }
+        else if (valueType == VALUE_TYPE_RECEIPT) {
+            merkleRootHash = headers[blockHash].receiptsRoot;
+        }
+        else if (valueType == VALUE_TYPE_STATE) {
+            merkleRootHash = headers[blockHash].stateRoot;
+        }
+        else {
+            revert("Unexpected value type!");
+        }
+
+        if (MerklePatriciaProof.verify(rlpEncodedTx, path, rlpEncodedNodes, merkleRootHash) > 0) {
+            return 3;
+        }
+
+        return 0;
+    }
+
+    function verifyTransaction(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx, bytes memory path,
+        bytes memory rlpEncodedNodes) public view returns (uint8) {
+        return verifyMerkleProof(blockHash, VALUE_TYPE_TRANSACTION, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
     }
 
     function isUnlocked(bytes32 blockHash) public view returns (bool) {
@@ -272,11 +311,6 @@ contract Testimonium {
         return hasEnoughConfirmations(headers[start].meta.successors[0], noOfConfirmations - 1);
     }
 
-    function verifyMerkleProof() private pure returns (bool) {
-        // todo: check Merkle Proof
-        return true;
-    }
-
     function setLatestForkAtSuccessors(BlockHeader storage header, bytes32 latestFork) private {
         if (header.meta.latestFork == latestFork) {
             // latest fork has already been set
@@ -289,7 +323,6 @@ contract Testimonium {
             setLatestForkAtSuccessors(headers[header.meta.successors[0]], latestFork);
         }
     }
-
 
     event RemoveBranch( bytes32 root );
     function removeBranch(bytes32 rootHash) private {
@@ -341,7 +374,7 @@ contract Testimonium {
         delete headers[root];
     }
 
-    event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent );
+    event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent, bytes32 transactionsRoot );
     function parseAndValidateBlockHeader( bytes memory rlpHeader ) internal returns(bytes32, BlockHeader memory) {
         BlockHeader memory header;
 
@@ -382,7 +415,7 @@ contract Testimonium {
         BlockHeader storage parentHeader = headers[header.parent];
         header.totalDifficulty = parentHeader.totalDifficulty + header.difficulty;
 
-        emit SubmitBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.difficulty, header.parent);
+        emit SubmitBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.difficulty, header.parent, header.transactionsRoot);
         return (blockHash, header);
     }
 
@@ -400,7 +433,7 @@ contract Testimonium {
         return newArray;
     }
 
-    function checkHeaderValidity(BlockHeader memory header) private {
+    function checkHeaderValidity(BlockHeader memory header) private view {
         if (orderedEndpoints.length == 0) {
             // we do not check header validity for the genesis block
             // since the genesis block is submitted at contract creation.
@@ -427,7 +460,7 @@ contract Testimonium {
         int x = int((timestamp - parent.timestamp) / 9);
 
         // take into consideration uncles of parent
-        if (parent.uncleHash == emptyUncleHash) {
+        if (parent.uncleHash == EMPTY_UNCLE_HASH) {
             x = 1 - x;
         } else {
             x = 2 - x;

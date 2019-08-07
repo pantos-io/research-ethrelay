@@ -8,7 +8,10 @@ const {expect} = require('chai');
 const GENESIS_BLOCK = 8084509;
 const ZERO_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const LOCK_PERIOD = time.duration.minutes(5);
-const ETHASH_CONTRACT_ADDRESS = "0x579B785421ce52998E2f43c222e5faA052aAad0b";
+const ALLOWED_FUTURE_BLOCK_TIME = time.duration.seconds(15);
+const MAX_GAS_LIMIT = new BN(2).pow(new BN(63)).sub(new BN(1));
+const MIN_GAS_LIMIT = new BN(5000);
+const GAS_LIMIT_BOUND_DIVISOR = new BN(1024);
 
 
 contract('Testimonium', async (accounts) => {
@@ -24,7 +27,8 @@ contract('Testimonium', async (accounts) => {
 
     beforeEach(async () => {
         const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-        testimonium = await Testimonium.new(createRLPHeader(genesisBlock), genesisBlock.totalDifficulty, ETHASH_CONTRACT_ADDRESS);
+        const genesisRlpHeader = createRLPHeader(genesisBlock);
+        testimonium = await Testimonium.new(genesisRlpHeader, genesisBlock.totalDifficulty, ETHASH_CONTRACT_ADDRESS);
     });
 
 
@@ -433,7 +437,7 @@ contract('Testimonium', async (accounts) => {
             blockWithWrongBlockNumber.number = GENESIS_BLOCK + 2;
             blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number')
+            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number');
         });
 
         it('should revert when the number of the submitted block is not incremented by one (too low)', async () => {
@@ -441,7 +445,7 @@ contract('Testimonium', async (accounts) => {
             blockWithWrongBlockNumber.number = GENESIS_BLOCK - 1;
             blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number')
+            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number');
         });
 
         it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
@@ -449,7 +453,7 @@ contract('Testimonium', async (accounts) => {
             blockWithWrongBlockNumber.number = GENESIS_BLOCK;
             blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number')
+            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number');
         });
 
         it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
@@ -457,7 +461,7 @@ contract('Testimonium', async (accounts) => {
             blockWithWrongBlockNumber.number = GENESIS_BLOCK;
             blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number')
+            await expectRevert(testimonium.submitHeader(rlpHeader), 'illegal block number');
         });
 
         it('should revert when the timestamp of the submitted block is not in the future (equal)', async () => {
@@ -466,7 +470,7 @@ contract('Testimonium', async (accounts) => {
             blockWithPastTimestamp.timestamp = genesisBlock.timestamp;
             blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
-            await expectRevert(testimonium.submitHeader(rlpHeader),'illegal timestamp')
+            await expectRevert(testimonium.submitHeader(rlpHeader),'illegal timestamp');
         });
 
         it('should revert when the timestamp of the submitted block is not in the future (older)', async () => {
@@ -475,7 +479,16 @@ contract('Testimonium', async (accounts) => {
             blockWithPastTimestamp.timestamp = genesisBlock.timestamp - 1;
             blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
-            await expectRevert(testimonium.submitHeader(rlpHeader),'illegal timestamp')
+            await expectRevert(testimonium.submitHeader(rlpHeader),'illegal timestamp');
+        });
+
+        it('should revert when the timestamp of the submitted block is too far in the future', async () => {
+            const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+            const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithPastTimestamp.timestamp = time.latest() + ALLOWED_FUTURE_BLOCK_TIME;
+            blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
+            const rlpHeader = createRLPHeader(blockWithPastTimestamp);
+            await expectRevert(testimonium.submitHeader(rlpHeader),'illegal timestamp');
         });
 
         it('should revert when the difficulty of the submitted block is not correct', async () => {
@@ -484,7 +497,51 @@ contract('Testimonium', async (accounts) => {
             blockWithIllegalDifficulty.difficulty = newDifficulty.toString();
             blockWithIllegalDifficulty.hash = calculateBlockHash(blockWithIllegalDifficulty);
             const rlpHeader = createRLPHeader(blockWithIllegalDifficulty);
-            await expectRevert(testimonium.submitHeader(rlpHeader),'wrong difficulty')
+            await expectRevert(testimonium.submitHeader(rlpHeader),'wrong difficulty');
+        });
+
+        it('should revert when the gas limit of the submitted block is higher than maximum gas limit', async () => {
+            const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithIllegalGasLimit.gasLimit = MAX_GAS_LIMIT.add(new BN(1));
+            blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
+            const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
+            await expectRevert(testimonium.submitHeader(rlpHeader),'gas limit too high');
+        });
+
+        it('should revert when the gas limit of the submitted block is smaller than the minium gas limit', async () => {
+            const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithIllegalGasLimit.gasLimit = MIN_GAS_LIMIT.sub(new BN(1));
+            blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
+            const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
+            await expectRevert(testimonium.submitHeader(rlpHeader),'gas limit too small');
+        });
+
+        it('should revert when the gas limit of the submitted block is out of bounds (too high)', async () => {
+            const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+            const limit = new BN(genesisBlock.gasLimit).div(GAS_LIMIT_BOUND_DIVISOR);
+            const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithIllegalGasLimit.gasLimit = new BN(genesisBlock.gasLimit).add(limit).add(new BN(1));
+            blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
+            const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
+            await expectRevert(testimonium.submitHeader(rlpHeader),'illegal gas limit');
+        });
+
+        it('should revert when the gas limit of the submitted block is out of bounds (too small)', async () => {
+            const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+            const limit = new BN(genesisBlock.gasLimit).div(GAS_LIMIT_BOUND_DIVISOR);
+            const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithIllegalGasLimit.gasLimit = new BN(genesisBlock.gasLimit).sub(limit).sub(new BN(1));
+            blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
+            const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
+            await expectRevert(testimonium.submitHeader(rlpHeader),'illegal gas limit');
+        });
+
+        it('should revert when the gas used of the submitted block is higher than the gas limit', async () => {
+            const blockWithIllegalGasUsed = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            blockWithIllegalGasUsed.gasUsed = new BN(blockWithIllegalGasUsed.gasLimit).add(new BN(1));
+            blockWithIllegalGasUsed.hash = calculateBlockHash(blockWithIllegalGasUsed);
+            const rlpHeader = createRLPHeader(blockWithIllegalGasUsed);
+            await expectRevert(testimonium.submitHeader(rlpHeader),'gas used is higher than the gas limit');
         });
 
 
@@ -1664,7 +1721,9 @@ Block.prototype.toString = function blockToString() {
 
 const assertHeaderEqual = (actual, expected) => {
     expect(actual.parent).to.equal(expected.parentHash);
+    expect(actual.uncleHash).to.equal(expected.sha3Uncles);
     expect(actual.blockNumber).to.be.bignumber.equal(new BN(expected.number));
+    expect(actual.gasLimit).to.be.bignumber.equal(new BN(expected.gasLimit));
     expect(actual.totalDifficulty).to.be.bignumber.equal(expected.totalDifficulty);
     expect(actual.stateRoot).to.equal(expected.stateRoot);
     expect(actual.transactionsRoot).to.equal(expected.transactionsRoot);

@@ -1,6 +1,6 @@
 pragma solidity ^0.5.10;
 
-import "./RLP.sol";
+import "./RLPReader.sol";
 import "./MerklePatriciaProof.sol";
 
 contract EthashInterface {
@@ -10,11 +10,15 @@ contract EthashInterface {
 
 contract Testimonium {
 
-    using RLP for *;
+    using RLPReader for *;
     uint constant LOCK_PERIOD_IN_MIN = 5 minutes;
     uint8 constant VALUE_TYPE_TRANSACTION = 0;
     uint8 constant VALUE_TYPE_RECEIPT = 1;
     uint8 constant VALUE_TYPE_STATE = 2;
+    uint constant ALLOWED_FUTURE_BLOCK_TIME = 15 seconds;
+    uint constant MAX_GAS_LIMIT = 2**63-1;
+    uint constant MIN_GAS_LIMIT = 5000;
+    int64 constant GAS_LIMIT_BOUND_DIVISOR = 1024;
     bytes32 constant EMPTY_UNCLE_HASH = hex"1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347";
 
     EthashInterface ethashContract;
@@ -35,6 +39,7 @@ contract Testimonium {
         bytes32 transactionsRoot;
         bytes32 receiptsRoot;
         uint blockNumber;
+        uint gasLimit;
         bytes32 rlpHeaderHashWithoutNonce;   // sha3 hash of the header without nonce and mix fields
         uint timestamp;                      // block timestamp is needed for difficulty calculation
         uint nonce;                          // blockNumber, rlpHeaderHashWithoutNonce and nonce are needed for verifying PoW
@@ -68,7 +73,8 @@ contract Testimonium {
 
     function getHeader(bytes32 blockHash) public view returns (
         bytes32 parent, bytes32 uncleHash, bytes32 stateRoot, bytes32 transactionsRoot, bytes32 receiptsRoot,
-        uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint timestamp, uint nonce, uint difficulty, uint totalDifficulty
+        uint blockNumber, uint gasLimit, bytes32 rlpHeaderHashWithoutNonce, uint timestamp, uint nonce,
+        uint difficulty, uint totalDifficulty
     ) {
         BlockHeader storage header = headers[blockHash];
         return (
@@ -78,6 +84,7 @@ contract Testimonium {
             header.transactionsRoot,
             header.receiptsRoot,
             header.blockNumber,
+            header.gasLimit,
             header.rlpHeaderHashWithoutNonce,
             header.timestamp,
             header.nonce,
@@ -378,7 +385,8 @@ contract Testimonium {
     function parseAndValidateBlockHeader( bytes memory rlpHeader ) internal returns(bytes32, BlockHeader memory) {
         BlockHeader memory header;
 
-        RLP.Iterator memory it = rlpHeader.toRLPItem().iterator();
+        RLPReader.Iterator memory it = rlpHeader.toRlpItem().iterator();
+        uint gasUsed;   // we do not store gasUsed with the header as we do not need to access it after the header validation has taken place
         uint idx;
         while(it.hasNext()) {
             if( idx == 0 ) header.parent = it.next().toBytes32();
@@ -388,7 +396,8 @@ contract Testimonium {
             else if ( idx == 5 ) header.receiptsRoot = it.next().toBytes32();
             else if ( idx == 7 ) header.difficulty = it.next().toUint();
             else if ( idx == 8 ) header.blockNumber = it.next().toUint();
-//            else if ( idx == 9 ) header.gasLimit = it.next().toUint();
+            else if ( idx == 9 ) header.gasLimit = it.next().toUint();
+            else if ( idx == 10 ) gasUsed = it.next().toUint();
             else if ( idx == 11 ) header.timestamp = it.next().toUint();
             else if ( idx == 14 ) header.nonce = it.next().toUint();
             else it.next();
@@ -409,7 +418,7 @@ contract Testimonium {
         bytes32 rlpHeaderHashWithoutNonce = keccak256(rlpWithoutNonce);
 
         header.rlpHeaderHashWithoutNonce = rlpHeaderHashWithoutNonce;
-        checkHeaderValidity(header);
+        checkHeaderValidity(header, gasUsed);
 
         // Get parent header and set total difficulty
         BlockHeader storage parentHeader = headers[header.parent];
@@ -433,23 +442,45 @@ contract Testimonium {
         return newArray;
     }
 
-    function checkHeaderValidity(BlockHeader memory header) private view {
+    // @dev Validates the fields of a block header without validating the PoW
+    // The validation largely follows the header validation of the geth implementation:
+    // https://github.com/ethereum/go-ethereum/blob/aa6005b469fdd1aa7a95f501ce87908011f43159/consensus/ethash/consensus.go#L241
+    function checkHeaderValidity(BlockHeader memory header, uint gasUsed) private view {
         if (orderedEndpoints.length == 0) {
             // we do not check header validity for the genesis block
             // since the genesis block is submitted at contract creation.
             return;
         }
 
+        // validate parent
         BlockHeader storage parent = headers[header.parent];
         require(parent.nonce != 0, "non-existent parent");
+
+        // validate block number
         require(parent.blockNumber + 1 == header.blockNumber, "illegal block number");
+
+        // validate timestamp
+        require(header.timestamp <= now + ALLOWED_FUTURE_BLOCK_TIME, "illegal timestamp");
         require(parent.timestamp < header.timestamp, "illegal timestamp");
 
         // validate difficulty
         uint expectedDifficulty = calculateDifficulty(parent, header.timestamp);
         require(expectedDifficulty == header.difficulty, "wrong difficulty");
 
-        // todo: check gas limit
+        // validate gas limit
+        require(header.gasLimit <= MAX_GAS_LIMIT, "gas limit too high");  // verify that the gas limit is <= 2^63-1
+        require(header.gasLimit >= MIN_GAS_LIMIT, "gas limit too small"); // verify that the gas limit is >= 5000
+        require(gasLimitWithinBounds(int64(header.gasLimit), int64(parent.gasLimit)), "illegal gas limit");
+        require(gasUsed <= header.gasLimit, "gas used is higher than the gas limit"); // verify that the gasUsed is <= gasLimit
+    }
+
+    function gasLimitWithinBounds(int64 gasLimit, int64 parentGasLimit) private pure returns (bool) {
+        int64 limit = parentGasLimit / GAS_LIMIT_BOUND_DIVISOR;
+        int64 difference = gasLimit - parentGasLimit;
+        if (difference < 0) {
+            difference *= -1;
+        }
+        return difference <= limit;
     }
 
     // diff = (parent_diff +

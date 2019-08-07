@@ -12,9 +12,6 @@ contract Testimonium {
 
     using RLPReader for *;
     uint constant LOCK_PERIOD_IN_MIN = 5 minutes;
-    uint8 constant VALUE_TYPE_TRANSACTION = 0;
-    uint8 constant VALUE_TYPE_RECEIPT = 1;
-    uint8 constant VALUE_TYPE_STATE = 2;
     uint constant ALLOWED_FUTURE_BLOCK_TIME = 15 seconds;
     uint constant MAX_GAS_LIMIT = 2**63-1;
     uint constant MIN_GAS_LIMIT = 5000;
@@ -233,9 +230,8 @@ contract Testimonium {
         return true;
     }
 
-    function verifyMerkleProof(bytes32 blockHash, uint8 valueType, uint8 noOfConfirmations, bytes memory rlpEncodedTx,
-        bytes memory path, bytes memory rlpEncodedNodes) private view returns (uint8) {
-        bytes32 merkleRootHash;
+    function verifyMerkleProof(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx,
+        bytes memory path, bytes memory rlpEncodedNodes, bytes32 merkleRootHash) public view returns (uint8) {
 
         // check if block with blockHash exists
         if (headers[blockHash].nonce == 0) {
@@ -244,19 +240,6 @@ contract Testimonium {
 
         if (!isBlockConfirmedAndUnlocked(blockHash, noOfConfirmations)) {
             return 2;
-        }
-
-        if (valueType == VALUE_TYPE_TRANSACTION) {
-            merkleRootHash = headers[blockHash].transactionsRoot;
-        }
-        else if (valueType == VALUE_TYPE_RECEIPT) {
-            merkleRootHash = headers[blockHash].receiptsRoot;
-        }
-        else if (valueType == VALUE_TYPE_STATE) {
-            merkleRootHash = headers[blockHash].stateRoot;
-        }
-        else {
-            revert("Unexpected value type!");
         }
 
         if (MerklePatriciaProof.verify(rlpEncodedTx, path, rlpEncodedNodes, merkleRootHash) > 0) {
@@ -268,7 +251,17 @@ contract Testimonium {
 
     function verifyTransaction(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx, bytes memory path,
         bytes memory rlpEncodedNodes) public view returns (uint8) {
-        return verifyMerkleProof(blockHash, VALUE_TYPE_TRANSACTION, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
+        return verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes, headers[blockHash].transactionsRoot);
+    }
+
+    function verifyReceipt(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx, bytes memory path,
+        bytes memory rlpEncodedNodes) public view returns (uint8) {
+        return verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes, headers[blockHash].receiptsRoot);
+    }
+
+    function verifyState(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx, bytes memory path,
+        bytes memory rlpEncodedNodes) public view returns (uint8) {
+        return verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes, headers[blockHash].stateRoot);
     }
 
     function isUnlocked(bytes32 blockHash) public view returns (bool) {

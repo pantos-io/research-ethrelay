@@ -5,7 +5,7 @@ const { createRLPHeader } = require('../utils/utils');
 module.exports = async function(deployer) {
   const targetWeb3 = new Web3("https://mainnet.infura.io");
   const GENESIS_BLOCK = 8084509;
-  const ETHASH_CONTRACT_ADDRESS = "0xE3b20e6f4646BBCA725006c8370CFEe6a8A1d3bD";
+  const ETHASH_CONTRACT_ADDRESS = "0x4398bc9BB173d54Bd89E41B2A0b2f56d96a7B48f";
 
   const genesisBlock = await targetWeb3.eth.getBlock(GENESIS_BLOCK);
   const genesisRlpHeader = createRLPHeader(genesisBlock);

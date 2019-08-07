@@ -789,6 +789,148 @@ contract('Testimonium', async (accounts) => {
                 }
             }
         });
+
+        // Test Scenario 5: submit valid Merkle Patricia proof
+        //
+        //       tx
+        //        |
+        //        v
+        // (0)---(1)---(2)---(3)---(4)---(5)
+        //
+        it('should correctly execute test scenario 5', async () => {
+            // Create expected chain
+            const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
+            const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
+            const rlpEncodedTx = web3.utils.hexToBytes("0xf86b028502540be40082520894c5764928a94f13945ac9bed4613ee736f1cf65fc870cd082d184e0008026a024630f181ee975d3acf71d91eef1eebc565e723e394adbbf0b346f77d83af0f4a074c4e8e6a7f6ab446660637682efe2809bd6adc1cd9ddd288c0fbc5f2d12c89c");
+            const path = web3.utils.hexToBytes("0x81a8");
+            const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf904ccb90134f90131a064e0f904be2c8f5d2bcf26b7546c6e5c685309aca6b64a4d7bbae8ff64ab369ea0b476aa430c8d17551dd4023c7d19bfe2ed867df51d9bd996ea82fb3b94bb8e60a078a3ba904db716bed50e89e67e4d1fc152338347542bcab7935febb02e5471c0a06f21f1f73702d35bca8f57c9e1656b747f0004f23a073061d8ed88649427810ca0242eb705b81f0ae1e11977b02481ce31a37d8dd11d2d84af7420834b93343332a068d3fce6c253a3580d01b4a2755cc4d92fed085fd567b8baf1d77161ac1b41cca00b259ae6f5eeda338fdabe23b830922515a632eb640c884ab477cb12d55bccf9a0d23bc74430048459efcd8820829207e705c1d9fb76aa4ce7daf76bcbbfad7ad0a068b734aa7e95bcb0e97611d0e5488556c1c6655889273c6f6e6ec43b6400fb3c8080808080808080b853f851a0f929cf7b8348dc73646c4058ef112ebaf9a1f041513f0becb221d50ac9b0ee88a062f1af03226a331c42918432660614140f99fa2f92a26b7fb6bd0f42dd3878c9808080808080808080808080808080b8b3f8b18080808080808080a094aac73e4c058372d5a80c0b7653bdea9276e6ce9a71b055ee059e6845f83890a0b27b821e7f47ae0bf86af752646b72bcca32f59471ee41be46db7ec4ff462408a0ca1bafc752d8e980bd9ecd8970f72b3fd3ef8ba5dae60f85a35058b7b1753445a05d193325ca6ccd69d2d667d3db9df9062b37b158fa62d89fdcf66d064d8225c7a01ac9ae461be3985c9197334cd2c69d7d534a8f49e9f358bc4ef48e220935db8e80808080b90214f90211a0c829cc875c044dcb90b86098de7598f32abeab6a7b2d6bd23199c2671b551a08a0eb92fc5d9df9f4a82759be2f37c2f3a153de2ebfde585ce8bf94d561c97e472ca01650b87c9e0ee4844079d9c38ccfbaaf9004864a3b03495be1a81b050df5ec1aa0a2de5fb828582d1ec48cd0ce73505b7d0a2284df43285f603d1e86185377def0a09f5baaf424d1338a896e8f61bab3f495a29f73e036a0bfe76f37fd1d84562b49a0688b365dd6c76cadfdaf5b35bb2c17f37fd358a568f3d056ae79ab9f18f2b4a9a0abe293657be1ed9f862868afe7dfde1ac207795493bef33f6f6bb029834d9a4ca0275a4fed8762b3f422b5fe8b3aacefb1675eb89a05144afbbd068b3626b617d7a0dcecfdec736d7883c8665729aaf02505a1d89622e1e25c962454633eed8cdb16a0a2a95bd9e724d1fc8b4acbd2e1e61e101272263b775c3e97ac9132dd973d474da0c9fb78deadf234efd43c925ce16a76198c47586f492aefd7d459396608fc2bdea06e855d3813257697fb66a03ef94119c73f98c71c2e1c3290cb15042a27ac8e1ca01d9e91bc3a6601979ad66e2139d2bb186ffc822b80260f6470aa60742bb87f08a0f860f5e1d3f5c6d7c8721d343f7a5aebb163aa1ea9318fbd7110ab3b5b8089a1a02aaa99a83589062b6c07157ee84e222427db1189edc8a78e311993217827259ba0b8bb75030b74f508233b200c70bf64906332138cef2678710e00585ea39a72f580b872f87020b86df86b028502540be40082520894c5764928a94f13945ac9bed4613ee736f1cf65fc870cd082d184e0008026a024630f181ee975d3acf71d91eef1eebc565e723e394adbbf0b346f77d83af0f4a074c4e8e6a7f6ab446660637682efe2809bd6adc1cd9ddd288c0fbc5f2d12c89c");
+            const expectedBlocks = [
+                {
+                    block: block1,
+                },
+                {
+                    block: block2,
+                },
+                {
+                    block: block3,
+                },
+                {
+                    block: block4,
+                },
+                {
+                    block: block5,
+                },
+            ];
+
+            await submitBlockHeaders(expectedBlocks);
+
+            expectedBlocks.forEach((block, index) => {
+                console.log(`block ${index}: ${block.lockedUntil}`)
+            });
+
+            await time.increaseTo(expectedBlocks[0].lockedUntil);
+            await time.increase(time.duration.seconds(1));
+
+            expect(await testimonium.verifyTransaction(requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes)).to.be.bignumber.equal(new BN(0));
+        });
+
+        // Test Scenario 6: submit invalid Merkle Patricia proof
+        //
+        //
+        //
+        //
+        // (0)---(1)---(2)---(3)---(4)---(5)
+        //
+        it('should correctly execute test scenario 6', async () => {
+            // Create expected chain
+            const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
+            const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
+            const rlpEncodedTx = web3.utils.hexToBytes("0xf8aa818d84b2d05e0083200b209481ea14e770101e2dfa61df3f38b663084bb0b7e880b844a9059cbb0000000000000000000000006996e47d5e2c91c26691de113e2361eeab964d8500000000000000000000000000000000000000000000003b658cfb29b608800026a0872c70c6dc720398eaac1efbed3b4f52aaf594f7d5490d6875b306f788bd9e7fa06684e264433eef21d57bde66fb6143171b29c9816eb122d2ebef59de120a6769");
+            const path = web3.utils.hexToBytes("0x71");
+            const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90401b90134f90131a097e42bbdc349cedf2b1d12a86af52188303140beb0281f5d3f67b7052b11d350a00c68d9cba2174e909dd49f29fd052be03983d8ab103d4265f574daafe1eaa716a0640af8ccc0f62c68c2fd92f9336bd17da1e5ee5e17b6469ddbac6419f24f491ba0db6159aca85160bf87c8db0a27b15d6b7c14418a3a23ddacda6a6f300d2d4f1da0f18bf4a7a483897d772a9d6a1ffb1fbabb4c373eb3ca340fe5e073870bdd87efa0208113fa0be9974903b7487c6c56dbdce6e8bedc5d1cab1839eafbb87bd6fd75a037cf520c7e88309692e7688c199259b97dd669d4c3175bbabf688e789a1c54c6a083e562141a2ce249b5902d7d1c91146e5bb7a554aba45f2389d5d21d784f6642a07a9111372fe3306b1cd396bf8b5ea59db74772bb44c1d72a93b748bfe24b28628080808080808080b90214f90211a00af4d660415a685b9a59c1f5c54281e61dcaf01d3badb7b79e28260e4b9128caa0971027721be8afd6f353358da04b086e888df0549887348d52c7ebab9f1f3068a0b04491a5df5dbb103adabad39f55e2d66af96b996821a5a77a56fef9984cb010a050dc6710ffb88972934d96ee512cef5a56a76e03ce5997437052149383f09034a0f8f048156e5b3e6602d7872a040233b10f524250824cd4c598b297da7080d042a0d1734e0c1492d5e7f25048efd7bac0d2dc105c25c20681c39a8989655a6773dca0a75e3fa9a939f497c1abcd1d884d445a0b2f32f0ee5ce6fb86463048807749f8a096d8e1bcf9d3c7fdcab7409365ebc2f0b3b5b502fd2eeed563d66179930795a5a016e21786de0cb6e7c952f3be3900e2ef34f2ce7b8d5886f82fc194b0757f2ecda084b42cbf093d9db262105fd745eb3b1a2bb69a4179c922c28a4d7deffc507308a007e4b8f19ce14f4c7f9ff662a3de4c040586282e4e5f5b7d431d6aa158a01924a06e8600225413de53997af8b439bc270924c5649642a8d0229eb646dd075a968aa0499e66540cf915f8607651cddd9b8dd988bebe777049263b02dc357f869fafeda0c3f85a81cf6111221cbfddb47ad950b744739fd70be205ebd7671dd3169de604a0543e2e6ab126477758981f20fecd129e811b6b99225428d63bf95995709a0deaa0fdf4538f5e0553ef05bd315851520d4c6b711d548dd854b316fb42bf30e5558e80b8b1f8af20b8acf8aa818d84b2d05e0083200b209481ea14e770101e2dfa61df3f38b663084bb0b7e880b844a9059cbb0000000000000000000000006996e47d5e2c91c26691de113e2361eeab964d8500000000000000000000000000000000000000000000003b658cfb29b608800026a0872c70c6dc720398eaac1efbed3b4f52aaf594f7d5490d6875b306f788bd9e7fa06684e264433eef21d57bde66fb6143171b29c9816eb122d2ebef59de120a6769");
+            const expectedBlocks = [
+                {
+                    block: block1,
+                },
+                {
+                    block: block2,
+                },
+                {
+                    block: block3,
+                },
+                {
+                    block: block4,
+                },
+                {
+                    block: block5,
+                },
+            ];
+
+            await submitBlockHeaders(expectedBlocks);
+
+            expectedBlocks.forEach((block, index) => {
+                console.log(`block ${index}: ${block.lockedUntil}`)
+            });
+
+            await time.increaseTo(expectedBlocks[0].lockedUntil);
+            await time.increase(time.duration.seconds(1));
+
+            expect(await testimonium.verifyTransaction(requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes)).to.be.bignumber.equal(new BN(3));
+        });
+
+        // Test Scenario 7: submit Merkle Patricia proof for a block that is not stored in the contract
+        //
+        //
+        //
+        //
+        // (0)---(1)---(2)---(3)---(4)---(5)
+        //
+        it('should correctly execute test scenario 7', async () => {
+            // Create expected chain
+            const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
+            const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 6);  // this block will not be submitted
+            const requestedBlockHash = web3.utils.hexToBytes(block6.hash);
+            const rlpEncodedTx = web3.utils.hexToBytes("0xf86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
+            const path = web3.utils.hexToBytes("0x80");
+            const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90203b90134f90131a046a11582bfd9da02a0a857f572bbe08d0467502cb212d02048e9303986dabdfba0d7d90c16309409eca72d959ff2419b5f2feac4ba76acda1b3de8651db65b4c91a0b0a8904b11ada7fe8ada7c51c01a13deb2833b47f82a964d66d0b9ec9bd160baa061a791ece33a5cba8eb27345a4a58ab911d7b4684731b0ae8aa97ffc992b9bc8a0b135e0c562a97ca9bdab66f0187ac044dfbf7a3567d21acbe1363bf76a6b8768a07467253e2430335ac71e8ff93cbd8f71d7b501efdc9a9b5c40c042c6144df9f2a077a192fccfb384092b022e8c8fc5e629e1048d62c538401d15fd5bfdfa969bf1a0f905208d3cd9fd002508dc447a0f85fcf3271f07dc39fc1fc62f75704018e6a3a099341a1ae2fc30a64d825f7107c42167b3247f0f6fbbb4193a89b528a877b7a78080808080808080b853f851a0bab73d23919188d2dd5dba08a5bc0a09b49b1726a0f7452193d91f552f814051a062ca89fba3f46973e6198f9c01b58fc481d7e4cfab721fe9c84878760d7b63cd808080808080808080808080808080b875f87320b870f86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
+            const expectedBlocks = [
+                {
+                    block: block1,
+                },
+                {
+                    block: block2,
+                },
+                {
+                    block: block3,
+                },
+                {
+                    block: block4,
+                },
+                {
+                    block: block5,
+                },
+            ];
+
+            await submitBlockHeaders(expectedBlocks);
+
+            expectedBlocks.forEach((block, index) => {
+                console.log(`block ${index}: ${block.lockedUntil}`)
+            });
+
+            expect(await testimonium.verifyTransaction(requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes)).to.be.bignumber.equal(new BN(1));
+        });
     });
 
     describe('DisputeBlock', function () {

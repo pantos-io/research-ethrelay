@@ -11,7 +11,7 @@ The ability to verify transactions "across" different blockchains is vital to en
 [cross-blockchain token transfers](https://dsg.tuwien.ac.at/projects/tast/pub/tast-white-paper-5.pdf).
 > _Important: Testimonium is a research prototype. 
   It represents ongoing work conducted within the [TAST](https://dsg.tuwien.ac.at/projects/tast/) 
-  research project. Do not use in production._
+  research project. Use with care._
 
 
 ## Get Started

@@ -1,6 +1,6 @@
 pragma solidity ^0.5.10;
 
-import "./RLPReader.sol";
+import "solidity-rlp/contracts/RLPReader.sol";
 import "./MerklePatriciaProof.sol";
 
 contract EthashInterface {
@@ -435,11 +435,11 @@ contract Testimonium {
         uint gasUsed;   // we do not store gasUsed with the header as we do not need to access it after the header validation has taken place
         uint idx;
         while(it.hasNext()) {
-            if( idx == 0 ) header.parent = it.next().toBytes32();
-            else if ( idx == 1 ) header.uncleHash = it.next().toBytes32();
-            else if ( idx == 3 ) header.stateRoot = it.next().toBytes32();
-            else if ( idx == 4 ) header.transactionsRoot = it.next().toBytes32();
-            else if ( idx == 5 ) header.receiptsRoot = it.next().toBytes32();
+            if( idx == 0 ) header.parent = bytes32(it.next().toUint());
+            else if ( idx == 1 ) header.uncleHash = bytes32(it.next().toUint());
+            else if ( idx == 3 ) header.stateRoot = bytes32(it.next().toUint());
+            else if ( idx == 4 ) header.transactionsRoot = bytes32(it.next().toUint());
+            else if ( idx == 5 ) header.receiptsRoot = bytes32(it.next().toUint());
             else if ( idx == 7 ) header.difficulty = it.next().toUint();
             else if ( idx == 8 ) header.blockNumber = it.next().toUint();
             else if ( idx == 9 ) header.gasLimit = it.next().toUint();

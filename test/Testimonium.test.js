@@ -5,14 +5,15 @@ const {createRLPHeader, calculateBlockHash, createRLPHeaderWithoutNonce, addToHe
 const Testimonium = artifacts.require('./Testimonium');
 const {expect} = require('chai');
 
-const GENESIS_BLOCK = 8084509;
-const ZERO_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
-const LOCK_PERIOD = time.duration.minutes(5);
+const GENESIS_BLOCK             = 8084509;
+const ZERO_HASH                 = '0x0000000000000000000000000000000000000000000000000000000000000000';
+const LOCK_PERIOD               = time.duration.minutes(5);
 const ALLOWED_FUTURE_BLOCK_TIME = time.duration.seconds(15);
-const MAX_GAS_LIMIT = new BN(2).pow(new BN(63)).sub(new BN(1));
-const MIN_GAS_LIMIT = new BN(5000);
-const GAS_LIMIT_BOUND_DIVISOR = new BN(1024);
-const ETHASH_CONTRACT_ADDRESS = "0x4398bc9BB173d54Bd89E41B2A0b2f56d96a7B48f";
+const MAX_GAS_LIMIT             = new BN(2).pow(new BN(63)).sub(new BN(1));
+const MIN_GAS_LIMIT             = new BN(5000);
+const GAS_LIMIT_BOUND_DIVISOR   = new BN(1024);
+const ETHASH_CONTRACT_ADDRESS   = "0x9bBD9C861eff6A13F760eBec59E180bdd10394a7";
+const INFURA_ENDPOINT           = "https://mainnet.infura.io/";
 
 
 contract('Testimonium', async (accounts) => {
@@ -21,7 +22,7 @@ contract('Testimonium', async (accounts) => {
     let sourceWeb3;
 
     before(async () => {
-        sourceWeb3 = new Web3("https://mainnet.infura.io");
+        sourceWeb3 = new Web3(INFURA_ENDPOINT);
         // Advance to the next block to correctly read time in the solidity "now" function interpreted by ganache
         await time.advanceBlock();
     });

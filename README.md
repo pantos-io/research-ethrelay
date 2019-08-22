@@ -15,7 +15,7 @@ The ability to verify transactions "across" different blockchains is vital to en
 
 
 ## Get Started
-Testimonium is best enjoyed through the accompanying CLI tool, so go check it out [here](https://github.com/pf92/testimonium-cli).  
+Testimonium is best enjoyed through the accompanying CLI tool, so go check it out [here](https://github.com/pf92/go-testimonium).  
 If you want to deploy the contracts manually, follow the steps below.
 
 ## Installation
@@ -28,30 +28,21 @@ You need to have the following tools installed:
 * [Ganache](https://www.trufflesuite.com/ganache)
 
 ### Deployment
-TODO: add ethash deployment info
 1. Clone the repository: `git clone git@github.com:pf92/testimonium.git`
-
 2. Change into the project directory: `cd testimonium/`
-3. Install all dependencies: `npm install`  
-4. Compile contracts: `truffle compile`
+3. Install all dependencies: `npm install`
+4. Make sure the [Ethash]((https://github.com/pf92/ethash)) contract is deployed. 
+Update the Ethash contract address in files `migrations/2_deploy_testimonium.js` and `test/Testimonium.test.js` accordingly.  
 5. Deploy contracts: `truffle migrate --reset`
-    
-#### Frequent Errors
-##### Wrong Compiler Version:
-```
-contracts/Testimonium.sol:1:1: Error: Source file requires different compiler version (current compiler is 0.5.9+commit.c68bc34e.Darwin.appleclang - note that nightly builds are considered to be strictly less than the released version
-pragma solidity ^0.5.10;
-^----------------------^
-```
-Make sure the solidity compiler is up-to-date with `solc --version`.
-To update the solidity compiler on Mac, run `brew upgrade`
+  
+_Note: It is currently required to deploy the Ethash contract separately because the contract relies on an old 
+Solidity compiler version (v0.4.9)._
 
 ### Testing
 Run the tests with `truffle test`.
 
 ### Export contract
 To generate the Go contract file and export it to Testimonium-CLI project run `./export.sh`
-
 
 
 ## How it works
@@ -99,7 +90,28 @@ If the proof validation is successful, transaction _tx_ is part of block _b_. If
 _tx_ is not part of _b_.
 
 ###
-A more detailed explanation of the inner workings can be found [here](TODO link to white paper 6). 
+A more detailed explanation of the inner workings can be found [here](https://dsg.tuwien.ac.at/projects/tast/pub/tast-white-paper-6.pdf). 
+
+## Troubleshooting
+#### Wrong Compiler Version:
+```
+contracts/Testimonium.sol:1:1: Error: Source file requires different compiler version (current compiler is 0.5.9+commit.c68bc34e.Darwin.appleclang - note that nightly builds are considered to be strictly less than the released version
+pragma solidity ^0.5.10;
+^----------------------^
+```
+Make sure the solidity compiler is up-to-date with `solc --version`.
+To update the solidity compiler on Mac, run `brew upgrade`
+
+#### Legacy Access Request Rate Exceeded Error
+When running the tests you might run into the following error: `Returned error: legacy access request rate exceeded`.
+
+To fix, create an account with [Infura](https://infura.io/register) and create a new Infura project. 
+Then in file `test/Testimonium.test.js` change the constant `INFURA_ENDPOINT` to the 
+mainnet URL from your Infura project.
+
+#### Dispute Block Tests Fail
+If the tests for disputing blocks fail, make sure that the [Ethash](https://github.com/pf92/ethash) contract is deployed 
+and that the contract address is set in `test/Testimonium.test.js`.
 
 
 ## How to contribute

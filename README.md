@@ -15,7 +15,7 @@ The ability to verify transactions "across" different blockchains is vital to en
 
 
 ## Get Started
-Testimonium is best enjoyed through the accompanying CLI tool, so go check it out [here](https://github.com/pf92/go-testimonium).  
+Testimonium is best enjoyed through the accompanying CLI tool, so go check it out [here](https://github.com/pantos-io/go-testimonium).  
 If you want to deploy the contracts manually, follow the steps below.
 
 ## Installation
@@ -28,10 +28,10 @@ You need to have the following tools installed:
 * [Ganache](https://www.trufflesuite.com/ganache)
 
 ### Deployment
-1. Clone the repository: `git clone git@github.com:pf92/testimonium.git`
+1. Clone the repository: `git clone git@github.com:pantos-io/testimonium.git`
 2. Change into the project directory: `cd testimonium/`
 3. Install all dependencies: `npm install`
-4. Make sure the [Ethash]((https://github.com/pf92/ethash)) contract is deployed. 
+4. Make sure the [Ethash]((https://github.com/pantos-io/ethash)) contract is deployed. 
 Update the Ethash contract address in files `migrations/2_deploy_testimonium.js` and `test/Testimonium.test.js` accordingly.  
 5. Deploy contracts: `truffle migrate --reset`
   
@@ -110,13 +110,13 @@ Then in file `test/Testimonium.test.js` change the constant `INFURA_ENDPOINT` to
 mainnet URL from your Infura project.
 
 #### Dispute Block Tests Fail
-If the tests for disputing blocks fail, make sure that the [Ethash](https://github.com/pf92/ethash) contract is deployed 
+If the tests for disputing blocks fail, make sure that the [Ethash](https://github.com/pantos-io/ethash) contract is deployed 
 and that the contract address is set in `test/Testimonium.test.js`.
 
 
 ## How to contribute
 Testimonium is a research prototype. We welcome anyone to contribute.
-File a bug report or submit feature requests through the [issue tracker](https://github.com/pf92/testimonium/issues). 
+File a bug report or submit feature requests through the [issue tracker](https://github.com/pantos-io/testimonium/issues). 
 If you want to contribute feel free to submit a pull request.
 
 ## Acknowledgements

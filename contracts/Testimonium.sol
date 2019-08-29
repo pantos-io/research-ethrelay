@@ -17,30 +17,30 @@ contract Testimonium is TestimoniumCore {
     }
 
     /// @dev Withdraws the stake of a client.
-    /// Once stake is withdrawn, the client cannot submit block headers anymore.
+    /// The stake is reduced by the specified amount.
     function withdrawStake(uint amount) public {
         require(clientStake[msg.sender] >= amount);
 
-        if (canWithdraw(msg.sender, amount)) {
-            return withdraw(msg.sender, amount);
+        if (getUnusedStake(msg.sender) < amount) {
+            require(cleanSubmitList(msg.sender), "stake not free");
+            require(getUnusedStake(msg.sender) >= amount, "stake not free");
         }
 
-        require(cleanSubmitList(msg.sender), "stake not free");
-        require(canWithdraw(msg.sender, amount), "stake not free");
         return withdraw(msg.sender, amount);
 
     }
 
     function submitBlock(bytes memory rlpHeader) public {
         // client must have enough stake to be able to submit blocks
-        if(canSubmitBlocks(msg.sender)) {
-            return submitHeader(rlpHeader);
+        if(getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
+            // client has not enough unused stake -> check whether some of the blocks submitted by the client have left the lock period
+            require(cleanSubmitList(msg.sender), "not enough stake");  // checks if at least one block has left the lock period
+            require(getUnusedStake(msg.sender) >= REQUIRED_STAKE_PER_BLOCK, "not enough stake");
         }
 
-        // check whether some of the blocks submitted by the client have left the lock period
-        require(cleanSubmitList(msg.sender), "not enough stake");
-        require(canSubmitBlocks(msg.sender), "not enough stake");
-        return submitHeader(rlpHeader);
+        // client has enough stake -> submit header and add its hash to the client's list of submitted block headers
+        bytes32 blockHash = submitHeader(rlpHeader);
+        blocksSubmittedByClient[msg.sender].push(blockHash);
     }
 
     function disputeBlock() public {
@@ -59,13 +59,8 @@ contract Testimonium is TestimoniumCore {
 
     }
 
-    function canSubmitBlocks(address client) private returns (bool) {
-        return clientStake[client] / REQUIRED_STAKE_PER_BLOCK > blocksSubmittedByClient[client].length;
-    }
-
-    function canWithdraw(address client, uint amount) private returns (bool) {
-        uint unlockedStake = clientStake[client] - blocksSubmittedByClient[client].length * REQUIRED_STAKE_PER_BLOCK;
-        return unlockedStake >= amount;
+    function getUnusedStake(address client) private returns (uint) {
+        return clientStake[client] - blocksSubmittedByClient[client].length * REQUIRED_STAKE_PER_BLOCK;
     }
 
     function cleanSubmitList(address client) private returns (bool) {

@@ -122,7 +122,7 @@ contract TestimoniumCore {
     }
 
     /// @dev Accepts an RLP encoded header. The provided header is parsed, validated and some fields are stored.
-    function submitHeader(bytes memory _rlpHeader) public {
+    function submitHeader(bytes memory _rlpHeader) public returns (bytes32) {
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
         (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
@@ -160,6 +160,7 @@ contract TestimoniumCore {
         }
 
         headers[newBlockHash] = newHeader; // make sure to persist the header only AFTER all property changes
+        return newBlockHash;
     }
 
     event PoWValidationResult(bool isPoWValid, uint errorCode, uint errorInfo);

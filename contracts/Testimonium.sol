@@ -39,7 +39,7 @@ contract Testimonium is TestimoniumCore {
         }
 
         // client has enough stake -> submit header and add its hash to the client's list of submitted block headers
-        bytes32 blockHash = submitHeader(rlpHeader);
+        bytes32 blockHash = submitHeader(rlpHeader, msg.sender);
         blocksSubmittedByClient[msg.sender].push(blockHash);
     }
 

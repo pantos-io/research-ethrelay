@@ -32,6 +32,7 @@ contract TestimoniumCore {
         uint iterableIndex;      // index at which the block header is/was stored in the iterable endpoints array
         bytes32 latestFork;      // contains the hash of the latest node where the current fork branched off
         uint lockedUntil;        // timestamp until which it is possible to dispute a given block
+        address submitter;
     }
 
     struct BlockHeader {
@@ -122,7 +123,7 @@ contract TestimoniumCore {
     }
 
     /// @dev Accepts an RLP encoded header. The provided header is parsed, validated and some fields are stored.
-    function submitHeader(bytes memory _rlpHeader) public returns (bytes32) {
+    function submitHeader(bytes memory _rlpHeader, address submitter) public returns (bytes32) {
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
         (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
@@ -131,6 +132,7 @@ contract TestimoniumCore {
         BlockHeader storage parentHeader = headers[newHeader.parent];
         parentHeader.meta.successors.push(newBlockHash);
         newHeader.meta.lockedUntil = now + LOCK_PERIOD_IN_MIN;
+        newHeader.meta.submitter = submitter;
 
         // check if parent is an endpoint
         if (orderedEndpoints[parentHeader.meta.orderedIndex] == newHeader.parent) {
@@ -169,7 +171,7 @@ contract TestimoniumCore {
     /// @param blockHash the hash of the block to dispute
     /// @param dataSetLookup contains elements of the DAG needed for the PoW verification
     /// @param witnessForLookup needed for verifying the dataSetLookup
-    function disputeBlock(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
+    function disputeBlock(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public returns (address[] memory) {
         // Currently, once the dispute period is over and the block is unlocked we accept it as valid.
         // In that case, no validation is carried out anymore.
         // TO DISCUSS: There might not be a problem to accept disputes even after a block has been unlocked.
@@ -179,13 +181,16 @@ contract TestimoniumCore {
         bool isPoWCorrect;
         uint errorCode;
         uint errorInfo;
+        address[] memory submitters = new address[](0);
         (isPoWCorrect, errorCode, errorInfo) = ethashContract.verifyPoW(header.blockNumber, header.rlpHeaderHashWithoutNonce,
             header.nonce, header.difficulty, dataSetLookup, witnessForLookup);
         emit PoWValidationResult(isPoWCorrect, errorCode, errorInfo);
 
         if (!isPoWCorrect && errorCode == 2) {   // remove branch only if now enough work was performed is too low (errorCode == 2)
-            removeBranch(blockHash);
+            submitters = removeBranch(blockHash);
         }
+
+        return submitters;
     }
 
     // @dev Verifies the existence of a transaction ('txHash') within a certain block ('blockHash').
@@ -379,11 +384,11 @@ contract TestimoniumCore {
     }
 
     event RemoveBranch( bytes32 root );
-    function removeBranch(bytes32 rootHash) private {
+    function removeBranch(bytes32 rootHash) private returns (address[] memory) {
         bytes32 parentHash = headers[rootHash].parent;
         BlockHeader storage parentHeader = headers[parentHash];
 
-        pruneBranch(rootHash);
+        address[] memory submitters = pruneBranch(rootHash, 0);
 
         if (parentHeader.meta.successors.length == 1) {
             // parentHeader has only one successor --> parentHeader will be an endpoint after pruning
@@ -410,12 +415,26 @@ contract TestimoniumCore {
         }
 
         emit RemoveBranch(rootHash);
+        return submitters;
     }
 
-    function pruneBranch(bytes32 root) private {
+    function pruneBranch(bytes32 root, uint counter) private returns (address[] memory) {
         BlockHeader storage rootHeader = headers[root];
-        for (uint i=0; i<rootHeader.meta.successors.length; i++) {
-            pruneBranch(rootHeader.meta.successors[i]);
+        address[] memory submitters;
+
+        counter += 1;
+
+        if (rootHeader.meta.successors.length > 1) {
+            address[] memory aggregatedSubmitters = new address[](0);
+            for (uint i=0; i < rootHeader.meta.successors.length; i++) {
+                address[] memory submittersOfBranch = pruneBranch(rootHeader.meta.successors[i], 0);
+                aggregatedSubmitters = combineArrays(aggregatedSubmitters, submittersOfBranch);
+            }
+            submitters = copyArrays(new address[](aggregatedSubmitters.length + counter), aggregatedSubmitters, counter);
+
+        }
+        if (rootHeader.meta.successors.length == 1) {
+            submitters = pruneBranch(rootHeader.meta.successors[1], counter);
         }
         if (orderedEndpoints[rootHeader.meta.orderedIndex] == root) {
             // root is an endpoint --> delete root in endpoints array, since root will be deleted and thus can no longer be an endpoint
@@ -424,8 +443,40 @@ contract TestimoniumCore {
             iterableEndpoints[rootHeader.meta.iterableIndex] = lastIterableElement;
             iterableEndpoints.length--;
             headers[lastIterableElement].meta.iterableIndex = rootHeader.meta.iterableIndex;
+            submitters = new address[](counter);
         }
+        submitters[counter-1] = headers[root].meta.submitter;
         delete headers[root];
+        return submitters;
+    }
+
+    function copyArrays(address[] memory dest, address[] memory src, uint startIndex) private returns (address[] memory) {
+        require(dest.length - startIndex >= src.length);
+        uint j = startIndex;
+        for (uint i = 0; i < src.length; i++) {
+            dest[j] = src[i];
+            j++;
+        }
+
+        return dest;
+    }
+
+    function combineArrays(address[] memory arr1, address[] memory arr2) private returns (address[] memory) {
+        address[] memory resultArr = new address[](arr1.length + arr2.length);
+        uint i = 0;
+
+        // copy arr1 to resultArr
+        for (; i < arr1.length; i++) {
+            resultArr[i] = arr1[i];
+        }
+
+        // copy arr2 to resultArr
+        for (uint j = 0; j < arr2.length; j++) {
+            resultArr[i] = arr2[j];
+            i++;
+        }
+
+        return resultArr;
     }
 
     event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent, bytes32 transactionsRoot );

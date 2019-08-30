@@ -43,8 +43,15 @@ contract Testimonium is TestimoniumCore {
         blocksSubmittedByClient[msg.sender].push(blockHash);
     }
 
-    function disputeBlock() public {
+    function disputeBlockHeader(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
+        address[] memory submittersToPunish = disputeBlock(blockHash, dataSetLookup, witnessForLookup);
 
+        // if the PoW validation initiated by the dispute function was successful (i.e., the block is legal),
+        // submittersToPunish will be empty and no further action will be carried out.
+        for (uint i = 0; i < submittersToPunish.length; i++) {
+            address client = submittersToPunish[i];
+            clientStake[client] = clientStake[client] - REQUIRED_STAKE_PER_BLOCK;
+        }
     }
 
     function verifyTransaction() public {
@@ -59,11 +66,12 @@ contract Testimonium is TestimoniumCore {
 
     }
 
-    function getUnusedStake(address client) private returns (uint) {
+    function getUnusedStake(address client) private view returns (uint) {
         return clientStake[client] - blocksSubmittedByClient[client].length * REQUIRED_STAKE_PER_BLOCK;
     }
 
     function cleanSubmitList(address client) private returns (bool) {
+        // todo: also check if block has been removed (due to a dispute request)?
         return false;
     }
 

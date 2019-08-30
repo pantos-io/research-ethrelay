@@ -450,7 +450,7 @@ contract TestimoniumCore {
         return submitters;
     }
 
-    function copyArrays(address[] memory dest, address[] memory src, uint startIndex) private returns (address[] memory) {
+    function copyArrays(address[] memory dest, address[] memory src, uint startIndex) private pure returns (address[] memory) {
         require(dest.length - startIndex >= src.length);
         uint j = startIndex;
         for (uint i = 0; i < src.length; i++) {
@@ -461,7 +461,7 @@ contract TestimoniumCore {
         return dest;
     }
 
-    function combineArrays(address[] memory arr1, address[] memory arr2) private returns (address[] memory) {
+    function combineArrays(address[] memory arr1, address[] memory arr2) private pure returns (address[] memory) {
         address[] memory resultArr = new address[](arr1.length + arr2.length);
         uint i = 0;
 

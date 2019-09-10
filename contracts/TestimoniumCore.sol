@@ -97,7 +97,8 @@ contract TestimoniumCore {
     }
 
     function getHeaderMetaInfo(bytes32 blockHash) public view returns (
-        bytes32[] memory successors, uint orderedIndex, uint iterableIndex, bytes32 latestFork, uint lockedUntil
+        bytes32[] memory successors, uint orderedIndex, uint iterableIndex, bytes32 latestFork, uint lockedUntil,
+        address submitter
     ) {
         BlockHeader storage header = headers[blockHash];
         return (
@@ -105,7 +106,8 @@ contract TestimoniumCore {
             header.meta.orderedIndex,
             header.meta.iterableIndex,
             header.meta.latestFork,
-            header.meta.lockedUntil
+            header.meta.lockedUntil,
+            header.meta.submitter
         );
     }
 
@@ -171,6 +173,7 @@ contract TestimoniumCore {
     /// @param blockHash the hash of the block to dispute
     /// @param dataSetLookup contains elements of the DAG needed for the PoW verification
     /// @param witnessForLookup needed for verifying the dataSetLookup
+    /// @return A list of addresses belonging to the submitters of illegal blocks
     function disputeBlock(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public returns (address[] memory) {
         // Currently, once the dispute period is over and the block is unlocked we accept it as valid.
         // In that case, no validation is carried out anymore.
@@ -186,7 +189,7 @@ contract TestimoniumCore {
             header.nonce, header.difficulty, dataSetLookup, witnessForLookup);
         emit PoWValidationResult(isPoWCorrect, errorCode, errorInfo);
 
-        if (!isPoWCorrect && errorCode == 2) {   // remove branch only if now enough work was performed is too low (errorCode == 2)
+        if (!isPoWCorrect && errorCode == 2) {   // remove branch only if not enough work was performed, i.e., difficulty is too low (errorCode == 2)
             submitters = removeBranch(blockHash);
         }
 

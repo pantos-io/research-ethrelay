@@ -71,8 +71,25 @@ contract Testimonium is TestimoniumCore {
     }
 
     function cleanSubmitList(address client) private returns (bool) {
-        // todo: also check if block has been removed (due to a dispute request)?
-        return false;
+        bool deletedAtLeastOneElem = false;
+
+        for (uint i = 0; i < blocksSubmittedByClient[client].length; ) {
+            bytes32 blockHash = blocksSubmittedByClient[client][i];
+            if (!isBlock(blockHash) || isUnlocked(blockHash)) {
+                // block has been removed or is already unlocked (i.e., lock period has elapsed) -> remove hash from array
+                uint lastElemPos = blocksSubmittedByClient[client].length - 1;
+                blocksSubmittedByClient[client][i] = blocksSubmittedByClient[client][lastElemPos];  // copy last element to position i (overwrite current elem)
+                blocksSubmittedByClient[client].length--;  // remove last element
+                deletedAtLeastOneElem = true;
+                // i is not increased, since we copied the last element to position i (otherwise the copied element would not be checked)
+            }
+            else {
+                // nothing changed -> increase i and check next element
+                i++;
+            }
+        }
+
+        return deletedAtLeastOneElem;
     }
 
     function withdraw(address payable receiver, uint amount) private {

@@ -6,6 +6,10 @@ contract Testimonium is TestimoniumCore {
 
     uint constant ETH_IN_WEI = 1000000000000000000;
     uint constant REQUIRED_STAKE_PER_BLOCK = 1 * ETH_IN_WEI;
+    uint constant VERIFICATION_FEE_IN_WEI = ETH_IN_WEI / 10;
+    uint8 constant VERIFICATION_TYPE_TX = 1;
+    uint8 constant VERIFICATION_TYPE_RECEIPT = 2;
+    uint8 constant VERIFICATION_TYPE_STATE = 3;
 
     mapping (address => bytes32[]) blocksSubmittedByClient;
     mapping (address => uint) clientStake;
@@ -54,16 +58,46 @@ contract Testimonium is TestimoniumCore {
         }
     }
 
-    function verifyTransaction() public {
+    function verify(uint8 verificationType, uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncoded,
+        bytes memory path, bytes memory rlpEncodedNodes) private returns (uint8) {
 
+        require(feeInWei == msg.value && feeInWei == VERIFICATION_FEE_IN_WEI, "provided fee is not equal to expected fee");
+        uint8 result;
+
+        if (verificationType == VERIFICATION_TYPE_TX) {
+            result = verifyTransaction(blockHash, noOfConfirmations, rlpEncoded, path, rlpEncodedNodes);
+        }
+        else if (verificationType == VERIFICATION_TYPE_RECEIPT) {
+            result = verifyReceipt(blockHash, noOfConfirmations, rlpEncoded, path, rlpEncodedNodes);
+        }
+        else if (verificationType == VERIFICATION_TYPE_STATE) {
+            result = verifyState(blockHash, noOfConfirmations, rlpEncoded, path, rlpEncodedNodes);
+        }
+        else {
+            revert("Unknown verification type");
+        }
+
+        // send fee to block submitter
+        (, , , , , address submitter) = getHeaderMetaInfo(blockHash);
+        address payable submitterAddr = address(uint160(submitter));
+        submitterAddr.transfer(feeInWei);
+
+        return result;
     }
 
-    function verifyReceipt() public {
-
+    function verifyTransaction(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx,
+        bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
+        return verify(VERIFICATION_TYPE_TX, feeInWei, blockHash, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
     }
 
-    function verifyState() public {
+    function verifyReceipt(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx,
+        bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
+        return verify(VERIFICATION_TYPE_RECEIPT, feeInWei, blockHash, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
+    }
 
+    function verifyState(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx,
+        bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
+        return verify(VERIFICATION_TYPE_STATE, feeInWei, blockHash, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
     }
 
     function getUnusedStake(address client) private view returns (uint) {

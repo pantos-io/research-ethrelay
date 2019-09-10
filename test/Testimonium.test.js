@@ -12,8 +12,8 @@ const ALLOWED_FUTURE_BLOCK_TIME = time.duration.seconds(15);
 const MAX_GAS_LIMIT             = new BN(2).pow(new BN(63)).sub(new BN(1));
 const MIN_GAS_LIMIT             = new BN(5000);
 const GAS_LIMIT_BOUND_DIVISOR   = new BN(1024);
-const ETHASH_CONTRACT_ADDRESS   = "0x9bBD9C861eff6A13F760eBec59E180bdd10394a7";
-const INFURA_ENDPOINT           = "https://mainnet.infura.io/";
+const ETHASH_CONTRACT_ADDRESS   = "0x003A9224735265d8392A78403aDEAfF209bBB700";
+const INFURA_ENDPOINT           = "https://mainnet.infura.io/v3/ab050ca98686478e9e9b06dfc3b2f069";
 
 
 contract('Testimonium', async (accounts) => {

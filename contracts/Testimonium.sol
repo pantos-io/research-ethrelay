@@ -1,6 +1,6 @@
 pragma solidity ^0.5.10;
 
-import "solidity-rlp/contracts/RLPReader.sol";
+import "../node_modules/solidity-rlp/contracts/RLPReader.sol";
 import "./MerklePatriciaProof.sol";
 
 contract EthashInterface {

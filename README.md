@@ -1,5 +1,7 @@
 # Testimonium
 
+[![Build Status](https://travis-ci.org/pantos-io/testimonium.svg?branch=master)](https://travis-ci.org/pantos-io/testimonium)
+
 This project contains Ethereum smart contracts that enable the verification of transactions 
 of a "target" blockchain on a different "verifying" blockchain in a trustless and decentralized way. 
 

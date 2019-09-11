@@ -39,7 +39,7 @@ You need to have the following tools installed:
 Run the tests with `truffle test`.
 
 ### Export contract
-To generate the Go contract file and export it to Testimonium-CLI project run `./export.sh`
+To generate the Go contract files and export them to the [go-testimonium](https://github.com/pantos-io/go-testimonium) project run `./export.sh`
 
 ## How it works
 Users can query the Testimonium contract living on the verifying blockchain by sending requests like 

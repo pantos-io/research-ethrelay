@@ -1,28 +1,39 @@
 const Web3 = require("web3");
-const {BN, balance, ether, expectRevert, time} = require('openzeppelin-test-helpers');
+const {BN, expectRevert, time} = require('openzeppelin-test-helpers');
 const {createRLPHeader, calculateBlockHash, createRLPHeaderWithoutNonce, addToHex} = require('../utils/utils');
 
 const Testimonium = artifacts.require('./Testimonium');
+const Ethash = artifacts.require('./Ethash');
 const {expect} = require('chai');
 
-const GENESIS_BLOCK             = 8084509;
+const GENESIS_BLOCK             = 8084509;  // --> change with care, since the ethash contract has to be loaded with the corresponding epoch data
 const ZERO_HASH                 = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const LOCK_PERIOD               = time.duration.minutes(5);
 const ALLOWED_FUTURE_BLOCK_TIME = time.duration.seconds(15);
 const MAX_GAS_LIMIT             = new BN(2).pow(new BN(63)).sub(new BN(1));
 const MIN_GAS_LIMIT             = new BN(5000);
 const GAS_LIMIT_BOUND_DIVISOR   = new BN(1024);
-const ETHASH_CONTRACT_ADDRESS   = "0x003A9224735265d8392A78403aDEAfF209bBB700";
 const INFURA_ENDPOINT           = "https://mainnet.infura.io/v3/ab050ca98686478e9e9b06dfc3b2f069";
 
 
 contract('Testimonium', async (accounts) => {
 
     let testimonium;
+    let ethash;
     let sourceWeb3;
 
     before(async () => {
         sourceWeb3 = new Web3(INFURA_ENDPOINT);
+        ethash = await Ethash.new();
+        const epoch = 269;
+        const fullSizeIn128Resolution = 26017759;
+        const branchDepth = 15;
+        const merkleNodes = require("./epoch-269.json");
+
+        console.log("Submitting data for epoch 269 to Ethash contract...");
+        await submitEpochData(ethash, epoch, fullSizeIn128Resolution, branchDepth, merkleNodes);
+        console.log("Submitted epoch data.");
+
         // Advance to the next block to correctly read time in the solidity "now" function interpreted by ganache
         await time.advanceBlock();
     });
@@ -30,7 +41,7 @@ contract('Testimonium', async (accounts) => {
     beforeEach(async () => {
         const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
         const genesisRlpHeader = createRLPHeader(genesisBlock);
-        testimonium = await Testimonium.new(genesisRlpHeader, genesisBlock.totalDifficulty, ETHASH_CONTRACT_ADDRESS);
+        testimonium = await Testimonium.new(genesisRlpHeader, genesisBlock.totalDifficulty, ethash.address);
     });
 
 
@@ -1828,6 +1839,31 @@ contract('Testimonium', async (accounts) => {
 
         expect(await testimonium.longestChainEndpoint()).to.equal(expectedLongestChainEndpoint.hash);
 
+    };
+
+    const submitEpochData = async (ethashContractInstance, epoch, fullSizeIn128Resolution, branchDepth, merkleNodes) => {
+        let start = new BN(0);
+        let nodes = [];
+        let mnlen = 0;
+        let index = 0;
+        for (let mn of merkleNodes) {
+            nodes.push(mn);
+            if (nodes.length === 40 || index === merkleNodes.length-1) {
+                mnlen = new BN(nodes.length);
+
+                if (index < 440 && epoch === 128) {
+                    start = start.add(mnlen);
+                    nodes = [];
+                    return;
+                }
+
+                await ethashContractInstance.setEpochData(epoch, fullSizeIn128Resolution, branchDepth, convertEachElemToBN(nodes), start, mnlen);
+
+                start = start.add(mnlen);
+                nodes = [];
+            }
+            index++;
+        }
     };
 
 });

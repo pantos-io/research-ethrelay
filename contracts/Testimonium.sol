@@ -31,9 +31,9 @@ contract Testimonium is TestimoniumCore {
         }
 
         return withdraw(msg.sender, amount);
-
     }
 
+    event SubmitBlock(bytes32 blockHash)
     function submitBlock(bytes memory rlpHeader) public {
         // client must have enough stake to be able to submit blocks
         if(getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
@@ -45,8 +45,11 @@ contract Testimonium is TestimoniumCore {
         // client has enough stake -> submit header and add its hash to the client's list of submitted block headers
         bytes32 blockHash = submitHeader(rlpHeader, msg.sender);
         blocksSubmittedByClient[msg.sender].push(blockHash);
+
+        emit SubmitBlock(blockHash);
     }
 
+    event DisputeBlockHeader(uint noOfDeletedBlocks);
     function disputeBlockHeader(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
         address[] memory submittersToPunish = disputeBlock(blockHash, dataSetLookup, witnessForLookup);
 
@@ -56,6 +59,8 @@ contract Testimonium is TestimoniumCore {
             address client = submittersToPunish[i];
             clientStake[client] = clientStake[client] - REQUIRED_STAKE_PER_BLOCK;
         }
+
+        emit DisputeBlockHeader(submittersToPunish.length);
     }
 
     function verify(uint8 verificationType, uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncoded,

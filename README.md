@@ -41,6 +41,10 @@ Run the tests with `truffle test`.
 ### Export contract
 To generate the Go contract files and export them to the [go-testimonium](https://github.com/pantos-io/go-testimonium) project run `./export.sh`
 
+For the export script to work correctly,
+you should set the `GOTESTIMONIUM` environment variable to the project root of go-testimonium on your machine, e.g.,
+`export GOTESTIMONIUM=~/code/.../go-testimonium/`. By default, it exports to `${GOPATH}/src/github.com/pantos-io/go-testimonium`.
+
 ## How it works
 Users can query the Testimonium contract living on the verifying blockchain by sending requests like 
 "Is transaction _tx_ in block _b_ part of the target blockchain?"

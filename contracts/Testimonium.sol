@@ -427,7 +427,7 @@ contract Testimonium {
         delete headers[root];
     }
 
-    event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent, bytes32 transactionsRoot );
+    event SubmitBlockHeader( bytes32 hash, uint blockNumber );
     function parseAndValidateBlockHeader( bytes memory rlpHeader ) internal returns(bytes32, BlockHeader memory) {
         BlockHeader memory header;
 
@@ -470,7 +470,7 @@ contract Testimonium {
         BlockHeader storage parentHeader = headers[header.parent];
         header.totalDifficulty = parentHeader.totalDifficulty + header.difficulty;
 
-        emit SubmitBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.difficulty, header.parent, header.transactionsRoot);
+        emit SubmitBlockHeader(blockHash, header.blockNumber);
         return (blockHash, header);
     }
 

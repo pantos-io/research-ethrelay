@@ -9,7 +9,7 @@ contract EthashInterface {
 }
 
 
-/// @title Testimonium: A contract enabling cross-blockchain verifications (transactions, receipts, states)
+/// @title TestimoniumCore: A contract enabling cross-blockchain verifications (transactions, receipts, states)
 /// @author Marten Sigwart, Philipp Frauenthaler
 /// @notice You can use this contract for submitting new block headers, disputing already submitted block headers, and
 ///         for verifying Merkle Patricia proofs (transactions, receipts, states).
@@ -60,7 +60,7 @@ contract TestimoniumCore {
 
     // The contract is initialized with block 8084509 and the total difficulty of that same block.
     // The contract creator needs to make sure that these values represent a valid block of the tracked blockchain.
-    constructor (bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) public {
+    constructor (bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) internal {
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
         (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
@@ -96,7 +96,7 @@ contract TestimoniumCore {
         );
     }
 
-    function getHeaderMetaInfo(bytes32 blockHash) public view returns (
+    function getHeaderMetaInfo(bytes32 blockHash) internal view returns (
         bytes32[] memory successors, uint orderedIndex, uint iterableIndex, bytes32 latestFork, uint lockedUntil,
         address submitter
     ) {
@@ -111,21 +111,37 @@ contract TestimoniumCore {
         );
     }
 
-    function getNoOfForks() public view returns (uint) {
+    function getLockedUntil(bytes32 blockHash) public view returns (uint) {
+        return headers[blockHash].meta.lockedUntil;
+    }
+
+    function getNoOfForks() private view returns (uint) {
         return iterableEndpoints.length;    // Important: do not use orderedEndpoints.length since that array contains gaps
     }
 
     // @dev Returns the block hash of the endpoint at the specified index
-    function getBlockHashOfEndpoint(uint index) public view returns (bytes32) {
+    function getBlockHashOfEndpoint(uint index) private view returns (bytes32) {
         return iterableEndpoints[index];
     }
 
-    function isBlock(bytes32 hash) public view returns (bool) {
+    function isBlock(bytes32 hash) internal view returns (bool) {
         return headers[hash].nonce != 0;
     }
 
+    function getTransactionsRoot(bytes32 blockHash) internal view returns (bytes32) {
+        return headers[blockHash].transactionsRoot;
+    }
+
+    function getReceiptsRoot(bytes32 blockHash) internal view returns (bytes32) {
+        return headers[blockHash].receiptsRoot;
+    }
+
+    function getStateRoot(bytes32 blockHash) internal view returns (bytes32) {
+        return headers[blockHash].stateRoot;
+    }
+
     /// @dev Accepts an RLP encoded header. The provided header is parsed, validated and some fields are stored.
-    function submitHeader(bytes memory _rlpHeader, address submitter) public returns (bytes32) {
+    function submitHeader(bytes memory _rlpHeader, address submitter) internal returns (bytes32) {
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
         (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
@@ -174,7 +190,7 @@ contract TestimoniumCore {
     /// @param dataSetLookup contains elements of the DAG needed for the PoW verification
     /// @param witnessForLookup needed for verifying the dataSetLookup
     /// @return A list of addresses belonging to the submitters of illegal blocks
-    function disputeBlock(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public returns (address[] memory) {
+    function disputeBlock(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) internal returns (address[] memory) {
         // Currently, once the dispute period is over and the block is unlocked we accept it as valid.
         // In that case, no validation is carried out anymore.
         // TO DISCUSS: There might not be a problem to accept disputes even after a block has been unlocked.
@@ -263,7 +279,7 @@ contract TestimoniumCore {
     ///         2: block not confirmed by enough succeeding blocks or still locked
     ///         3: block is confirmed and unlocked, but the Merkle proof was invalid
     function verifyMerkleProof(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedValue,
-        bytes memory path, bytes memory rlpEncodedNodes, bytes32 merkleRootHash) private view returns (uint8) {
+        bytes memory path, bytes memory rlpEncodedNodes, bytes32 merkleRootHash) internal view returns (uint8) {
 
         // check if block with blockHash exists
         if (headers[blockHash].nonce == 0) {
@@ -281,52 +297,7 @@ contract TestimoniumCore {
         return 0;
     }
 
-    /// @dev Verifies if a transaction is included in the given block's transactions Merkle Patricia trie
-    /// @param blockHash the hash of the block that contains the Merkle root hash
-    /// @param noOfConfirmations the required number of succeeding blocks needed for a block to be considered as confirmed
-    /// @param rlpEncodedTx the transaction of the Merkle Patricia trie in RLP format
-    /// @param path the path (key) in the trie indicating the way starting at the root node and ending at the transaction
-    /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element the transaction
-    /// @return 0: verification was successful
-    ///         1: provided block hash not stored
-    ///         2: block not confirmed by enough succeeding blocks or still locked
-    ///         3: block is confirmed and unlocked, but the Merkle proof was invalid
-    function verifyTransaction(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx, bytes memory path,
-        bytes memory rlpEncodedNodes) public view returns (uint8) {
-        return verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes, headers[blockHash].transactionsRoot);
-    }
-
-    /// @dev Verifies if a receipt is included in the given block's receipts Merkle Patricia trie
-    /// @param blockHash the hash of the block that contains the Merkle root hash
-    /// @param noOfConfirmations the required number of succeeding blocks needed for a block to be considered as confirmed
-    /// @param rlpEncodedReceipt the receipt of the Merkle Patricia trie in RLP format
-    /// @param path the path (key) in the trie indicating the way starting at the root node and ending at the receipt
-    /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element the receipt
-    /// @return 0: verification was successful
-    ///         1: provided block hash not stored
-    ///         2: block not confirmed by enough succeeding blocks or still locked
-    ///         3: block is confirmed and unlocked, but the Merkle proof was invalid
-    function verifyReceipt(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedReceipt, bytes memory path,
-        bytes memory rlpEncodedNodes) public view returns (uint8) {
-        return verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedReceipt, path, rlpEncodedNodes, headers[blockHash].receiptsRoot);
-    }
-
-    /// @dev Verifies if a node is included in the given block's state Merkle Patricia trie
-    /// @param blockHash the hash of the block that contains the Merkle root hash
-    /// @param noOfConfirmations the required number of succeeding blocks needed for a block to be considered as confirmed
-    /// @param rlpEncodedState the node of the Merkle Patricia trie in RLP format
-    /// @param path the path (key) in the trie indicating the way starting at the root node and ending at the node
-    /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element a state node
-    /// @return 0: verification was successful
-    ///         1: provided block hash not stored
-    ///         2: block not confirmed by enough succeeding blocks or still locked
-    ///         3: block is confirmed and unlocked, but the Merkle proof was invalid
-    function verifyState(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedState, bytes memory path,
-        bytes memory rlpEncodedNodes) public view returns (uint8) {
-        return verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedState, path, rlpEncodedNodes, headers[blockHash].stateRoot);
-    }
-
-    function isUnlocked(bytes32 blockHash) public view returns (bool) {
+    function isUnlocked(bytes32 blockHash) internal view returns (bool) {
         return headers[blockHash].meta.lockedUntil < now;
     }
 
@@ -483,7 +454,7 @@ contract TestimoniumCore {
     }
 
     event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent, bytes32 transactionsRoot );
-    function parseAndValidateBlockHeader( bytes memory rlpHeader ) internal returns(bytes32, BlockHeader memory) {
+    function parseAndValidateBlockHeader( bytes memory rlpHeader ) private returns (bytes32, BlockHeader memory) {
         BlockHeader memory header;
 
         RLPReader.Iterator memory it = rlpHeader.toRlpItem().iterator();
@@ -529,7 +500,7 @@ contract TestimoniumCore {
         return (blockHash, header);
     }
 
-    function copy(bytes memory sourceArray, uint newLength) internal pure returns (bytes memory) {
+    function copy(bytes memory sourceArray, uint newLength) private pure returns (bytes memory) {
         uint newArraySize = newLength;
         if (newArraySize > sourceArray.length) {
             newArraySize = sourceArray.length;

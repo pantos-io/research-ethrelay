@@ -1,5 +1,5 @@
 const Web3 = require("web3");
-const {BN, balance, ether, expectRevert, time} = require('openzeppelin-test-helpers');
+const {BN, balance, ether, expectRevert, time, expectEvent} = require('openzeppelin-test-helpers');
 const {createRLPHeader, calculateBlockHash, createRLPHeaderWithoutNonce, addToHex} = require('../utils/utils');
 
 const Testimonium = artifacts.require('./Testimonium');
@@ -14,6 +14,7 @@ const MIN_GAS_LIMIT             = new BN(5000);
 const GAS_LIMIT_BOUND_DIVISOR   = new BN(1024);
 const ETHASH_CONTRACT_ADDRESS   = "0x9bBD9C861eff6A13F760eBec59E180bdd10394a7";
 const INFURA_ENDPOINT           = "https://mainnet.infura.io/";
+const GAS_PRICE_IN_WEI          = new BN(0);
 
 
 contract('Testimonium', async (accounts) => {
@@ -30,9 +31,194 @@ contract('Testimonium', async (accounts) => {
     beforeEach(async () => {
         const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
         const genesisRlpHeader = createRLPHeader(genesisBlock);
-        testimonium = await Testimonium.new(genesisRlpHeader, genesisBlock.totalDifficulty, ETHASH_CONTRACT_ADDRESS);
+        testimonium = await Testimonium.new(genesisRlpHeader, genesisBlock.totalDifficulty, ETHASH_CONTRACT_ADDRESS, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
     });
 
+
+    describe('Testimonium: DepositStake', function () {
+
+        // Test Scenario 1:
+        it("should throw error: transfer amount not equal to function parameter", async () => {
+            const stake = new BN(1);
+            await expectRevert(
+                testimonium.depositStake(stake, { from: accounts[0], value: stake.add(new BN(1)), gasPrice: GAS_PRICE_IN_WEI }),
+                "transfer amount not equal to function parameter");
+        });
+
+        // Test Scenario 2:
+        it("should correctly add the provided stake to the client's balance", async () => {
+            const stake = new BN(15);
+            const balanceBeforeCall = await testimonium.getStake({ from: accounts[0] });
+
+            await testimonium.depositStake(stake, { from: accounts[0], value: stake });
+            const balanceAfterCall = await testimonium.getStake({ from: accounts[0] });
+
+            expect(balanceAfterCall).to.be.bignumber.equal(balanceBeforeCall.add(stake));
+
+            // get back the provided amount of ether
+            await testimonium.withdrawStake(stakeToWithdraw, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+        });
+
+    });
+
+    describe('Testimonium: WithdrawStake', function () {
+
+        // Test Scenario 1:
+        it("should throw error: withdraw should be denied due to insufficient amount of overall stake", async () => {
+            const stakeBeforeTest = await testimonium.getStake({ from: accounts[0] });
+            const stakeToWithdraw = stakeBeforeTest.add(new BN(1));
+            let gasUsed = new BN(0);
+            const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
+
+            const ret = await testimonium.withdrawStake(stakeToWithdraw, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: new BN(0) });
+            gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
+
+            const stakeAfterTest = await testimonium.getStake({ from: accounts[0] });
+            expect(stakeAfterTest).to.be.bignumber.equal(stakeBeforeTest);
+
+            const accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
+            const feesInWei = gasUsed.mul(GAS_PRICE_IN_WEI);
+            expect(accountBalanceAfterTestinEth).to.be.bignumber.equal(accountBalanceBeforeTestInWei.sub(feesInWei));
+        });
+
+        // Test Scenario 2:
+        it("should throw error: withdraw should be denied due to insufficient amount of unlocked stake", async () => {
+            const stake = await testimonium.getRequiredStakePerBlock();
+            let gasUsed = new BN(0);
+            const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
+            let ret = await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
+
+
+            // submit header in order to lock the deposited stake
+            const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            await submitBlockHeader(block1);
+            const submitTime = await time.latest();
+
+            ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: new BN(0) });
+            gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
+
+            const stakeAfterTest = await testimonium.getStake({ from: accounts[0] });
+            expect(stakeAfterTest).to.be.bignumber.equal(stake);
+
+            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({ from: accounts[0] });
+            expect(submittedHeaders.length).to.equal(1);
+            expect(submittedHeaders[0]).to.equal(block1.hash);
+
+            let accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
+            let feesInWei = gasUsed.mul(GAS_PRICE_IN_WEI);
+            expect(accountBalanceAfterTestinEth).to.be.bignumber.equal(accountBalanceBeforeTestInWei.sub(feesInWei).sub(stake));
+
+            // withdraw after lock period has elapsed
+            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
+            await time.increaseTo(increasedTime);
+            ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: stake });
+            gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
+
+            accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
+            feesInWei = gasUsed.mul(GAS_PRICE_IN_WEI);
+            expect(accountBalanceAfterTestinEth).to.be.bignumber.equal(accountBalanceBeforeTestInWei.sub(feesInWei));
+        });
+
+        // Test Scenario 3:
+        it("should throw error: withdraw should be denied due to insufficient amount of unlocked stake (2)", async () => {
+            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const stake = requiredStakePerBlock.mul(new BN(2));
+            const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
+            let ret = await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            let gasUsed = new BN(ret.receipt.gasUsed);
+
+            // submit header in order to lock the deposited stake
+            const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+
+            ret = await submitBlockHeader(block1);
+            gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
+            const submitTime = await time.latest();
+            let increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
+            await time.increaseTo(increasedTime);
+
+            ret = await submitBlockHeader(block2);
+            gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
+
+            ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: new BN(0) });
+            gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
+
+            const stakeAfterTest = await testimonium.getStake({ from: accounts[0] });
+            expect(stakeAfterTest).to.be.bignumber.equal(stake);
+
+            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({ from: accounts[0] });
+            expect(submittedHeaders.length).to.equal(1);
+            expect(submittedHeaders[0]).to.equal(block2.hash);
+
+            let accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
+            let feesInWei = gasUsed.mul(GAS_PRICE_IN_WEI);
+            expect(accountBalanceAfterTestinEth).to.be.bignumber.equal(accountBalanceBeforeTestInWei.sub(feesInWei).sub(stake));
+
+            // withdraw after lock period has elapsed
+            increasedTime = (await time.latest()).add(LOCK_PERIOD).add(time.duration.seconds(1));
+            await time.increaseTo(increasedTime);
+            ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: stake });
+            gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
+
+            accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
+            feesInWei = gasUsed.mul(GAS_PRICE_IN_WEI);
+            expect(accountBalanceAfterTestinEth).to.be.bignumber.equal(accountBalanceBeforeTestInWei.sub(feesInWei));
+        });
+
+        // Test Scenario 4:
+        it("should withdraw the correct amount since no stake has ever been locked", async () => {
+            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const stake = requiredStakePerBlock.mul(new BN(2));
+            const stakeBeforeTest = await testimonium.getStake({ from: accounts[0] });
+            let gasUsed = new BN(0);
+            const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
+
+            let ret = await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
+
+            ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: stake });
+            gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
+
+            const stakeAfterTest = await testimonium.getStake({ from: accounts[0] });
+            expect(stakeAfterTest).to.be.bignumber.equal(stakeBeforeTest);
+
+            const accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
+            const feesInWei = gasUsed.mul(GAS_PRICE_IN_WEI);
+            expect(accountBalanceAfterTestinEth).to.be.bignumber.equal(accountBalanceBeforeTestInWei.sub(feesInWei));
+        });
+
+        // Test Scenario 5:
+        it("should withdraw the correct amount since lock period has elapsed", async () => {
+            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const stake = requiredStakePerBlock.mul(new BN(2));
+            const stakeBeforeTest = await testimonium.getStake({ from: accounts[0] });
+            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+
+            // submit header in order to lock the deposited stake
+            const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            await submitBlockHeader(block1);
+
+            const submitTime = await time.latest();
+            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
+            await time.increaseTo(increasedTime);
+
+            const ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: stake });
+
+            const stakeAfterTest = await testimonium.getStake({ from: accounts[0] });
+            expect(stakeAfterTest).to.be.bignumber.equal(stakeBeforeTest);
+
+            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({ from: accounts[0] });
+            expect(submittedHeaders.length).to.equal(0);
+        });
+    });
 
     describe('SubmitHeader', function () {
 
@@ -1783,12 +1969,16 @@ contract('Testimonium', async (accounts) => {
         return resultingArray;
     };
 
+    const submitBlockHeader = async (header) => {
+        const rlpHeader = createRLPHeader(header);
+        return await testimonium.submitBlock(rlpHeader, { gasPrice: GAS_PRICE_IN_WEI });
+    };
 
     const submitBlockHeaders = async (expectedHeaders) => {
         await asyncForEach(expectedHeaders, async expected => {
             const rlpHeader = createRLPHeader(expected.block);
             await time.increase(time.duration.seconds(15));
-            await testimonium.submitHeader(rlpHeader);
+            await testimonium.submitBlock(rlpHeader);
             const submitTime = await time.latest();
             expected.lockedUntil = submitTime.add(LOCK_PERIOD);
         });
@@ -1829,6 +2019,10 @@ contract('Testimonium', async (accounts) => {
         expect(await testimonium.longestChainEndpoint()).to.equal(expectedLongestChainEndpoint.hash);
 
     };
+
+    const getAccountBalanceInWei = async (accountAddress) => {
+        return await balance.current(accountAddress);
+    }
 
 });
 

@@ -70,8 +70,12 @@ contract Testimonium is TestimoniumCore {
         // client must have enough stake to be able to submit blocks
         if(getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
             // client has not enough unused stake -> check whether some of the blocks submitted by the client have left the lock period
-            require(cleanSubmitList(msg.sender) > 0, "not enough stake");  // checks if at least one block has left the lock period
-            require(getUnusedStake(msg.sender) >= REQUIRED_STAKE_PER_BLOCK, "not enough stake");
+            cleanSubmitList(msg.sender);
+            if (getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
+                // not enough unused stake -> abort
+                emit SubmitBlock(0);
+                return;
+            }
         }
 
         // client has enough stake -> submit header and add its hash to the client's list of submitted block headers

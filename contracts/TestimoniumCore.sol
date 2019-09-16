@@ -111,16 +111,16 @@ contract TestimoniumCore {
         );
     }
 
-    function getLockedUntil(bytes32 blockHash) public view returns (uint) {
+    function getLockedUntil(bytes32 blockHash) internal view returns (uint) {
         return headers[blockHash].meta.lockedUntil;
     }
 
-    function getNoOfForks() private view returns (uint) {
+    function getNoOfForks() internal view returns (uint) {
         return iterableEndpoints.length;    // Important: do not use orderedEndpoints.length since that array contains gaps
     }
 
     // @dev Returns the block hash of the endpoint at the specified index
-    function getBlockHashOfEndpoint(uint index) private view returns (bytes32) {
+    function getBlockHashOfEndpoint(uint index) internal view returns (bytes32) {
         return iterableEndpoints[index];
     }
 

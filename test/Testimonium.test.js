@@ -15,7 +15,7 @@ const MIN_GAS_LIMIT             = new BN(5000);
 const GAS_LIMIT_BOUND_DIVISOR   = new BN(1024);
 const ETHASH_CONTRACT_ADDRESS   = "0x9bBD9C861eff6A13F760eBec59E180bdd10394a7";
 const INFURA_ENDPOINT           = "https://mainnet.infura.io/v3/71de5e5e1b3c4f0d8256e29f2a23391b";
-const GAS_PRICE_IN_WEI          = new BN(0);
+const GAS_PRICE_IN_WEI          = new BN(1000);
 
 
 contract('Testimonium', async (accounts) => {
@@ -57,7 +57,7 @@ contract('Testimonium', async (accounts) => {
             expect(balanceAfterCall).to.be.bignumber.equal(balanceBeforeCall.add(stake));
 
             // get back the provided amount of ether
-            await testimonium.withdrawStake(stakeToWithdraw, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake, accounts[0]);
         });
 
     });
@@ -94,7 +94,7 @@ contract('Testimonium', async (accounts) => {
 
             // submit header in order to lock the deposited stake
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            await submitBlockHeader(block1);
+            await submitBlockHeader(block1, accounts[0]);
             const submitTime = await time.latest();
 
             ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
@@ -136,13 +136,13 @@ contract('Testimonium', async (accounts) => {
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
 
-            ret = await submitBlockHeader(block1);
+            ret = await submitBlockHeader(block1, accounts[0]);
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
             const submitTime = await time.latest();
             let increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
             await time.increaseTo(increasedTime);
 
-            ret = await submitBlockHeader(block2);
+            ret = await submitBlockHeader(block2, accounts[0]);
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
             ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
@@ -204,7 +204,7 @@ contract('Testimonium', async (accounts) => {
 
             // submit header in order to lock the deposited stake
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            await submitBlockHeader(block1);
+            await submitBlockHeader(block1, accounts[0]);
 
             const submitTime = await time.latest();
             const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
@@ -271,12 +271,12 @@ contract('Testimonium', async (accounts) => {
             ];
             const expectedEndpoints = [block1];
 
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, accounts[0]);
 
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, accounts[0]);
         });
 
         // Test Scenario 3:
@@ -312,13 +312,13 @@ contract('Testimonium', async (accounts) => {
             ];
             const expectedEndpoints = [block2];
 
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, accounts[0]);
 
             // Perform checks
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, accounts[0]);
         });
 
         // Test Scenario 4:
@@ -363,13 +363,13 @@ contract('Testimonium', async (accounts) => {
                 }
             ];
             const expectedEndpoints = [block1, block2];
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, accounts[0]);
 
             // Perform checks
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, accounts[0]);
         });
 
         // Test Scenario 5:
@@ -423,13 +423,13 @@ contract('Testimonium', async (accounts) => {
                 }
             ];
             const expectedEndpoints = [block2, block3];
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, accounts[0]);
 
             // Perform checks
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, accounts[0]);
         });
 
         // Test Scenario 6:
@@ -490,13 +490,13 @@ contract('Testimonium', async (accounts) => {
             ];
             const expectedEndpoints = [block1, block2, block3];
 
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, accounts[0]);
 
             // Perform checks
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, accounts[0]);
         });
 
         // Test Scenario 7:
@@ -568,13 +568,13 @@ contract('Testimonium', async (accounts) => {
                 }
             ];
             const expectedEndpoints = [block5, block4];
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, accounts[0]);
 
             // Perform checks
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, accounts[0]);
         });
 
         // Test Scenario 8:
@@ -679,13 +679,13 @@ contract('Testimonium', async (accounts) => {
                 }
             ];
             const expectedEndpoints = [block4, block7, block6];
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, accounts[0]);
 
             // Perform checks
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, accounts[0]);
         });
 
         it('should revert when the parent of a submitted block header does not exist', async () => {
@@ -697,7 +697,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithNonExistentParent);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'non-existent parent');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the block number is not incremented by one (too high)', async () => {
@@ -711,7 +711,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the number of the submitted block is not incremented by one (too low)', async () => {
@@ -725,7 +725,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
@@ -739,7 +739,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
@@ -753,7 +753,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the timestamp of the submitted block is not in the future (equal)', async () => {
@@ -768,7 +768,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal timestamp');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the timestamp of the submitted block is not in the future (older)', async () => {
@@ -783,7 +783,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal timestamp');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the timestamp of the submitted block is too far in the future', async () => {
@@ -797,7 +797,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal timestamp');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the difficulty of the submitted block is not correct', async () => {
@@ -812,7 +812,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalDifficulty);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'wrong difficulty');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the gas limit of the submitted block is higher than maximum gas limit', async () => {
@@ -826,7 +826,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'gas limit too high');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the gas limit of the submitted block is smaller than the minium gas limit', async () => {
@@ -840,7 +840,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'gas limit too small');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the gas limit of the submitted block is out of bounds (too high)', async () => {
@@ -856,7 +856,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal gas limit');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the gas limit of the submitted block is out of bounds (too small)', async () => {
@@ -872,7 +872,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal gas limit');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it('should revert when the gas used of the submitted block is higher than the gas limit', async () => {
@@ -886,7 +886,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalGasUsed);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'gas used is higher than the gas limit');
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
 
@@ -910,20 +910,20 @@ contract('Testimonium', async (accounts) => {
                     submitter: accounts[0]
                 }
             ];
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, accounts[0]);
             expect(await testimonium.isBlockUnlocked(block1.hash)).to.equal(false);  // block is locked right after submission
             await time.increaseTo(expectedBlocks[0].lockedUntil - 1);
             expect(await testimonium.isBlockUnlocked(block1.hash)).to.equal(false);  // block is locked for duration of lock period
             await time.increase(time.duration.seconds(2));
             expect(await testimonium.isBlockUnlocked(block1.hash)).to.equal(true);   // block is unlocked right after lock period has passed
 
-            await withdrawStake(requiredStakePerBlock);
+            await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
         it("should not accept block since client has not provided any stake", async () => {
             // submit header
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            const ret = await submitBlockHeader(block1);
+            const ret = await submitBlockHeader(block1, accounts[0]);
             expectEvent.inLogs(ret.logs, 'SubmitBlock', { blockHash: ZERO_HASH });
 
             const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({ from: accounts[0] });
@@ -939,7 +939,7 @@ contract('Testimonium', async (accounts) => {
 
             // submit header
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            const ret = await submitBlockHeader(block1);
+            const ret = await submitBlockHeader(block1, accounts[0]);
             expectEvent.inLogs(ret.logs, 'SubmitBlock', { blockHash: block1.hash });
 
             const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({ from: accounts[0] });
@@ -949,7 +949,7 @@ contract('Testimonium', async (accounts) => {
             const header = await testimonium.getHeader(block1.hash);
             expect(header.parent).to.equal(block1.parentHash);
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, accounts[0]);
         });
 
     });
@@ -965,9 +965,11 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 1', async () => {
             // deposit enough stake
+            const submitterAddr = accounts[0];
+            const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -998,7 +1000,7 @@ contract('Testimonium', async (accounts) => {
                 },
             ];
 
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, submitterAddr);
 
             expectedBlocks.forEach((block, index) => {
                 console.log(`block ${index}: ${block.lockedUntil}`)
@@ -1007,12 +1009,21 @@ contract('Testimonium', async (accounts) => {
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
                 console.log((await time.latest()).toString());
                 for (let j = 0; j < i; j++) {
-                    let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
+                    let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
+                    let balanceVerifierBeforeCall = await balance.current(verifierAddr);
+
+                    let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: verifierAddr, value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
                     expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(0) });
+
+                    let balanceSubmitterAfterCall = await balance.current(submitterAddr);
+                    let balanceVerifierAfterCall = await balance.current(verifierAddr);
+                    let txCost = (new BN(ret.receipt.gasUsed)).mul(GAS_PRICE_IN_WEI);
+
+                    expect(balanceSubmitterBeforeCall).to.be.bignumber.equal(balanceSubmitterAfterCall.sub(verificationFee));
+                    expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
                 }
                 for (let j = i; j < expectedBlocks.length; j++) {
-                    let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
-                    expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(2) });
+                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: verifierAddr, value: verificationFee, gasPrice: GAS_PRICE_IN_WEI }), "block is not confirmed by enough succeeding blocks or locked");
                 }
 
                 if (i < expectedBlocks.length) {
@@ -1021,7 +1032,7 @@ contract('Testimonium', async (accounts) => {
                 }
             }
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, submitterAddr);
         });
 
         // Test Scenario 2:
@@ -1035,9 +1046,11 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 2', async () => {
             // deposit enough stake
+            const submitterAddr = accounts[0];
+            const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(4));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1068,7 +1081,7 @@ contract('Testimonium', async (accounts) => {
                 }
             ];
 
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, submitterAddr);
 
             expectedBlocks.forEach((block, index) => {
                 console.log(`block ${index}: ${block.lockedUntil}`)
@@ -1078,8 +1091,7 @@ contract('Testimonium', async (accounts) => {
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
                 console.log((await time.latest()).toString());
                 for (let j = 0; j < expectedBlocks.length; j++) {
-                    let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
-                    expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(2) });
+                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: verifierAddr, value: verificationFee, gasPrice: GAS_PRICE_IN_WEI }), "block is not confirmed by enough succeeding blocks or locked");
                 }
                 if (i < expectedBlocks.length) {
                     await time.increaseTo(expectedBlocks[i].lockedUntil);
@@ -1087,7 +1099,7 @@ contract('Testimonium', async (accounts) => {
                 }
             }
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, submitterAddr);
         });
 
         // Test Scenario 3:
@@ -1102,9 +1114,11 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 3', async () => {
             // deposit enough stake
+            const submitterAddr = accounts[0];
+            const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(12));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1169,22 +1183,22 @@ contract('Testimonium', async (accounts) => {
 
             const maxConfirmations = expectedBlocks.length + 1;
             const expectedVerificationResults = [
-                generateBooleanArray(0, maxConfirmations), // no unlocked block
-                generateBooleanArray(1, maxConfirmations), // block 1 unlocked
-                generateBooleanArray(2, maxConfirmations), // block 2 unlocked
-                generateBooleanArray(2, maxConfirmations), // block 3 unlocked
-                generateBooleanArray(3, maxConfirmations), // block 4 unlocked
-                generateBooleanArray(4, maxConfirmations), // block 5 unlocked
-                generateBooleanArray(4, maxConfirmations), // block 6 unlocked
-                generateBooleanArray(5, maxConfirmations), // block 7 unlocked
-                generateBooleanArray(6, maxConfirmations), // block 8 unlocked
-                generateBooleanArray(7, maxConfirmations), // block 9 unlocked
-                generateBooleanArray(7, maxConfirmations), // block 10 unlocked
-                generateBooleanArray(8, maxConfirmations), // block 11 unlocked
-                generateBooleanArray(9, maxConfirmations), // block 12 unlocked
+                generateVerificationResult(0, maxConfirmations), // no unlocked block
+                generateVerificationResult(1, maxConfirmations), // block 1 unlocked
+                generateVerificationResult(2, maxConfirmations), // block 2 unlocked
+                generateVerificationResult(2, maxConfirmations), // block 3 unlocked
+                generateVerificationResult(3, maxConfirmations), // block 4 unlocked
+                generateVerificationResult(4, maxConfirmations), // block 5 unlocked
+                generateVerificationResult(4, maxConfirmations), // block 6 unlocked
+                generateVerificationResult(5, maxConfirmations), // block 7 unlocked
+                generateVerificationResult(6, maxConfirmations), // block 8 unlocked
+                generateVerificationResult(7, maxConfirmations), // block 9 unlocked
+                generateVerificationResult(7, maxConfirmations), // block 10 unlocked
+                generateVerificationResult(8, maxConfirmations), // block 11 unlocked
+                generateVerificationResult(9, maxConfirmations), // block 12 unlocked
             ];
 
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, submitterAddr);
 
             expectedBlocks.forEach((block, index) => {
                 console.log(`Block ${index + 1} lockedUntil: ${block.lockedUntil}`)
@@ -1195,8 +1209,33 @@ contract('Testimonium', async (accounts) => {
                 console.log(`Unlocked block: ${i}`);
 
                 for (let j=0; j < expectedVerificationResults[i].length; j++) {
-                    let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
-                    expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(expectedVerificationResults[i][j]) });
+                    // let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
+                    // expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(expectedVerificationResults[i][j]) });
+                    if (expectedVerificationResults[i][j] === 0) {
+                        let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
+                        let balanceVerifierBeforeCall = await balance.current(verifierAddr);
+
+                        let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                            from: verifierAddr,
+                            value: verificationFee,
+                            gasPrice: GAS_PRICE_IN_WEI
+                        });
+
+                        expectEvent.inLogs(ret.logs, 'VerifyTransaction', {result: new BN(expectedVerificationResults[i][j])});
+                        let balanceSubmitterAfterCall = await balance.current(submitterAddr);
+                        let balanceVerifierAfterCall = await balance.current(verifierAddr);
+                        let txCost = (new BN(ret.receipt.gasUsed)).mul(GAS_PRICE_IN_WEI);
+
+                        expect(balanceSubmitterBeforeCall).to.be.bignumber.equal(balanceSubmitterAfterCall.sub(verificationFee));
+                        expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
+                    }
+                    if (expectedVerificationResults[i][j] === -1) {
+                        await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                            from: verifierAddr,
+                            value: verificationFee,
+                            gasPrice: GAS_PRICE_IN_WEI
+                        }), "block is not confirmed by enough succeeding blocks or locked");
+                    }
                 }
 
                 if (i < expectedBlocks.length) {
@@ -1205,7 +1244,7 @@ contract('Testimonium', async (accounts) => {
                 }
             }
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, submitterAddr);
         });
         // Test Scenario 4:
         //
@@ -1218,9 +1257,11 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 4', async () => {
             // deposit enough stake
+            const submitterAddr = accounts[0];
+            const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(12));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1292,22 +1333,22 @@ contract('Testimonium', async (accounts) => {
 
             const maxConfirmations = expectedBlocks.length + 1;
             const expectedVerificationResults = [
-                generateBooleanArray(0, maxConfirmations), // no unlocked block
-                generateBooleanArray(0, maxConfirmations), // block 1 unlocked
-                generateBooleanArray(1, maxConfirmations), // block 2 unlocked
-                generateBooleanArray(2, maxConfirmations), // block 3 unlocked
-                generateBooleanArray(3, maxConfirmations), // block 4 unlocked
-                generateBooleanArray(3, maxConfirmations), // block 5 unlocked
-                generateBooleanArray(4, maxConfirmations), // block 6 unlocked
-                generateBooleanArray(4, maxConfirmations), // block 7 unlocked
-                generateBooleanArray(5, maxConfirmations), // block 8 unlocked
-                generateBooleanArray(5, maxConfirmations), // block 9 unlocked
-                generateBooleanArray(6, maxConfirmations), // block 10 unlocked
-                generateBooleanArray(6, maxConfirmations), // block 11 unlocked
-                generateBooleanArray(7, maxConfirmations), // block 12 unlocked
+                generateVerificationResult(0, maxConfirmations), // no unlocked block
+                generateVerificationResult(0, maxConfirmations), // block 1 unlocked
+                generateVerificationResult(1, maxConfirmations), // block 2 unlocked
+                generateVerificationResult(2, maxConfirmations), // block 3 unlocked
+                generateVerificationResult(3, maxConfirmations), // block 4 unlocked
+                generateVerificationResult(3, maxConfirmations), // block 5 unlocked
+                generateVerificationResult(4, maxConfirmations), // block 6 unlocked
+                generateVerificationResult(4, maxConfirmations), // block 7 unlocked
+                generateVerificationResult(5, maxConfirmations), // block 8 unlocked
+                generateVerificationResult(5, maxConfirmations), // block 9 unlocked
+                generateVerificationResult(6, maxConfirmations), // block 10 unlocked
+                generateVerificationResult(6, maxConfirmations), // block 11 unlocked
+                generateVerificationResult(7, maxConfirmations), // block 12 unlocked
             ];
 
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, submitterAddr);
 
             expectedBlocks.forEach((block, index) => {
                 console.log(`Block ${index + 1} lockedUntil: ${block.lockedUntil}`)
@@ -1318,8 +1359,31 @@ contract('Testimonium', async (accounts) => {
                 console.log(`Unlocked block: ${i}`);
 
                 for (let j=0; j < expectedVerificationResults[i].length; j++) {
-                    let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
-                    expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(expectedVerificationResults[i][j]) });
+                    if (expectedVerificationResults[i][j] === 0) {
+                        let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
+                        let balanceVerifierBeforeCall = await balance.current(verifierAddr);
+
+                        let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                            from: verifierAddr,
+                            value: verificationFee,
+                            gasPrice: GAS_PRICE_IN_WEI
+                        });
+
+                        expectEvent.inLogs(ret.logs, 'VerifyTransaction', {result: new BN(expectedVerificationResults[i][j])});
+                        let balanceSubmitterAfterCall = await balance.current(submitterAddr);
+                        let balanceVerifierAfterCall = await balance.current(verifierAddr);
+                        let txCost = (new BN(ret.receipt.gasUsed)).mul(GAS_PRICE_IN_WEI);
+
+                        expect(balanceSubmitterBeforeCall).to.be.bignumber.equal(balanceSubmitterAfterCall.sub(verificationFee));
+                        expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
+                    }
+                    if (expectedVerificationResults[i][j] === -1) {
+                        await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                            from: verifierAddr,
+                            value: verificationFee,
+                            gasPrice: GAS_PRICE_IN_WEI
+                        }), "block is not confirmed by enough succeeding blocks or locked");
+                    }
                 }
 
                 if (i < expectedBlocks.length) {
@@ -1328,7 +1392,7 @@ contract('Testimonium', async (accounts) => {
                 }
             }
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, submitterAddr);
         });
 
         // Test Scenario 5: submit valid Merkle Patricia proof
@@ -1340,9 +1404,11 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 5', async () => {
             // deposit enough stake
+            const submitterAddr = accounts[0];
+            const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1373,7 +1439,7 @@ contract('Testimonium', async (accounts) => {
                 },
             ];
 
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, submitterAddr);
 
             expectedBlocks.forEach((block, index) => {
                 console.log(`block ${index}: ${block.lockedUntil}`)
@@ -1382,10 +1448,20 @@ contract('Testimonium', async (accounts) => {
             await time.increaseTo(expectedBlocks[0].lockedUntil);
             await time.increase(time.duration.seconds(1));
 
-            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
+            let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
+            let balanceVerifierBeforeCall = await balance.current(verifierAddr);
+
+            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, { from: verifierAddr, value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
             expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(0) });
 
-            await withdrawStake(stake);
+            let balanceSubmitterAfterCall = await balance.current(submitterAddr);
+            let balanceVerifierAfterCall = await balance.current(verifierAddr);
+            let txCost = (new BN(ret.receipt.gasUsed)).mul(GAS_PRICE_IN_WEI);
+
+            expect(balanceSubmitterBeforeCall).to.be.bignumber.equal(balanceSubmitterAfterCall.sub(verificationFee));
+            expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
+
+            await withdrawStake(stake, submitterAddr);
         });
 
         // Test Scenario 6: submit invalid Merkle Patricia proof
@@ -1397,9 +1473,11 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 6', async () => {
             // deposit enough stake
+            const submitterAddr = accounts[0];
+            const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1430,7 +1508,7 @@ contract('Testimonium', async (accounts) => {
                 },
             ];
 
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, submitterAddr);
 
             expectedBlocks.forEach((block, index) => {
                 console.log(`block ${index}: ${block.lockedUntil}`)
@@ -1439,10 +1517,24 @@ contract('Testimonium', async (accounts) => {
             await time.increaseTo(expectedBlocks[0].lockedUntil);
             await time.increase(time.duration.seconds(1));
 
-            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
-            expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(3) });
+            let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
+            let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-            await withdrawStake(stake);
+            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                from: verifierAddr,
+                value: verificationFee,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
+            expectEvent.inLogs(ret.logs, 'VerifyTransaction', {result: new BN(1)});
+
+            let balanceSubmitterAfterCall = await balance.current(submitterAddr);
+            let balanceVerifierAfterCall = await balance.current(verifierAddr);
+            let txCost = (new BN(ret.receipt.gasUsed)).mul(GAS_PRICE_IN_WEI);
+
+            expect(balanceSubmitterBeforeCall).to.be.bignumber.equal(balanceSubmitterAfterCall.sub(verificationFee));
+            expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
+
+            await withdrawStake(stake, submitterAddr);
         });
 
         // Test Scenario 7: submit Merkle Patricia proof for a block that is not stored in the contract
@@ -1454,9 +1546,11 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 7', async () => {
             // deposit enough stake
+            const submitterAddr = accounts[0];
+            const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1488,15 +1582,19 @@ contract('Testimonium', async (accounts) => {
                 },
             ];
 
-            await submitBlockHeaders(expectedBlocks);
+            await submitBlockHeaders(expectedBlocks, submitterAddr);
 
             expectedBlocks.forEach((block, index) => {
                 console.log(`block ${index}: ${block.lockedUntil}`)
             });
 
-            await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI }), "block does not exist");
+            await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                from: verifierAddr,
+                value: verificationFee,
+                gasPrice: GAS_PRICE_IN_WEI
+            }), "block does not exist");
 
-            await withdrawStake(stake);
+            await withdrawStake(stake, submitterAddr);
         });
 
         it('should revert since msg.value not equal to function parameter', async () => {
@@ -2235,16 +2333,16 @@ contract('Testimonium', async (accounts) => {
         return resultingArray;
     };
 
-    const submitBlockHeader = async (header) => {
+    const submitBlockHeader = async (header, accountAddr) => {
         const rlpHeader = createRLPHeader(header);
-        return await testimonium.submitBlock(rlpHeader, { gasPrice: GAS_PRICE_IN_WEI });
+        return await testimonium.submitBlock(rlpHeader, { from: accountAddr, gasPrice: GAS_PRICE_IN_WEI });
     };
 
-    const submitBlockHeaders = async (expectedHeaders) => {
+    const submitBlockHeaders = async (expectedHeaders, accountAddr) => {
         await asyncForEach(expectedHeaders, async expected => {
             const rlpHeader = createRLPHeader(expected.block);
             await time.increase(time.duration.seconds(15));
-            await testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.submitBlock(rlpHeader, { from: accountAddr, gasPrice: GAS_PRICE_IN_WEI });
             const submitTime = await time.latest();
             expected.lockedUntil = submitTime.add(LOCK_PERIOD);
         });
@@ -2290,11 +2388,11 @@ contract('Testimonium', async (accounts) => {
         return await balance.current(accountAddress);
     };
 
-    const withdrawStake = async (stake) => {
+    const withdrawStake = async (stake, accountAddr) => {
         const submitTime = await time.latest();
         const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
         await time.increaseTo(increasedTime);  // unlock all blocks
-        await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+        await testimonium.withdrawStake(stake, { from: accountAddr, gasPrice: GAS_PRICE_IN_WEI });
     };
 
 });
@@ -2362,10 +2460,10 @@ const asyncForEach = async (array, callback) => {
     }
 };
 
-const generateBooleanArray = (numberOfTrue, size) => {
+const generateVerificationResult = (numberOfSuccessfulInvocations, size) => {
     let array = Array(size);
-    array.fill(0, 0, numberOfTrue);
-    array.fill(2, numberOfTrue, array.length);
+    array.fill(0, 0, numberOfSuccessfulInvocations);
+    array.fill(-1, numberOfSuccessfulInvocations, array.length); // indicates a revert
 
     return array;
 };

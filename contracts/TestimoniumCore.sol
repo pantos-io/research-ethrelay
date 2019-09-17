@@ -216,7 +216,7 @@ contract TestimoniumCore {
     // The verification follows the following steps:
     //     1. Verify that the given block is part of the longest Proof of Work chain
     //     2. Verify that the block has passed the dispute period in which the validity of a block can be disputed
-    //     3. Verify that the block has been confirmed by at least n succeeding blocks ('noOfConfirmations')
+    //     3. Verify that the block has been confirmed by at least n succeeding unlocked blocks ('noOfConfirmations')
     //
     // In case we have to check whether enough block confirmations occurred
     // starting from the requested block ('blockHash'), we go to the latest
@@ -275,23 +275,15 @@ contract TestimoniumCore {
     /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element the value
     /// @param merkleRootHash the hash of the root node of the Merkle Patricia trie
     /// @return 0: verification was successful
-    ///         1: provided block hash not stored
-    ///         2: block not confirmed by enough succeeding blocks or still locked
-    ///         3: block is confirmed and unlocked, but the Merkle proof was invalid
+    ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
     function verifyMerkleProof(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedValue,
         bytes memory path, bytes memory rlpEncodedNodes, bytes32 merkleRootHash) internal view returns (uint8) {
 
-        // check if block with blockHash exists
-        if (headers[blockHash].nonce == 0) {
-            return 1;
-        }
-
-        if (!isBlockConfirmedAndUnlocked(blockHash, noOfConfirmations)) {
-            return 2;
-        }
+        require(isBlock(blockHash), "block does not exist");
+        require(isBlockConfirmedAndUnlocked(blockHash, noOfConfirmations), "block is not confirmed by enough succeeding blocks or locked");
 
         if (MerklePatriciaProof.verify(rlpEncodedValue, path, rlpEncodedNodes, merkleRootHash) > 0) {
-            return 3;
+            return 1;
         }
 
         return 0;

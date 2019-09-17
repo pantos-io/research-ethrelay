@@ -106,7 +106,6 @@ contract Testimonium is TestimoniumCore {
     function verify(uint8 verificationType, uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedValue,
         bytes memory path, bytes memory rlpEncodedNodes) private returns (uint8) {
 
-        require(isBlock(blockHash), "block does not exist");
         require(feeInWei == msg.value, "transfer amount not equal to function parameter");
         require(feeInWei >= REQUIRED_VERIFICATION_FEE_IN_WEI, "provided fee is less than expected fee");
 
@@ -142,9 +141,7 @@ contract Testimonium is TestimoniumCore {
     /// @param path the path (key) in the trie indicating the way starting at the root node and ending at the transaction
     /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element the transaction
     /// @return 0: verification was successful
-    ///         1: provided block hash not stored
-    ///         2: block not confirmed by enough succeeding blocks or still locked
-    ///         3: block is confirmed and unlocked, but the Merkle proof was invalid
+    ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
     function verifyTransaction(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
         uint8 result = verify(VERIFICATION_TYPE_TX, feeInWei, blockHash, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
@@ -162,9 +159,7 @@ contract Testimonium is TestimoniumCore {
     /// @param path the path (key) in the trie indicating the way starting at the root node and ending at the receipt
     /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element the receipt
     /// @return 0: verification was successful
-    ///         1: provided block hash not stored
-    ///         2: block not confirmed by enough succeeding blocks or still locked
-    ///         3: block is confirmed and unlocked, but the Merkle proof was invalid
+    ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
     function verifyReceipt(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedReceipt,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
         uint8 result = verify(VERIFICATION_TYPE_RECEIPT, feeInWei, blockHash, noOfConfirmations, rlpEncodedReceipt, path, rlpEncodedNodes);
@@ -182,9 +177,7 @@ contract Testimonium is TestimoniumCore {
     /// @param path the path (key) in the trie indicating the way starting at the root node and ending at the node
     /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element a state node
     /// @return 0: verification was successful
-    ///         1: provided block hash not stored
-    ///         2: block not confirmed by enough succeeding blocks or still locked
-    ///         3: block is confirmed and unlocked, but the Merkle proof was invalid
+    ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
     function verifyState(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedState,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
         uint8 result = verify(VERIFICATION_TYPE_STATE, feeInWei, blockHash, noOfConfirmations, rlpEncodedState, path, rlpEncodedNodes);

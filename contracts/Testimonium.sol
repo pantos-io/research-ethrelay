@@ -11,7 +11,7 @@ contract Testimonium is TestimoniumCore {
 
     uint constant ETH_IN_WEI = 1000000000000000000;
     uint constant REQUIRED_STAKE_PER_BLOCK = 1 * ETH_IN_WEI;
-    uint constant VERIFICATION_FEE_IN_WEI = ETH_IN_WEI / 10;
+    uint constant REQUIRED_VERIFICATION_FEE_IN_WEI = ETH_IN_WEI / 10;
     uint8 constant VERIFICATION_TYPE_TX = 1;
     uint8 constant VERIFICATION_TYPE_RECEIPT = 2;
     uint8 constant VERIFICATION_TYPE_STATE = 3;
@@ -61,6 +61,10 @@ contract Testimonium is TestimoniumCore {
         return REQUIRED_STAKE_PER_BLOCK;
     }
 
+    function getRequiredVerificationFee() public pure returns (uint) {
+        return REQUIRED_VERIFICATION_FEE_IN_WEI;
+    }
+
     function getBlockHashesSubmittedByClient() public view returns (bytes32[] memory) {
         return blocksSubmittedByClient[msg.sender];
     }
@@ -102,7 +106,10 @@ contract Testimonium is TestimoniumCore {
     function verify(uint8 verificationType, uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedValue,
         bytes memory path, bytes memory rlpEncodedNodes) private returns (uint8) {
 
-        require(feeInWei == msg.value && feeInWei == VERIFICATION_FEE_IN_WEI, "provided fee is not equal to expected fee");
+        require(isBlock(blockHash), "block does not exist");
+        require(feeInWei == msg.value, "transfer amount not equal to function parameter");
+        require(feeInWei >= REQUIRED_VERIFICATION_FEE_IN_WEI, "provided fee is less than expected fee");
+
         uint8 result;
 
         if (verificationType == VERIFICATION_TYPE_TX) {
@@ -126,6 +133,7 @@ contract Testimonium is TestimoniumCore {
         return result;
     }
 
+    event VerifyTransaction(uint result);
     /// @dev Verifies if a transaction is included in the given block's transactions Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
     /// @param blockHash the hash of the block that contains the Merkle root hash
@@ -139,9 +147,13 @@ contract Testimonium is TestimoniumCore {
     ///         3: block is confirmed and unlocked, but the Merkle proof was invalid
     function verifyTransaction(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
-        return verify(VERIFICATION_TYPE_TX, feeInWei, blockHash, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
+        uint8 result = verify(VERIFICATION_TYPE_TX, feeInWei, blockHash, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
+        emit VerifyTransaction(result);
+
+        return result;
     }
 
+    event VerifyReceipt(uint result);
     /// @dev Verifies if a receipt is included in the given block's receipts Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
     /// @param blockHash the hash of the block that contains the Merkle root hash
@@ -155,9 +167,13 @@ contract Testimonium is TestimoniumCore {
     ///         3: block is confirmed and unlocked, but the Merkle proof was invalid
     function verifyReceipt(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedReceipt,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
-        return verify(VERIFICATION_TYPE_RECEIPT, feeInWei, blockHash, noOfConfirmations, rlpEncodedReceipt, path, rlpEncodedNodes);
+        uint8 result = verify(VERIFICATION_TYPE_RECEIPT, feeInWei, blockHash, noOfConfirmations, rlpEncodedReceipt, path, rlpEncodedNodes);
+        emit VerifyReceipt(result);
+
+        return result;
     }
 
+    event VerifyState(uint result);
     /// @dev   Verifies if a node is included in the given block's state Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
     /// @param blockHash the hash of the block that contains the Merkle root hash
@@ -171,7 +187,10 @@ contract Testimonium is TestimoniumCore {
     ///         3: block is confirmed and unlocked, but the Merkle proof was invalid
     function verifyState(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedState,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
-        return verify(VERIFICATION_TYPE_STATE, feeInWei, blockHash, noOfConfirmations, rlpEncodedState, path, rlpEncodedNodes);
+        uint8 result = verify(VERIFICATION_TYPE_STATE, feeInWei, blockHash, noOfConfirmations, rlpEncodedState, path, rlpEncodedNodes);
+        emit VerifyState(result);
+
+        return result;
     }
 
     /// @dev Calculates the fraction of the provided stake that is not used by any of the blocks in the client's list of

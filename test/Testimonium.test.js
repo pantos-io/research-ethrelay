@@ -276,11 +276,7 @@ contract('Testimonium', async (accounts) => {
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         // Test Scenario 3:
@@ -322,11 +318,7 @@ contract('Testimonium', async (accounts) => {
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         // Test Scenario 4:
@@ -377,11 +369,7 @@ contract('Testimonium', async (accounts) => {
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         // Test Scenario 5:
@@ -441,11 +429,7 @@ contract('Testimonium', async (accounts) => {
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         // Test Scenario 6:
@@ -512,11 +496,7 @@ contract('Testimonium', async (accounts) => {
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         // Test Scenario 7:
@@ -594,11 +574,7 @@ contract('Testimonium', async (accounts) => {
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         // Test Scenario 8:
@@ -709,11 +685,7 @@ contract('Testimonium', async (accounts) => {
             await checkExpectedEndpoints(expectedEndpoints);
             await checkExpectedBlockHeaders(expectedBlocks);
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         it('should revert when the parent of a submitted block header does not exist', async () => {
@@ -725,11 +697,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithNonExistentParent);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'non-existent parent');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the block number is not incremented by one (too high)', async () => {
@@ -743,11 +711,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the number of the submitted block is not incremented by one (too low)', async () => {
@@ -761,11 +725,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
@@ -779,11 +739,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
@@ -797,11 +753,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the timestamp of the submitted block is not in the future (equal)', async () => {
@@ -816,11 +768,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal timestamp');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the timestamp of the submitted block is not in the future (older)', async () => {
@@ -835,11 +783,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal timestamp');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the timestamp of the submitted block is too far in the future', async () => {
@@ -853,11 +797,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal timestamp');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the difficulty of the submitted block is not correct', async () => {
@@ -872,11 +812,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalDifficulty);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'wrong difficulty');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the gas limit of the submitted block is higher than maximum gas limit', async () => {
@@ -890,11 +826,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'gas limit too high');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the gas limit of the submitted block is smaller than the minium gas limit', async () => {
@@ -908,11 +840,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'gas limit too small');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the gas limit of the submitted block is out of bounds (too high)', async () => {
@@ -928,11 +856,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal gas limit');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the gas limit of the submitted block is out of bounds (too small)', async () => {
@@ -948,11 +872,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal gas limit');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it('should revert when the gas used of the submitted block is higher than the gas limit', async () => {
@@ -966,11 +886,7 @@ contract('Testimonium', async (accounts) => {
             const rlpHeader = createRLPHeader(blockWithIllegalGasUsed);
             await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'gas used is higher than the gas limit');
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
 
@@ -1001,11 +917,7 @@ contract('Testimonium', async (accounts) => {
             await time.increase(time.duration.seconds(2));
             expect(await testimonium.isBlockUnlocked(block1.hash)).to.equal(true);   // block is unlocked right after lock period has passed
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(requiredStakePerBlock, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(requiredStakePerBlock);
         });
 
         it("should not accept block since client has not provided any stake", async () => {
@@ -1037,11 +949,7 @@ contract('Testimonium', async (accounts) => {
             const header = await testimonium.getHeader(block1.hash);
             expect(header.parent).to.equal(block1.parentHash);
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
     });
@@ -1113,11 +1021,7 @@ contract('Testimonium', async (accounts) => {
                 }
             }
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         // Test Scenario 2:
@@ -1183,11 +1087,7 @@ contract('Testimonium', async (accounts) => {
                 }
             }
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         // Test Scenario 3:
@@ -1305,11 +1205,7 @@ contract('Testimonium', async (accounts) => {
                 }
             }
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
         // Test Scenario 4:
         //
@@ -1432,11 +1328,7 @@ contract('Testimonium', async (accounts) => {
                 }
             }
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         // Test Scenario 5: submit valid Merkle Patricia proof
@@ -1493,11 +1385,7 @@ contract('Testimonium', async (accounts) => {
             let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
             expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(0) });
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         // Test Scenario 6: submit invalid Merkle Patricia proof
@@ -1554,11 +1442,7 @@ contract('Testimonium', async (accounts) => {
             let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
             expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(3) });
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         // Test Scenario 7: submit Merkle Patricia proof for a block that is not stored in the contract
@@ -1612,11 +1496,7 @@ contract('Testimonium', async (accounts) => {
 
             await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI }), "block does not exist");
 
-            // withdraw stake
-            const submitTime = await time.latest();
-            const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
-            await time.increaseTo(increasedTime);
-            await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+            await withdrawStake(stake);
         });
 
         it('should revert since msg.value not equal to function parameter', async () => {
@@ -2408,7 +2288,14 @@ contract('Testimonium', async (accounts) => {
 
     const getAccountBalanceInWei = async (accountAddress) => {
         return await balance.current(accountAddress);
-    }
+    };
+
+    const withdrawStake = async (stake) => {
+        const submitTime = await time.latest();
+        const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
+        await time.increaseTo(increasedTime);  // unlock all blocks
+        await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+    };
 
 });
 

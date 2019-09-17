@@ -15,7 +15,7 @@ const MIN_GAS_LIMIT             = new BN(5000);
 const GAS_LIMIT_BOUND_DIVISOR   = new BN(1024);
 const ETHASH_CONTRACT_ADDRESS   = "0x9bBD9C861eff6A13F760eBec59E180bdd10394a7";
 const INFURA_ENDPOINT           = "https://mainnet.infura.io/v3/71de5e5e1b3c4f0d8256e29f2a23391b";
-const GAS_PRICE_IN_WEI          = new BN(1000);
+const GAS_PRICE_IN_WEI          = new BN(0);
 
 
 contract('Testimonium', async (accounts) => {
@@ -1612,6 +1612,23 @@ contract('Testimonium', async (accounts) => {
                 gasPrice: GAS_PRICE_IN_WEI
             }), "transfer amount not equal to function parameter");
         });
+
+        it('should revert since provided fee is too small', async () => {
+            const verificationFee = await testimonium.getRequiredVerificationFee();
+
+            const block0 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+            const requestedBlockHash = web3.utils.hexToBytes(block0.hash);
+            const rlpEncodedTx = web3.utils.hexToBytes("0xf86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
+            const path = web3.utils.hexToBytes("0x80");
+            const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90203b90134f90131a046a11582bfd9da02a0a857f572bbe08d0467502cb212d02048e9303986dabdfba0d7d90c16309409eca72d959ff2419b5f2feac4ba76acda1b3de8651db65b4c91a0b0a8904b11ada7fe8ada7c51c01a13deb2833b47f82a964d66d0b9ec9bd160baa061a791ece33a5cba8eb27345a4a58ab911d7b4684731b0ae8aa97ffc992b9bc8a0b135e0c562a97ca9bdab66f0187ac044dfbf7a3567d21acbe1363bf76a6b8768a07467253e2430335ac71e8ff93cbd8f71d7b501efdc9a9b5c40c042c6144df9f2a077a192fccfb384092b022e8c8fc5e629e1048d62c538401d15fd5bfdfa969bf1a0f905208d3cd9fd002508dc447a0f85fcf3271f07dc39fc1fc62f75704018e6a3a099341a1ae2fc30a64d825f7107c42167b3247f0f6fbbb4193a89b528a877b7a78080808080808080b853f851a0bab73d23919188d2dd5dba08a5bc0a09b49b1726a0f7452193d91f552f814051a062ca89fba3f46973e6198f9c01b58fc481d7e4cfab721fe9c84878760d7b63cd808080808080808080808080808080b875f87320b870f86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
+
+            await expectRevert(testimonium.verifyTransaction(verificationFee.sub(new BN(1)), requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                from: accounts[0],
+                value: verificationFee.sub(new BN(1)),
+                gasPrice: GAS_PRICE_IN_WEI
+            }), "provided fee is less than expected fee");
+        });
+
     });
 
     describe('Testimonium: VerifyReceipt', function () {

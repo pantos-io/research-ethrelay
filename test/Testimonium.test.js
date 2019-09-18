@@ -256,7 +256,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock;
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const expectedBlocks = [
@@ -287,7 +287,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -333,7 +333,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -384,7 +384,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(3));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -444,7 +444,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(3));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -511,7 +511,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -589,7 +589,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(7));
-            testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -897,7 +897,7 @@ contract('Testimonium', async (accounts) => {
         it('should unlock a block at the correct time', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const expectedBlocks = [
@@ -969,7 +969,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1050,7 +1050,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(4));
-            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1118,7 +1118,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(12));
-            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1261,7 +1261,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(12));
-            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1408,7 +1408,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1477,7 +1477,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1550,7 +1550,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1645,7 +1645,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1717,7 +1717,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1789,7 +1789,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1877,6 +1877,13 @@ contract('Testimonium', async (accounts) => {
         //
         //
         it('should correctly execute test scenario 1', async () => {
+            const submitterAddr = accounts[0];
+            const verifierAddr = accounts[1];
+            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const stake = requiredStakePerBlock.mul(new BN(5));
+            testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            const verificationFee = await testimonium.getRequiredVerificationFee();
+
             // Create expected chain
             const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);

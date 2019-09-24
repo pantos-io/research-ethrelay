@@ -89,18 +89,19 @@ contract Testimonium is TestimoniumCore {
         emit SubmitBlock(blockHash);
     }
 
-    event DisputeBlockHeader(uint noOfDeletedBlocks);
     function disputeBlockHeader(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
         address[] memory submittersToPunish = disputeBlock(blockHash, dataSetLookup, witnessForLookup);
 
         // if the PoW validation initiated by the dispute function was successful (i.e., the block is legal),
         // submittersToPunish will be empty and no further action will be carried out.
+        uint collectedStake = 0;
         for (uint i = 0; i < submittersToPunish.length; i++) {
             address client = submittersToPunish[i];
             clientStake[client] = clientStake[client] - REQUIRED_STAKE_PER_BLOCK;
+            collectedStake += REQUIRED_STAKE_PER_BLOCK;
         }
-
-        emit DisputeBlockHeader(submittersToPunish.length);
+        // client that triggered the dispute receives the collected stake
+        clientStake[msg.sender] += collectedStake;
     }
 
     function verify(uint8 verificationType, uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedValue,
@@ -190,7 +191,16 @@ contract Testimonium is TestimoniumCore {
     ///      submitted block headers (blocksSubmittedByClient). It does not matter whether a block's lock period has already
     ///      been elapsed. As long as the block is referenced in blocksSubmittedByClient, the stake is considered as "used".
     function getUnusedStake(address client) private view returns (uint) {
-        return clientStake[client] - blocksSubmittedByClient[client].length * REQUIRED_STAKE_PER_BLOCK;
+        uint usedStake = blocksSubmittedByClient[client].length * REQUIRED_STAKE_PER_BLOCK;
+        if (clientStake[client] < usedStake) {
+            // if a client get punished due to a dispute the clientStake[client] can be less than
+            // blocksSubmittedByClient[client].length * REQUIRED_STAKE_PER_BLOCK, since clientStake[client] is deducted
+            // after the dispute, but blocksSubmittedByClient[client] remains unaffected (i.e., it is not cleared)
+            return 0;
+        }
+        else {
+            return clientStake[client] - usedStake;
+        }
     }
 
     /// @dev Checks for each block referenced in blocksSubmittedByClient whether it is unlocked. In case a referenced

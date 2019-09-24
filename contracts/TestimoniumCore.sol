@@ -400,7 +400,7 @@ contract TestimoniumCore {
 
         }
         if (rootHeader.meta.successors.length == 1) {
-            submitters = pruneBranch(rootHeader.meta.successors[1], counter);
+            submitters = pruneBranch(rootHeader.meta.successors[0], counter);
         }
         if (orderedEndpoints[rootHeader.meta.orderedIndex] == root) {
             // root is an endpoint --> delete root in endpoints array, since root will be deleted and thus can no longer be an endpoint

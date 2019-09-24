@@ -1,6 +1,8 @@
 pragma solidity ^0.5.10;
 
 import "./TestimoniumCore.sol";
+import "../node_modules/solidity-rlp/contracts/RLPReader.sol";
+
 
 /// @title Testimonium: A contract enabling cross-blockchain verifications (transactions, receipts, states)
 /// @author Marten Sigwart, Philipp Frauenthaler

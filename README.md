@@ -1,5 +1,7 @@
 # Testimonium
 
+[![Build Status](https://travis-ci.org/pantos-io/testimonium.svg?branch=master)](https://travis-ci.org/pantos-io/testimonium)
+
 This project contains Ethereum smart contracts that enable the verification of transactions 
 of a "target" blockchain on a different "verifying" blockchain in a trustless and decentralized way. 
 
@@ -25,25 +27,19 @@ as the verifying chain and the main Ethereum blockchain as the target blockchain
 ### Prerequisites
 You need to have the following tools installed:
 * [Node](https://nodejs.org/en/)
-* [Ganache](https://www.trufflesuite.com/ganache)
+* [Ganache](https://www.trufflesuite.com/ganache) (>= 2.1.0)
 
 ### Deployment
 1. Clone the repository: `git clone git@github.com:pantos-io/testimonium.git`
 2. Change into the project directory: `cd testimonium/`
 3. Install all dependencies: `npm install`
-4. Make sure the [Ethash]((https://github.com/pantos-io/ethash)) contract is deployed. 
-Update the Ethash contract address in files `migrations/2_deploy_testimonium.js` and `test/Testimonium.test.js` accordingly.  
-5. Deploy contracts: `truffle migrate --reset`
-  
-_Note: It is currently required to deploy the Ethash contract separately because the contract relies on an old 
-Solidity compiler version (v0.4.9)._
+4. Deploy contracts: `truffle migrate --reset`
 
 ### Testing
 Run the tests with `truffle test`.
 
 ### Export contract
-To generate the Go contract file and export it to Testimonium-CLI project run `./export.sh`
-
+To generate the Go contract files and export them to the [go-testimonium](https://github.com/pantos-io/go-testimonium) project run `./export.sh`
 
 ## How it works
 Users can query the Testimonium contract living on the verifying blockchain by sending requests like 
@@ -108,10 +104,6 @@ When running the tests you might run into the following error: `Returned error: 
 To fix, create an account with [Infura](https://infura.io/register) and create a new Infura project. 
 Then in file `test/Testimonium.test.js` change the constant `INFURA_ENDPOINT` to the 
 mainnet URL from your Infura project.
-
-#### Dispute Block Tests Fail
-If the tests for disputing blocks fail, make sure that the [Ethash](https://github.com/pantos-io/ethash) contract is deployed 
-and that the contract address is set in `test/Testimonium.test.js`.
 
 
 ## How to contribute

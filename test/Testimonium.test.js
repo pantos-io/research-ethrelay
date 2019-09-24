@@ -1,12 +1,13 @@
 const Web3 = require("web3");
-const {BN, balance, ether, expectRevert, time} = require('openzeppelin-test-helpers');
+const {BN, expectRevert, time, balance} = require('openzeppelin-test-helpers');
 const {createRLPHeader, calculateBlockHash, createRLPHeaderWithoutNonce, addToHex} = require('../utils/utils');
 const {expectEvent} = require('./setup');
 
 const Testimonium = artifacts.require('./TestimoniumTestContract');
+const Ethash = artifacts.require('./Ethash');
 const {expect} = require('chai');
 
-const GENESIS_BLOCK             = 8084509;
+const GENESIS_BLOCK             = 8084509;  // --> change with care, since the ethash contract has to be loaded with the corresponding epoch data
 const ZERO_HASH                 = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const ZERO_ADDRESS              = '0x0000000000000000000000000000000000000000';
 const LOCK_PERIOD               = time.duration.minutes(5);
@@ -14,18 +15,28 @@ const ALLOWED_FUTURE_BLOCK_TIME = time.duration.seconds(15);
 const MAX_GAS_LIMIT             = new BN(2).pow(new BN(63)).sub(new BN(1));
 const MIN_GAS_LIMIT             = new BN(5000);
 const GAS_LIMIT_BOUND_DIVISOR   = new BN(1024);
-const ETHASH_CONTRACT_ADDRESS   = "0x6e7aA7e05f59e81a97DE783Ee45fB59e23947e81";
-const INFURA_ENDPOINT           = "https://mainnet.infura.io/v3/71de5e5e1b3c4f0d8256e29f2a23391b";
 const GAS_PRICE_IN_WEI          = new BN(0);
+const INFURA_ENDPOINT           = "https://mainnet.infura.io/v3/ab050ca98686478e9e9b06dfc3b2f069";
 
 
 contract('Testimonium', async (accounts) => {
 
     let testimonium;
+    let ethash;
     let sourceWeb3;
 
     before(async () => {
         sourceWeb3 = new Web3(INFURA_ENDPOINT);
+        ethash = await Ethash.new();
+        const epoch = 269;
+        const fullSizeIn128Resolution = 26017759;
+        const branchDepth = 15;
+        const merkleNodes = require("./epoch-269.json");
+
+        console.log("Submitting data for epoch 269 to Ethash contract...");
+        await submitEpochData(ethash, epoch, fullSizeIn128Resolution, branchDepth, merkleNodes);
+        console.log("Submitted epoch data.");
+
         // Advance to the next block to correctly read time in the solidity "now" function interpreted by ganache
         await time.advanceBlock();
     });
@@ -33,7 +44,10 @@ contract('Testimonium', async (accounts) => {
     beforeEach(async () => {
         const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
         const genesisRlpHeader = createRLPHeader(genesisBlock);
-        testimonium = await Testimonium.new(genesisRlpHeader, genesisBlock.totalDifficulty, ETHASH_CONTRACT_ADDRESS, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
+        testimonium = await Testimonium.new(genesisRlpHeader, genesisBlock.totalDifficulty, ethash.address, {
+            from: accounts[0],
+            gasPrice: GAS_PRICE_IN_WEI
+        });
     });
 
 
@@ -43,17 +57,21 @@ contract('Testimonium', async (accounts) => {
         it("should throw error: transfer amount not equal to function parameter", async () => {
             const stake = new BN(1);
             await expectRevert(
-                testimonium.depositStake(stake, { from: accounts[0], value: stake.add(new BN(1)), gasPrice: GAS_PRICE_IN_WEI }),
+                testimonium.depositStake(stake, {
+                    from: accounts[0],
+                    value: stake.add(new BN(1)),
+                    gasPrice: GAS_PRICE_IN_WEI
+                }),
                 "transfer amount not equal to function parameter");
         });
 
         // Test Scenario 2:
         it("should correctly add the provided stake to the client's balance", async () => {
             const stake = new BN(15);
-            const balanceBeforeCall = await testimonium.getStake({ from: accounts[0] });
+            const balanceBeforeCall = await testimonium.getStake({from: accounts[0]});
 
-            await testimonium.depositStake(stake, { from: accounts[0], value: stake });
-            const balanceAfterCall = await testimonium.getStake({ from: accounts[0] });
+            await testimonium.depositStake(stake, {from: accounts[0], value: stake});
+            const balanceAfterCall = await testimonium.getStake({from: accounts[0]});
 
             expect(balanceAfterCall).to.be.bignumber.equal(balanceBeforeCall.add(stake));
 
@@ -67,16 +85,19 @@ contract('Testimonium', async (accounts) => {
 
         // Test Scenario 1:
         it("should throw error: withdraw should be denied due to insufficient amount of overall stake", async () => {
-            const stakeBeforeTest = await testimonium.getStake({ from: accounts[0] });
+            const stakeBeforeTest = await testimonium.getStake({from: accounts[0]});
             const stakeToWithdraw = stakeBeforeTest.add(new BN(1));
             let gasUsed = new BN(0);
             const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
 
-            const ret = await testimonium.withdrawStake(stakeToWithdraw, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
-            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: new BN(0) });
+            const ret = await testimonium.withdrawStake(stakeToWithdraw, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            });
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: new BN(0)});
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
-            const stakeAfterTest = await testimonium.getStake({ from: accounts[0] });
+            const stakeAfterTest = await testimonium.getStake({from: accounts[0]});
             expect(stakeAfterTest).to.be.bignumber.equal(stakeBeforeTest);
 
             const accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
@@ -89,7 +110,11 @@ contract('Testimonium', async (accounts) => {
             const stake = await testimonium.getRequiredStakePerBlock();
             let gasUsed = new BN(0);
             const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
-            let ret = await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            let ret = await testimonium.depositStake(stake, {
+                from: accounts[0],
+                value: stake,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
 
@@ -98,14 +123,14 @@ contract('Testimonium', async (accounts) => {
             await submitBlockHeader(block1, accounts[0]);
             const submitTime = await time.latest();
 
-            ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
-            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: new BN(0) });
+            ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: new BN(0)});
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
-            const stakeAfterTest = await testimonium.getStake({ from: accounts[0] });
+            const stakeAfterTest = await testimonium.getStake({from: accounts[0]});
             expect(stakeAfterTest).to.be.bignumber.equal(stake);
 
-            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({ from: accounts[0] });
+            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(1);
             expect(submittedHeaders[0]).to.equal(block1.hash);
 
@@ -116,8 +141,8 @@ contract('Testimonium', async (accounts) => {
             // withdraw after lock period has elapsed
             const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
             await time.increaseTo(increasedTime);
-            ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
-            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: stake });
+            ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: stake});
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
             accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
@@ -130,7 +155,11 @@ contract('Testimonium', async (accounts) => {
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
             const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
-            let ret = await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            let ret = await testimonium.depositStake(stake, {
+                from: accounts[0],
+                value: stake,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
             let gasUsed = new BN(ret.receipt.gasUsed);
 
             // submit header in order to lock the deposited stake
@@ -146,14 +175,14 @@ contract('Testimonium', async (accounts) => {
             ret = await submitBlockHeader(block2, accounts[0]);
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
-            ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
-            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: new BN(0) });
+            ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: new BN(0)});
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
-            const stakeAfterTest = await testimonium.getStake({ from: accounts[0] });
+            const stakeAfterTest = await testimonium.getStake({from: accounts[0]});
             expect(stakeAfterTest).to.be.bignumber.equal(stake);
 
-            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({ from: accounts[0] });
+            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(1);
             expect(submittedHeaders[0]).to.equal(block2.hash);
 
@@ -164,8 +193,8 @@ contract('Testimonium', async (accounts) => {
             // withdraw after lock period has elapsed
             increasedTime = (await time.latest()).add(LOCK_PERIOD).add(time.duration.seconds(1));
             await time.increaseTo(increasedTime);
-            ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
-            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: stake });
+            ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: stake});
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
             accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
@@ -177,18 +206,22 @@ contract('Testimonium', async (accounts) => {
         it("should withdraw the correct amount since no stake has ever been locked", async () => {
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
-            const stakeBeforeTest = await testimonium.getStake({ from: accounts[0] });
+            const stakeBeforeTest = await testimonium.getStake({from: accounts[0]});
             let gasUsed = new BN(0);
             const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
 
-            let ret = await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            let ret = await testimonium.depositStake(stake, {
+                from: accounts[0],
+                value: stake,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
-            ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
-            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: stake });
+            ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: stake});
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
-            const stakeAfterTest = await testimonium.getStake({ from: accounts[0] });
+            const stakeAfterTest = await testimonium.getStake({from: accounts[0]});
             expect(stakeAfterTest).to.be.bignumber.equal(stakeBeforeTest);
 
             const accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
@@ -200,8 +233,8 @@ contract('Testimonium', async (accounts) => {
         it("should withdraw the correct amount since lock period has elapsed", async () => {
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
-            const stakeBeforeTest = await testimonium.getStake({ from: accounts[0] });
-            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            const stakeBeforeTest = await testimonium.getStake({from: accounts[0]});
+            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             // submit header in order to lock the deposited stake
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -211,13 +244,13 @@ contract('Testimonium', async (accounts) => {
             const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
             await time.increaseTo(increasedTime);
 
-            const ret = await testimonium.withdrawStake(stake, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI });
-            expectEvent.inLogs(ret.logs, 'WithdrawStake', { client: accounts[0], withdrawnStake: stake });
+            const ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: stake});
 
-            const stakeAfterTest = await testimonium.getStake({ from: accounts[0] });
+            const stakeAfterTest = await testimonium.getStake({from: accounts[0]});
             expect(stakeAfterTest).to.be.bignumber.equal(stakeBeforeTest);
 
-            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({ from: accounts[0] });
+            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(0);
         });
     });
@@ -257,7 +290,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock;
-            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const expectedBlocks = [
@@ -288,7 +321,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
-            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -334,7 +367,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
-            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -385,7 +418,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(3));
-            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -445,7 +478,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(3));
-            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -512,7 +545,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -590,7 +623,7 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(7));
-            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -692,11 +725,18 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the parent of a submitted block header does not exist', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const blockWithNonExistentParent = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
             const rlpHeader = createRLPHeader(blockWithNonExistentParent);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'non-existent parent');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'non-existent parent');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -704,13 +744,20 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the block number is not incremented by one (too high)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithWrongBlockNumber.number = GENESIS_BLOCK + 2;
             blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'illegal block number');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -718,13 +765,20 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the number of the submitted block is not incremented by one (too low)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithWrongBlockNumber.number = GENESIS_BLOCK - 1;
             blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'illegal block number');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -732,13 +786,20 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithWrongBlockNumber.number = GENESIS_BLOCK;
             blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'illegal block number');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -746,13 +807,20 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithWrongBlockNumber.number = GENESIS_BLOCK;
             blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
             const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }), 'illegal block number');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'illegal block number');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -760,14 +828,21 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the timestamp of the submitted block is not in the future (equal)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
             const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithPastTimestamp.timestamp = genesisBlock.timestamp;
             blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal timestamp');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'illegal timestamp');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -775,14 +850,21 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the timestamp of the submitted block is not in the future (older)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
             const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithPastTimestamp.timestamp = genesisBlock.timestamp - 1;
             blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal timestamp');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'illegal timestamp');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -790,13 +872,20 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the timestamp of the submitted block is too far in the future', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithPastTimestamp.timestamp = time.latest() + ALLOWED_FUTURE_BLOCK_TIME;
             blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
             const rlpHeader = createRLPHeader(blockWithPastTimestamp);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal timestamp');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'illegal timestamp');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -804,14 +893,21 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the difficulty of the submitted block is not correct', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const blockWithIllegalDifficulty = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const newDifficulty = web3.utils.toBN(blockWithIllegalDifficulty.difficulty).add(web3.utils.toBN(1000));
             blockWithIllegalDifficulty.difficulty = newDifficulty.toString();
             blockWithIllegalDifficulty.hash = calculateBlockHash(blockWithIllegalDifficulty);
             const rlpHeader = createRLPHeader(blockWithIllegalDifficulty);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'wrong difficulty');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'wrong difficulty');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -819,13 +915,20 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the gas limit of the submitted block is higher than maximum gas limit', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithIllegalGasLimit.gasLimit = MAX_GAS_LIMIT.add(new BN(1));
             blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'gas limit too high');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'gas limit too high');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -833,13 +936,20 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the gas limit of the submitted block is smaller than the minium gas limit', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithIllegalGasLimit.gasLimit = MIN_GAS_LIMIT.sub(new BN(1));
             blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'gas limit too small');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'gas limit too small');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -847,7 +957,11 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the gas limit of the submitted block is out of bounds (too high)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
             const limit = new BN(genesisBlock.gasLimit).div(GAS_LIMIT_BOUND_DIVISOR);
@@ -855,7 +969,10 @@ contract('Testimonium', async (accounts) => {
             blockWithIllegalGasLimit.gasLimit = new BN(genesisBlock.gasLimit).add(limit).add(new BN(1));
             blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal gas limit');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'illegal gas limit');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -863,7 +980,11 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the gas limit of the submitted block is out of bounds (too small)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
             const limit = new BN(genesisBlock.gasLimit).div(GAS_LIMIT_BOUND_DIVISOR);
@@ -871,7 +992,10 @@ contract('Testimonium', async (accounts) => {
             blockWithIllegalGasLimit.gasLimit = new BN(genesisBlock.gasLimit).sub(limit).sub(new BN(1));
             blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
             const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'illegal gas limit');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'illegal gas limit');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -879,13 +1003,20 @@ contract('Testimonium', async (accounts) => {
         it('should revert when the gas used of the submitted block is higher than the gas limit', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const blockWithIllegalGasUsed = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             blockWithIllegalGasUsed.gasUsed = new BN(blockWithIllegalGasUsed.gasLimit).add(new BN(1));
             blockWithIllegalGasUsed.hash = calculateBlockHash(blockWithIllegalGasUsed);
             const rlpHeader = createRLPHeader(blockWithIllegalGasUsed);
-            await expectRevert(testimonium.submitBlock(rlpHeader, { from: accounts[0], gasPrice: GAS_PRICE_IN_WEI }),'gas used is higher than the gas limit');
+            await expectRevert(testimonium.submitBlock(rlpHeader, {
+                from: accounts[0],
+                gasPrice: GAS_PRICE_IN_WEI
+            }), 'gas used is higher than the gas limit');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -898,7 +1029,11 @@ contract('Testimonium', async (accounts) => {
         it('should unlock a block at the correct time', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, { from: accounts[0], value: requiredStakePerBlock, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(requiredStakePerBlock, {
+                from: accounts[0],
+                value: requiredStakePerBlock,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const expectedBlocks = [
@@ -925,9 +1060,9 @@ contract('Testimonium', async (accounts) => {
             // submit header
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const ret = await submitBlockHeader(block1, accounts[0]);
-            expectEvent.inLogs(ret.logs, 'SubmitBlock', { blockHash: ZERO_HASH });
+            expectEvent.inLogs(ret.logs, 'SubmitBlock', {blockHash: ZERO_HASH});
 
-            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({ from: accounts[0] });
+            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(0);
 
             const header = await testimonium.getHeader(block1.hash);
@@ -936,14 +1071,14 @@ contract('Testimonium', async (accounts) => {
 
         it("should accept block due to enough unused stake", async () => {
             const stake = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(stake, { from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             // submit header
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const ret = await submitBlockHeader(block1, accounts[0]);
-            expectEvent.inLogs(ret.logs, 'SubmitBlock', { blockHash: block1.hash });
+            expectEvent.inLogs(ret.logs, 'SubmitBlock', {blockHash: block1.hash});
 
-            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({ from: accounts[0] });
+            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(1);
             expect(submittedHeaders[0]).to.equal(block1.hash);
 
@@ -970,7 +1105,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1013,8 +1148,12 @@ contract('Testimonium', async (accounts) => {
                     let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
                     let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-                    let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: verifierAddr, value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
-                    expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(0) });
+                    let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                        from: verifierAddr,
+                        value: verificationFee,
+                        gasPrice: GAS_PRICE_IN_WEI
+                    });
+                    expectEvent.inLogs(ret.logs, 'VerifyTransaction', {result: new BN(0)});
 
                     let balanceSubmitterAfterCall = await balance.current(submitterAddr);
                     let balanceVerifierAfterCall = await balance.current(verifierAddr);
@@ -1024,7 +1163,11 @@ contract('Testimonium', async (accounts) => {
                     expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
                 }
                 for (let j = i; j < expectedBlocks.length; j++) {
-                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: verifierAddr, value: verificationFee, gasPrice: GAS_PRICE_IN_WEI }), "block is not confirmed by enough succeeding blocks or locked");
+                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                        from: verifierAddr,
+                        value: verificationFee,
+                        gasPrice: GAS_PRICE_IN_WEI
+                    }), "block is not confirmed by enough succeeding blocks or locked");
                 }
 
                 if (i < expectedBlocks.length) {
@@ -1051,7 +1194,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(4));
-            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1092,7 +1235,11 @@ contract('Testimonium', async (accounts) => {
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
                 console.log((await time.latest()).toString());
                 for (let j = 0; j < expectedBlocks.length; j++) {
-                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: verifierAddr, value: verificationFee, gasPrice: GAS_PRICE_IN_WEI }), "block is not confirmed by enough succeeding blocks or locked");
+                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                        from: verifierAddr,
+                        value: verificationFee,
+                        gasPrice: GAS_PRICE_IN_WEI
+                    }), "block is not confirmed by enough succeeding blocks or locked");
                 }
                 if (i < expectedBlocks.length) {
                     await time.increaseTo(expectedBlocks[i].lockedUntil);
@@ -1119,19 +1266,19 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(12));
-            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
-            const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-            const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-            const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-            const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
-            const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
-            const block7  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
-            const block8  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 6);
-            const block9  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 7);
+            const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
+            const block7 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
+            const block8 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 6);
+            const block9 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 7);
             const block10 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 8);
             const block11 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 8);
             const block12 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 9);
@@ -1139,7 +1286,8 @@ contract('Testimonium', async (accounts) => {
             const path = web3.utils.hexToBytes("0x81a8");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf904ccb90134f90131a064e0f904be2c8f5d2bcf26b7546c6e5c685309aca6b64a4d7bbae8ff64ab369ea0b476aa430c8d17551dd4023c7d19bfe2ed867df51d9bd996ea82fb3b94bb8e60a078a3ba904db716bed50e89e67e4d1fc152338347542bcab7935febb02e5471c0a06f21f1f73702d35bca8f57c9e1656b747f0004f23a073061d8ed88649427810ca0242eb705b81f0ae1e11977b02481ce31a37d8dd11d2d84af7420834b93343332a068d3fce6c253a3580d01b4a2755cc4d92fed085fd567b8baf1d77161ac1b41cca00b259ae6f5eeda338fdabe23b830922515a632eb640c884ab477cb12d55bccf9a0d23bc74430048459efcd8820829207e705c1d9fb76aa4ce7daf76bcbbfad7ad0a068b734aa7e95bcb0e97611d0e5488556c1c6655889273c6f6e6ec43b6400fb3c8080808080808080b853f851a0f929cf7b8348dc73646c4058ef112ebaf9a1f041513f0becb221d50ac9b0ee88a062f1af03226a331c42918432660614140f99fa2f92a26b7fb6bd0f42dd3878c9808080808080808080808080808080b8b3f8b18080808080808080a094aac73e4c058372d5a80c0b7653bdea9276e6ce9a71b055ee059e6845f83890a0b27b821e7f47ae0bf86af752646b72bcca32f59471ee41be46db7ec4ff462408a0ca1bafc752d8e980bd9ecd8970f72b3fd3ef8ba5dae60f85a35058b7b1753445a05d193325ca6ccd69d2d667d3db9df9062b37b158fa62d89fdcf66d064d8225c7a01ac9ae461be3985c9197334cd2c69d7d534a8f49e9f358bc4ef48e220935db8e80808080b90214f90211a0c829cc875c044dcb90b86098de7598f32abeab6a7b2d6bd23199c2671b551a08a0eb92fc5d9df9f4a82759be2f37c2f3a153de2ebfde585ce8bf94d561c97e472ca01650b87c9e0ee4844079d9c38ccfbaaf9004864a3b03495be1a81b050df5ec1aa0a2de5fb828582d1ec48cd0ce73505b7d0a2284df43285f603d1e86185377def0a09f5baaf424d1338a896e8f61bab3f495a29f73e036a0bfe76f37fd1d84562b49a0688b365dd6c76cadfdaf5b35bb2c17f37fd358a568f3d056ae79ab9f18f2b4a9a0abe293657be1ed9f862868afe7dfde1ac207795493bef33f6f6bb029834d9a4ca0275a4fed8762b3f422b5fe8b3aacefb1675eb89a05144afbbd068b3626b617d7a0dcecfdec736d7883c8665729aaf02505a1d89622e1e25c962454633eed8cdb16a0a2a95bd9e724d1fc8b4acbd2e1e61e101272263b775c3e97ac9132dd973d474da0c9fb78deadf234efd43c925ce16a76198c47586f492aefd7d459396608fc2bdea06e855d3813257697fb66a03ef94119c73f98c71c2e1c3290cb15042a27ac8e1ca01d9e91bc3a6601979ad66e2139d2bb186ffc822b80260f6470aa60742bb87f08a0f860f5e1d3f5c6d7c8721d343f7a5aebb163aa1ea9318fbd7110ab3b5b8089a1a02aaa99a83589062b6c07157ee84e222427db1189edc8a78e311993217827259ba0b8bb75030b74f508233b200c70bf64906332138cef2678710e00585ea39a72f580b872f87020b86df86b028502540be40082520894c5764928a94f13945ac9bed4613ee736f1cf65fc870cd082d184e0008026a024630f181ee975d3acf71d91eef1eebc565e723e394adbbf0b346f77d83af0f4a074c4e8e6a7f6ab446660637682efe2809bd6adc1cd9ddd288c0fbc5f2d12c89c");
 
-            block4.nonce = addToHex(block4.nonce, 1);;
+            block4.nonce = addToHex(block4.nonce, 1);
+            ;
             block4.hash = calculateBlockHash(block4);
 
             block5.parentHash = block4.hash;
@@ -1168,18 +1316,18 @@ contract('Testimonium', async (accounts) => {
 
             const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
             const expectedBlocks = [
-                { block: block1 },
-                { block: block2 },
-                { block: block3 },
-                { block: block4 },
-                { block: block5 },
-                { block: block6 },
-                { block: block7 },
-                { block: block8 },
-                { block: block9 },
-                { block: block10 },
-                { block: block11 },
-                { block: block12 }
+                {block: block1},
+                {block: block2},
+                {block: block3},
+                {block: block4},
+                {block: block5},
+                {block: block6},
+                {block: block7},
+                {block: block8},
+                {block: block9},
+                {block: block10},
+                {block: block11},
+                {block: block12}
             ];
 
             const maxConfirmations = expectedBlocks.length + 1;
@@ -1209,7 +1357,7 @@ contract('Testimonium', async (accounts) => {
                 console.log(`Current time: ${await time.latest()}`);
                 console.log(`Unlocked block: ${i}`);
 
-                for (let j=0; j < expectedVerificationResults[i].length; j++) {
+                for (let j = 0; j < expectedVerificationResults[i].length; j++) {
                     // let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, { from: accounts[0], value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
                     // expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(expectedVerificationResults[i][j]) });
                     if (expectedVerificationResults[i][j] === 0) {
@@ -1262,19 +1410,19 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(12));
-            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
-            const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-            const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-            const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-            const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
-            const block7  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
-            const block8  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
-            const block9  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
+            const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block7 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block8 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
+            const block9 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
             const block10 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 6);
             const block11 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 6);
             const block12 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 7);
@@ -1318,18 +1466,18 @@ contract('Testimonium', async (accounts) => {
 
             const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
             const expectedBlocks = [
-                { block: block1 },
-                { block: block2 },
-                { block: block3 },
-                { block: block4 },
-                { block: block5 },
-                { block: block6 },
-                { block: block7 },
-                { block: block8 },
-                { block: block9 },
-                { block: block10 },
-                { block: block11 },
-                { block: block12 }
+                {block: block1},
+                {block: block2},
+                {block: block3},
+                {block: block4},
+                {block: block5},
+                {block: block6},
+                {block: block7},
+                {block: block8},
+                {block: block9},
+                {block: block10},
+                {block: block11},
+                {block: block12}
             ];
 
             const maxConfirmations = expectedBlocks.length + 1;
@@ -1359,7 +1507,7 @@ contract('Testimonium', async (accounts) => {
                 console.log(`Current time: ${await time.latest()}`);
                 console.log(`Unlocked block: ${i}`);
 
-                for (let j=0; j < expectedVerificationResults[i].length; j++) {
+                for (let j = 0; j < expectedVerificationResults[i].length; j++) {
                     if (expectedVerificationResults[i][j] === 0) {
                         let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
                         let balanceVerifierBeforeCall = await balance.current(verifierAddr);
@@ -1409,7 +1557,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1452,8 +1600,12 @@ contract('Testimonium', async (accounts) => {
             let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
             let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, { from: verifierAddr, value: verificationFee, gasPrice: GAS_PRICE_IN_WEI });
-            expectEvent.inLogs(ret.logs, 'VerifyTransaction', { result: new BN(0) });
+            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                from: verifierAddr,
+                value: verificationFee,
+                gasPrice: GAS_PRICE_IN_WEI
+            });
+            expectEvent.inLogs(ret.logs, 'VerifyTransaction', {result: new BN(0)});
 
             let balanceSubmitterAfterCall = await balance.current(submitterAddr);
             let balanceVerifierAfterCall = await balance.current(verifierAddr);
@@ -1478,7 +1630,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1551,7 +1703,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1646,7 +1798,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1718,7 +1870,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1790,7 +1942,7 @@ contract('Testimonium', async (accounts) => {
             const verifierAddr = accounts[1];
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, { from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             // Create expected chain
@@ -1884,15 +2036,27 @@ contract('Testimonium', async (accounts) => {
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(2));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(2));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(1));
-                await testimonium.depositStake(stakeAccount0, { from: accounts[0], value: stakeAccount0, gasPrice: GAS_PRICE_IN_WEI });  // submits block 1
-                await testimonium.depositStake(stakeAccount1, { from: accounts[1], value: stakeAccount1, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 2,3
-                await testimonium.depositStake(stakeAccount2, { from: accounts[2], value: stakeAccount2, gasPrice: GAS_PRICE_IN_WEI });  // submits block 4
+                await testimonium.depositStake(stakeAccount0, {
+                    from: accounts[0],
+                    value: stakeAccount0,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits block 1
+                await testimonium.depositStake(stakeAccount1, {
+                    from: accounts[1],
+                    value: stakeAccount1,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 2,3
+                await testimonium.depositStake(stakeAccount2, {
+                    from: accounts[2],
+                    value: stakeAccount2,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits block 4
 
                 // Create expected chain
-                const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+                const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
 
                 // change nonce such that the PoW validation results in false (prune Branch)
                 block2.nonce = addToHex(block2.nonce, 1);
@@ -1916,10 +2080,10 @@ contract('Testimonium', async (accounts) => {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
-                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', { submittersOfIllegalBlocks: [accounts[1], accounts[1], accounts[2]] });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[1], accounts[1], accounts[2]]});
 
                 // Check
-                const expectedEndpoints = [ block1 ];
+                const expectedEndpoints = [block1];
                 const expectedBlocks = [
                     {
                         block: block1,
@@ -1953,16 +2117,24 @@ contract('Testimonium', async (accounts) => {
                 const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(3));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(3));
-                await testimonium.depositStake(stakeAccount0, { from: accounts[0], value: stakeAccount0, gasPrice: GAS_PRICE_IN_WEI });  // submits block 1,3,6
-                await testimonium.depositStake(stakeAccount1, { from: accounts[1], value: stakeAccount1, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 2,4,5
+                await testimonium.depositStake(stakeAccount0, {
+                    from: accounts[0],
+                    value: stakeAccount0,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits block 1,3,6
+                await testimonium.depositStake(stakeAccount1, {
+                    from: accounts[1],
+                    value: stakeAccount1,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 2,4,5
 
                 // Create expected chain
-                const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
-                const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+                const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
 
                 // change nonce such that the PoW validation results in false (prune Branch)
                 block2.nonce = addToHex(block2.nonce, 1);
@@ -1989,7 +2161,7 @@ contract('Testimonium', async (accounts) => {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
-                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', { submittersOfIllegalBlocks: [accounts[1], accounts[1], accounts[1]] });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[1], accounts[1], accounts[1]]});
 
                 // Check
                 const expectedBlocks = [
@@ -2021,7 +2193,7 @@ contract('Testimonium', async (accounts) => {
                         submitter: accounts[0]
                     }
                 ];
-                const expectedEndpoints = [ block6 ];
+                const expectedEndpoints = [block6];
                 const expectedZeroBlocks = [block2, block4, block5];
                 await checkExpectedEndpoints(expectedEndpoints);
                 await checkExpectedBlockHeaders(expectedBlocks);
@@ -2043,17 +2215,29 @@ contract('Testimonium', async (accounts) => {
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(4));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(1));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(1));
-                await testimonium.depositStake(stakeAccount0, { from: accounts[0], value: stakeAccount0, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 1,2,4,5
-                await testimonium.depositStake(stakeAccount1, { from: accounts[1], value: stakeAccount1, gasPrice: GAS_PRICE_IN_WEI });  // submits block 3
-                await testimonium.depositStake(stakeAccount1, { from: accounts[2], value: stakeAccount2, gasPrice: GAS_PRICE_IN_WEI });  // submits block 6
+                await testimonium.depositStake(stakeAccount0, {
+                    from: accounts[0],
+                    value: stakeAccount0,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 1,2,4,5
+                await testimonium.depositStake(stakeAccount1, {
+                    from: accounts[1],
+                    value: stakeAccount1,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits block 3
+                await testimonium.depositStake(stakeAccount1, {
+                    from: accounts[2],
+                    value: stakeAccount2,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits block 6
 
                 // Create expected chain
-                const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
-                const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+                const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
 
                 // change nonce such that (1) the PoW validation results in false (prune Branch) and (2) to get different hashes for block2 and block3
                 block3.nonce = addToHex(block3.nonce, 1);
@@ -2080,7 +2264,7 @@ contract('Testimonium', async (accounts) => {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
-                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', { submittersOfIllegalBlocks: [accounts[1], accounts[2]] });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[1], accounts[2]]});
 
                 // Check
                 const expectedBlocks = [
@@ -2121,7 +2305,7 @@ contract('Testimonium', async (accounts) => {
                         submitter: accounts[0]
                     }
                 ];
-                const expectedEndpoints = [ block5 ];
+                const expectedEndpoints = [block5];
                 const expectedZeroBlocks = [block3, block6];
                 await checkExpectedBlockHeaders(expectedBlocks);
                 await checkExpectedEndpoints(expectedEndpoints);
@@ -2146,19 +2330,31 @@ contract('Testimonium', async (accounts) => {
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(3));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(1));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(4));
-                await testimonium.depositStake(stakeAccount0, { from: accounts[0], value: stakeAccount0, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 1,2,5
-                await testimonium.depositStake(stakeAccount1, { from: accounts[1], value: stakeAccount1, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 7
-                await testimonium.depositStake(stakeAccount2, { from: accounts[2], value: stakeAccount2, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 3,4,6,8
+                await testimonium.depositStake(stakeAccount0, {
+                    from: accounts[0],
+                    value: stakeAccount0,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 1,2,5
+                await testimonium.depositStake(stakeAccount1, {
+                    from: accounts[1],
+                    value: stakeAccount1,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 7
+                await testimonium.depositStake(stakeAccount2, {
+                    from: accounts[2],
+                    value: stakeAccount2,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 3,4,6,8
 
                 // Create expected chain
-                const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block7  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block8  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+                const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block7 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block8 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
 
                 // change nonce such that (1) the PoW validation results in false (prune Branch) and (2) to get different hashes for blocks with the same heigth/number
                 block3.nonce = addToHex(block3.nonce, 1);
@@ -2196,7 +2392,7 @@ contract('Testimonium', async (accounts) => {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
-                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', { submittersOfIllegalBlocks: [accounts[2], accounts[1]] });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[2], accounts[1]]});
 
                 // Check
                 const expectedBlocks = [
@@ -2255,7 +2451,7 @@ contract('Testimonium', async (accounts) => {
                         submitter: accounts[2]
                     }
                 ];
-                const expectedEndpoints = [ block5, block8 ];
+                const expectedEndpoints = [block5, block8];
                 const expectedZeroBlocks = [block4, block7];
                 await checkExpectedBlockHeaders(expectedBlocks);
                 await checkExpectedEndpoints(expectedEndpoints);
@@ -2280,18 +2476,30 @@ contract('Testimonium', async (accounts) => {
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(3));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(1));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(3));
-                await testimonium.depositStake(stakeAccount0, { from: accounts[0], value: stakeAccount0, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 1,2,5
-                await testimonium.depositStake(stakeAccount1, { from: accounts[1], value: stakeAccount1, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 7
-                await testimonium.depositStake(stakeAccount2, { from: accounts[2], value: stakeAccount2, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 3,4,6
+                await testimonium.depositStake(stakeAccount0, {
+                    from: accounts[0],
+                    value: stakeAccount0,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 1,2,5
+                await testimonium.depositStake(stakeAccount1, {
+                    from: accounts[1],
+                    value: stakeAccount1,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 7
+                await testimonium.depositStake(stakeAccount2, {
+                    from: accounts[2],
+                    value: stakeAccount2,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 3,4,6
 
                 // Create expected chain
-                const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block7  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+                const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block7 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
 
                 // change nonce such that (1) the PoW validation results in false (prune Branch) and (2) to get different hashes for blocks with the same heigth/number
                 block3.nonce = addToHex(block3.nonce, 1);
@@ -2324,7 +2532,7 @@ contract('Testimonium', async (accounts) => {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
-                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', { submittersOfIllegalBlocks: [accounts[2], accounts[2], accounts[1]] });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[2], accounts[2], accounts[1]]});
 
                 // Check
                 const expectedBlocks = [
@@ -2365,7 +2573,7 @@ contract('Testimonium', async (accounts) => {
                         submitter: accounts[0]
                     }
                 ];
-                const expectedEndpoints = [ block5, block4 ];
+                const expectedEndpoints = [block5, block4];
                 const expectedZeroBlocks = [block3, block6, block7];
                 await checkExpectedBlockHeaders(expectedBlocks);
                 await checkExpectedEndpoints(expectedEndpoints);
@@ -2390,18 +2598,30 @@ contract('Testimonium', async (accounts) => {
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(3));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(1));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(3));
-                await testimonium.depositStake(stakeAccount0, { from: accounts[0], value: stakeAccount0, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 1,2,5
-                await testimonium.depositStake(stakeAccount1, { from: accounts[1], value: stakeAccount1, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 7
-                await testimonium.depositStake(stakeAccount2, { from: accounts[2], value: stakeAccount2, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 3,4,6
+                await testimonium.depositStake(stakeAccount0, {
+                    from: accounts[0],
+                    value: stakeAccount0,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 1,2,5
+                await testimonium.depositStake(stakeAccount1, {
+                    from: accounts[1],
+                    value: stakeAccount1,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 7
+                await testimonium.depositStake(stakeAccount2, {
+                    from: accounts[2],
+                    value: stakeAccount2,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 3,4,6
 
                 // Create expected chain
-                const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block7  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+                const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block7 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
 
                 // change nonce such that (1) the PoW validation results in false (prune Branch) and (2) to get different hashes for blocks with the same heigth/number
                 block2.nonce = addToHex(block3.nonce, 1);
@@ -2435,7 +2655,7 @@ contract('Testimonium', async (accounts) => {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
-                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', { submittersOfIllegalBlocks: [accounts[0], accounts[0], accounts[1]] });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0], accounts[0], accounts[1]]});
 
                 // Check
                 const expectedBlocks = [
@@ -2476,7 +2696,7 @@ contract('Testimonium', async (accounts) => {
                         submitter: accounts[2]
                     }
                 ];
-                const expectedEndpoints = [ block4, block6 ];
+                const expectedEndpoints = [block4, block6];
                 const expectedZeroBlocks = [block2, block5, block7];
                 await checkExpectedBlockHeaders(expectedBlocks);
                 await checkExpectedEndpoints(expectedEndpoints);
@@ -2496,19 +2716,23 @@ contract('Testimonium', async (accounts) => {
             it('should correctly execute test scenario 7', async () => {
                 const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(4));
-                await testimonium.depositStake(stakeAccount0, { from: accounts[0], value: stakeAccount0, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 1,2,3,4
+                await testimonium.depositStake(stakeAccount0, {
+                    from: accounts[0],
+                    value: stakeAccount0,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 1,2,3,4
 
                 // Create expected chain
-                const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+                const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
 
                 const blocksToSubmit = [
-                    { block: block1 },
-                    { block: block2 },
-                    { block: block3 },
-                    { block: block4 },
+                    {block: block1},
+                    {block: block2},
+                    {block: block3},
+                    {block: block4},
                 ];
 
                 const dataSetLookupBlock2 = convertEachElemToBN(["76181644490678400314176947890938887507099280509193821623645163751500490826053", "82518727559389568642618282044691488995397417217149794763173577521061814637367", "36443275688280509307635461646228434774424942032331885723467809047613928931829", "37460935465557650951483496909794994426404748480037038163775901788076710853454", "103864347117090307194839299398307673088827387081397582779155798556320042136291", "51646910985400481615268666384565726104974391552917777237398106748113441398840", "67663318296908999150497829051721906667111194735453497200536463345324570998791", "104314433912779603637452938211206311961703051566663522904868069594585299191393", "25086579710985313779266258995966014317633925887975283060205504278059104548258", "61485300824796521798315659449740600784413816813368776837911674564840030447622", "78994101511619081104067408116215641952885098614158607908859466379083467355491", "8750089594213712655804965744417777064251597738376109454733653627761499795428", "71536553893636510504326931225734079303621452397362307151013665811036154808976", "54350251864599009782695987777018288214002224210689346607939356126385498576131", "67801458324871435313667419798762559706987385236044384736343455081099650631914", "103157273196213365584903064732870274414903908092959810446094387878016736948068", "24886004507268426373537513029064925367107914354906420770987966231339717236793", "98008481471640363181855587237632358257437792350937347600473216271719969048019", "90458914097851511677146372409159885107203357898732347768815581379630260968761", "77426839936144058700445560944195562989272407439807292696790028878116593594965", "31558129897565734422383397593659373516615190533212123402371774140635543634242", "6894126316972019914744022715423577062884770273097077588851206603850024484886", "51458752596227929420770463924306698416861527786272103155604274950386433152625", "88745298998773905096346795743221254406654660883653491282836849917179242746466", "5673013886415845052879654791791009726706030434505043804215212533113588591877", "102293678613329166392639931796648555960952118914254359526112992764599860654329", "100367760057477287254674946775904574172613811520946494926472675129454643731659", "24707122929833838303460400957730236551591096461074512559364005619897918727667", "59687350668922907546728499411103467595570086299270846212173129346100721652706", "70233048867008466815658280180805215377093416533241498408239987281659910422793", "27037175157601008346879531391342188968723274172248624419481625083934239034089", "60390245745138106588872268166020818104532265332509132679098720900244952863200", "107688162755121894223736359657030486669170719660323945660239355803623955212244", "26501617322211154570601716636123542016672165078856840671819192469715413946927", "18189522387202556108460658308440618105583671158999709476376305644091687054968", "27364499777674349196305924308008671012954304276267732023014012801426124466422", "78637179476004702170712635335431640032229722143691535021055514365883351360671", "31441653575364898059256015141198235339722138126032426034448433836357644882052", "107480201560582717436171580990471704614846531268541042630649644733264952683194", "55816650269178886074722779637805014881057128577259473922601535583589592449828", "41238382609593516817581041549512851556107132002959406901007798671650880577055", "9518148234205121121903931526876973778374942468546543846470862306418688003477", "64268105487262205684038400078510204056859190406722915873915635010326779938142", "77079268506612327595817593989305101265964212945265000729161237376162616591260", "98721050843463090901136042107249983799679731325282420634213475204052971249762", "86198442925632736807760891895654782883260716049451448458148188239622977941802", "97866724405004011175464497715158200741837337829650412229135363625158133307056", "54834131460867221318365111922726750797958157809596774864816050153445792173474", "77588136261612341924914439337083479996026921050944741027266848971175433921067", "111877228513393134227194514356659114401010255635394401635324629727273270847071", "31822120594908557176569637483813082517757760886220703136703408807897557185273", "21591145467911259271043310530833126849395424133871625457111684769038508275397", "27934286176086579590318271727914808056052214338326753543670090008786173780346", "35988545767188543419401457587627951220187895636678252921686126056292740468387", "68750999984274894922082054916713162306638791106250788129395146089603615633972", "107104681135425904208217848819482509138370897027216753478834259476371288715067", "29190743436452245727555602115144932314945389289282315152604518453725289592056", "76446001975587911007541108896706005732229271164285079574678362685058355835204", "111968163966582027558460143205337837377442430800942377420502241231827551446485", "42467302243425631148326775514979666278108413164402186281781546017221128551559", "43097282172229754388435120848887441413498504328232298730177900400506799759715", "99391103564874810004726093916162580160775984918253671433175890880014053295315", "17871842346303235580536012904769518604075490920982491908638595865492460566315", "32203727082821624169378143749439183893848842027259160390729877069633538372034", "45619232453938431821065694153627825589973681346174628981425996856544153088306", "4424127038006933832533193991885410846512813113529522861137402903450461601047", "94517342477264795552743456279877955581549391110537915112877780034520177174508", "10382209406184583962390178188072958629654523646895584193889741316487157346213", "33029788954261792985626754954587024720874001427799948985996466220718714197500", "90376541463041497284650869028647390504065736278428464492034263300819478272109", "110151211209995419738391078883052719572543824412976462547878913341618131882767", "89806916146557041885819369181055167696827180192675652716242143466780628095116", "50123631362927878750842420455028705711002835457653523769992915479022122928131", "18013724136832732579305634099347146931727735561556105469994519712765111845045", "82248397028758555375104108595416118796627198692127745335011833081080403404408", "99857800248414929713545073406130037975652671110073885244595863042283526614122", "40597879140129360754772230802870706410157178525604855538118625547150442581421", "95731250996954187016784694023610042613632962662432193920896747173286669440988", "65689454208703691716797443862529976788775180566696540167357528155359303642484", "72579852184056512165053292445349082133302624702886868376093968801010430679318", "8635261519041280437572219305079150730142507193254802416536247053694392731186", "24582689451500155846120188280590079016491598381407754913399090020534408041407", "41144323874827786790027038544707831034772152696233210813554913188671891902032", "49991345438310639146194725002843149220018890067971632464137343909251559430710", "99138085739721102330349444056846161909975496540312621682668559712600537377230", "114045226371588483337363262414255354074846139978156140733577683975308088103768", "24488548422015561880438440200219595735304539466430383792821366900712960040740", "39150959853744624271490816189565988796994543458341503562767193293243664180349", "61836533804232886197985528235804047930145839866641567617487149765616634187920", "90783071720964683657520670584335998785282112096273261368326054004946306511244", "86174062768419556283009625367398343803705574764754534032620666012637921088845", "8839557767076058692466139472038713050940366117252529965712985998089021140168", "106425511280656310607659876891710719499226494318537060934563522130301008683473", "76018657753523545950488679719945051922100672694974831441109188004047145246786", "3865487134242980653965326523935506015533811662575845340977333112045780664985", "71732736186418354395331072655846828262064818218157917963430598974644064318316", "84132579038439211049711554843501322779118455080842050753009817036139595831748", "102689650752294684810424477845074631932047157702275633026651440701483404447788", "17689976243461360099466390206530503244179605208734049388805023905091666551060", "76377928158174678315479307570372043839819045120325438496837098090709374475813", "103269656075329088768492338564672785807382064824255497898900124897559901803826", "101185347621504139588527282050184089398883281238118772342950018664260910541309", "31165144618764680515573998043915712721868702580292298471840079684361580962919", "44822724825930712670265060519184954519180046365483596739210034969623838170995", "26832681813374720395474339135987497836305378904082729679606529053647323399414", "85657149093432047124166001997654727642756590546234338437872848454797044621835", "79277156951862760647375309685082191276625593872793995238245852607075289542040", "83099264612512449709354732718366184430169461877681929337393577357445156311931", "30912657325370393883076049833980685798168192203374319080516342010161386063534", "60651249049518864226134571871466005919317458420979124848522949312888001765962", "64581000207428630103366631843880521178575552884849295186310077414321913462065", "70792725277446376724559952835228931004711527455489585934333765309955114939614", "100494471035585866872900124855101763304416117979736262401498205819605144410229", "8168928665106774750937020443443868342888764634234715692294176661440812824214", "79884420883444438650805151741551759821172482457321181213113088013919679364117", "99662758749892067054831834954235958561199575412194323592937847884337942085962", "91642930027583438984456363342817383675165513245946913499702332431260487097878", "15338900909299219906228608012354124261410077171449113672708541489655730027864", "44544361483348347063600183623206181381711548403440439605207224989570625267796", "19999835618152279837764500566142341313142819964906711739034631040718531049949", "69498789660363731146712577635419349760331875285646088417273876211722938044835", "101171491672365019892309610367526172109952832971790700550477825830514662905062", "104196706832303905102591334128065364243688532150634862705873279874295445046278", "83435320049617834916843152756779857435713410609624483349045687446092108929197", "61288158915975424169398933771377948896279457752267751466413026349576820169917", "22575777440023416889183405232727425412695455894199454937468444873903374457263", "44807008959891457845650789809730796757296775435016777397623339501095712400248", "11201325517803770492847308772467409109480780577644621707154054290145158886577", "96632797154584371105983942459889256244271643399473926316456549675537953442230", "36594936855303638234539839075193268869125551782294154728469916641442073767867", "51359865930050192603432540932329087354051988841081767238176993899663582711145", "42142318549237104806633349767436700157051562200702401507610190930609924050686", "3785370251533479069060166547759589135786161931603415397575949876128346733718", "78694952931001195873608459707703515408439230882555690901588383199803289893034", "57376953912608922235982215687187967973324138967375921034206450753137564003972", "69395799785550773695741354116738960825030355073886346385340127365847407454211", "84251831465443768880792791563067954862953066215461877023491938812584071170461", "80064008181133293406531068187149401172760401567527898803789392661628266010750", "92698584889980708398182455891859221351072514798849993924358028101114700295160", "37701264096741651896850881413824885834478619184326607608721478035163010121484", "110300077948862438112242560136601935107982847370480841934422663105604084628142", "27487923326039556991723103957408428367511073428583709760971938850497682422666", "106793895394414657925895021675456815632058465097934898421180784400552876402189", "48606722225913273238416038124749382653156678865452420894786746486817513729848", "89093334570651142333464655974015606761120637068247810600509927545285831006646", "7692386574291085322636048329413457165954368825488597982755890304593220563456", "91375662389196995037066686370087751064488308576129317115048113871715292556955", "81187836139135187705072827018699930969653680757208362832438046513919336970226", "46117637658994953122819447313939763989496837222229816751977839380230705590413", "66261016400738448230384609939350488409687233231399294177138385694979536682725", "60925595560899135767006842072314268033492811860314756165856849515852430147324", "81076656679329105684497470024131893881786864662755433217014076233789805955293", "93631972308483522232918391293061589670041078197691780536437429602846793178867", "10059038941412889372310246407628386421482387975961298158418407412299785108335", "8039282889290713981502950529933209543575455967883576547347072296049846896179", "109117039648321303396529947011249333002042628000484999406309322607413723553693", "89652480543114434160952300617808292430656498174909115313905083856277312618971", "92688004742106838756644219531530865475129665636278040728303599361898910899989", "101815228386650097334223805128255339197554362043354717822616044819826426798141", "67471000463160188455081441697741626124384070378397687162424478280751978751628", "17856037264065020613989406141407069303895559046424128320702839462152435170607", "98280951215287370117787871814092580489256706761353909892910871867107986264321", "83819833163043969937169824392052672258675611810000784513351476815048866801391", "102816771772941406948243923522594261885280120500753561056207236362768148404102", "58646934939269535499721703647227995715628907409679052439690015644588245967659", "80407931680674987011380988916271848244228433456584795859160344716270291848592", "104022494619876999131941772005648357212278723274499194078318820676409199032051", "11184745512747163546089301616480128490439062227667277301312274708477383871300", "82035224284928654618056044436014337584064762194882633495355421023949652715076", "115152791606699283475186033054908149296475289089876629090740202711354684770445", "74335613529979869320587706382232121359724287252246062684226526875702097408132", "77378208933905592857057099672459887137811520482729866352264765344756076217223", "27221502578221477582823123219069015074040667121947375637756452874263349242070", "55149275037491769964418718513008180514728626029731348722086185861995333325303", "97634417173197290432077261094848342611234572018497680772199584595611111657009", "65434569719814131589347286693433702429636945361821763690295333317559281576508", "79809793542611287829267508443006493297624862461591897377860024417991039420408", "95739959539670044151710812751894098811737129550588366404793745643975358745392", "66341100315617067258228226205146586144640348312415289340489822162624772571426", "54650975744714940128141017271169957461020975349912156381244612979608502833125", "61710620602222745897053054845868238025581049131216204504101430008207001935250", "25634787939752151150641230458368875419323589059885317311121816163130105784426", "97853787683921862720513821775765429867019348145695767936132019275381559422354", "94710065755598056910206710179192880145402661133508051233808442753756414867673", "9190180179548388052502732993450643704811611640774552206410594789474517074655", "51528037963567548434904399254528395809986617678211870524837143380942719819128", "21241376066352970232993114191229414718109628088935133832822741043265645176503", "30997259263817559151273054631993335231976273012909437369863517670868380907667", "10089655439609004410488266296097348663132758797421688205028215332886071851365", "74005061220629551264241897304591452902342931000371983125935855063494397547491", "14473312747452082952313193537667937380200935493558757567754761014942096647494", "18962638151182185041776273000322904632245470378958535213298449833832294539566", "99815601676859127186893388236960908344723252274295605108118318733347291237049", "3440146584836353118384262883389813874552743757265864708847668635904208201520", "72912560830238848267974288516351710850036639734127810850206841826734857477113", "5232501784741119910312754007300374745063329085919578987191549094988364168254", "37896655528840840137947834497767653323717825686678398751564844561927332665774", "91684483130275485454170207048612441356660944510136046294101158743250539246525", "103983903947038308435566970574218299933186248228093630569548605875906896371598", "106357824454224776988427396123947633154972499535900131351437539396061645477165", "76854113994508906659072559481832928824291652310379592154958540083778646112236", "72498152794513628182298158392845825394514597523126185205395057733976399732776", "47894464072141197783471229818431316346288514231384490129692373381683689091780", "115440320979705086531282609279582610906669041895643182350199161473946278000697", "103139316211147262348495885326742115651055677503006503957479537909938011973724", "65043538837258610688608583502648227558335459633731619209335833484694288107053", "114962660823877152822595986087004311953167415213887189757007128899960732914469", "78839030785670388510034617901920132170738217030460077315742311271770969757762", "1154896689484933485392120499048896008496096759631895664090261508537181498031", "64999209710396758182707012790614491371318092874277499862203902170514694528814", "1664515027249017596042253458669663330869144074819871262928609216046523822131", "71170302235505743145266669051387967436817388762429957591257426827657339926787", "34892700850491345647488736728914592637802065735743534230959532804783078417302", "68522419945042151763546356617722597835838041836071029217123903908334457432685", "48018058280382100650206237669316392815212276182333603992249039219562496826671", "89545282189715281414532595302455221069988807843552702071654901572920726062037", "102983275624610317511926015089166278417003638968850077955793577350275822275338", "4414334762489808431134171860111476360090293678854686001984234597364951126140", "19941357629174846492044482972618108289171662192778340994562271558391684640044", "38812040916803738223480664375432069757900308260515845510189382708176870904286", "107048598545631450111747119024986990426557543030783445190561462894571203454042", "79382715765841238507042362890858302018730619789809340895682151632710772997931", "51276566132773847598183290246658595483767910606913689461180760029726197112327", "115441331371297563004572059141190703661071088716142405800950093569212154409557", "26441261244023237697372497118240288828305493996638362344307871061847965398682", "112707203661108609534105554470449747135243253252496065999394391584354686619663", "20603431400429527827310804203332685037257737068276732436968068935215725884436", "96376714344879871163713603024986734726492533034593728209588344567824349794200", "3834154549424017014224315993623652148831116550050697221345234499126414446448", "29069994750348503308075869900691896135253044018948385956425818925113288687524", "25173880287715854624128529133771248045636010325037053522537128402355909047736", "3669540477651599104717336128350336350812581229493377280406142636996378468744", "52317850086919988978181094096166802269026092242022109843375951697104980457647", "53523374980915733900231095209105548095545997984832556355541385223355949008230", "97939655667205528876361029881704741266277155505825763666110402632167858737550", "33109254852381867697574541317348355691137006067790519820978499607897363485822", "107495486059722067571558235037702449551673601959776786897723493188739236608312", "44490269392809905148801598858540809343190666884793259837613497949231572851989", "66881611688930197809384090629112886519812918421365300564565887015494682091328", "93021526016909945800695411252575988846501492679891940525761835857670444250479", "4087333912609585850995051275441761304938679927870468056991206446849613387662", "7703310110755598192013802873922696625932054517418178526171664218064412105781", "98340102670303432029902373929161615220104689594045033565577702979432946825131", "105506575031476862022895070221844196485935707693742289925291725781976417327876", "50100497426331348143767520479489545551830614458610554236894642491810273527878", "102039607638948532268421154586556854522689816201657315340563476103642821960499", "24590351768381534846079850043878606556048621575369407739123463496275552210790", "10618755958482863400220716066086547735603315728855427472791521443605928705070", "60266820568269665148725822701155902800755037677114358486533592610054387067762", "61855762875418324673996760504054299646832290094745292114639550182460950297450", "73478652642210007405939862437470639934757918069326460367537007229473931917685", "22948991496599055789695928769585519649734410699952587596681277468717963639158", "113521703325272742024333816184908467834986856391335957024520321919375143534693", "3201274301628378924577543153973484362141023491511897408512844393846999418659", "56605592147704671632591560957239714841315158321097750008204028931921525033571", "92321105474605526194972573214378874449789361556851907054561316086907023652917"]);
@@ -2520,10 +2744,10 @@ contract('Testimonium', async (accounts) => {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
-                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', { submittersOfIllegalBlocks: [] });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: []});
 
                 // Check
-                const expectedEndpoints = [ block4 ];
+                const expectedEndpoints = [block4];
                 const expectedBlocks = [
                     {
                         block: block1,
@@ -2570,7 +2794,7 @@ contract('Testimonium', async (accounts) => {
             });
         });
 
-        describe('Testimonium', function() {
+        describe('Testimonium', function () {
 
             // Test Scenario 1:
             //
@@ -2586,19 +2810,35 @@ contract('Testimonium', async (accounts) => {
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(1));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(2));
                 const stakeAccount3 = requiredStakePerBlock.mul(new BN(1));
-                await testimonium.depositStake(stakeAccount0, { from: accounts[0], value: stakeAccount0, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 1,3,6
-                await testimonium.depositStake(stakeAccount1, { from: accounts[1], value: stakeAccount1, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 7
-                await testimonium.depositStake(stakeAccount2, { from: accounts[2], value: stakeAccount2, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 2,5
-                await testimonium.depositStake(stakeAccount3, { from: accounts[3], value: stakeAccount3, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 4
+                await testimonium.depositStake(stakeAccount0, {
+                    from: accounts[0],
+                    value: stakeAccount0,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 1,3,6
+                await testimonium.depositStake(stakeAccount1, {
+                    from: accounts[1],
+                    value: stakeAccount1,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 7
+                await testimonium.depositStake(stakeAccount2, {
+                    from: accounts[2],
+                    value: stakeAccount2,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 2,5
+                await testimonium.depositStake(stakeAccount3, {
+                    from: accounts[3],
+                    value: stakeAccount3,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 4
 
                 // Create expected chain
-                const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block5  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block6  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block7  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+                const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block7 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
 
                 // change nonce such that (1) the PoW validation results in false (prune Branch) and (2) to get different hashes for blocks with the same heigth/number
                 block2.nonce = addToHex(block3.nonce, 1);
@@ -2625,20 +2865,20 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block6, accounts[0]);
                 await submitBlockHeader(block7, accounts[1]);
 
-                const stakeAccount0BeforeDispute = await testimonium.getStake({ from: accounts[0] });
-                const stakeAccount1BeforeDispute = await testimonium.getStake({ from: accounts[1] });
-                const stakeAccount2BeforeDispute = await testimonium.getStake({ from: accounts[2] });
-                const stakeAccount3BeforeDispute = await testimonium.getStake({ from: accounts[3] });
+                const stakeAccount0BeforeDispute = await testimonium.getStake({from: accounts[0]});
+                const stakeAccount1BeforeDispute = await testimonium.getStake({from: accounts[1]});
+                const stakeAccount2BeforeDispute = await testimonium.getStake({from: accounts[2]});
+                const stakeAccount3BeforeDispute = await testimonium.getStake({from: accounts[3]});
 
                 await testimonium.disputeBlockHeader(web3.utils.hexToBytes(block2.hash), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
 
-                const stakeAccount0AfterDispute = await testimonium.getStake({ from: accounts[0] });
-                const stakeAccount1AfterDispute = await testimonium.getStake({ from: accounts[1] });
-                const stakeAccount2AfterDispute = await testimonium.getStake({ from: accounts[2] });
-                const stakeAccount3AfterDispute = await testimonium.getStake({ from: accounts[3] });
+                const stakeAccount0AfterDispute = await testimonium.getStake({from: accounts[0]});
+                const stakeAccount1AfterDispute = await testimonium.getStake({from: accounts[1]});
+                const stakeAccount2AfterDispute = await testimonium.getStake({from: accounts[2]});
+                const stakeAccount3AfterDispute = await testimonium.getStake({from: accounts[3]});
 
                 expect(stakeAccount0AfterDispute).to.be.bignumber.equal(stakeAccount0BeforeDispute.add(requiredStakePerBlock.mul(new BN(3))));
                 expect(stakeAccount1AfterDispute).to.be.bignumber.equal(stakeAccount1BeforeDispute.sub(requiredStakePerBlock));
@@ -2661,14 +2901,22 @@ contract('Testimonium', async (accounts) => {
                 const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(2));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(2));
-                await testimonium.depositStake(stakeAccount0, { from: accounts[0], value: stakeAccount0, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 1,2
-                await testimonium.depositStake(stakeAccount1, { from: accounts[1], value: stakeAccount1, gasPrice: GAS_PRICE_IN_WEI });  // submits blocks 3,4
+                await testimonium.depositStake(stakeAccount0, {
+                    from: accounts[0],
+                    value: stakeAccount0,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 1,2
+                await testimonium.depositStake(stakeAccount1, {
+                    from: accounts[1],
+                    value: stakeAccount1,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });  // submits blocks 3,4
 
                 // Create expected chain
-                const block1  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                const block2  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
-                const block3  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
-                const block4  = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+                const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+                const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+                const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
 
                 const dataSetLookupBlock2 = convertEachElemToBN(["76181644490678400314176947890938887507099280509193821623645163751500490826053", "82518727559389568642618282044691488995397417217149794763173577521061814637367", "36443275688280509307635461646228434774424942032331885723467809047613928931829", "37460935465557650951483496909794994426404748480037038163775901788076710853454", "103864347117090307194839299398307673088827387081397582779155798556320042136291", "51646910985400481615268666384565726104974391552917777237398106748113441398840", "67663318296908999150497829051721906667111194735453497200536463345324570998791", "104314433912779603637452938211206311961703051566663522904868069594585299191393", "25086579710985313779266258995966014317633925887975283060205504278059104548258", "61485300824796521798315659449740600784413816813368776837911674564840030447622", "78994101511619081104067408116215641952885098614158607908859466379083467355491", "8750089594213712655804965744417777064251597738376109454733653627761499795428", "71536553893636510504326931225734079303621452397362307151013665811036154808976", "54350251864599009782695987777018288214002224210689346607939356126385498576131", "67801458324871435313667419798762559706987385236044384736343455081099650631914", "103157273196213365584903064732870274414903908092959810446094387878016736948068", "24886004507268426373537513029064925367107914354906420770987966231339717236793", "98008481471640363181855587237632358257437792350937347600473216271719969048019", "90458914097851511677146372409159885107203357898732347768815581379630260968761", "77426839936144058700445560944195562989272407439807292696790028878116593594965", "31558129897565734422383397593659373516615190533212123402371774140635543634242", "6894126316972019914744022715423577062884770273097077588851206603850024484886", "51458752596227929420770463924306698416861527786272103155604274950386433152625", "88745298998773905096346795743221254406654660883653491282836849917179242746466", "5673013886415845052879654791791009726706030434505043804215212533113588591877", "102293678613329166392639931796648555960952118914254359526112992764599860654329", "100367760057477287254674946775904574172613811520946494926472675129454643731659", "24707122929833838303460400957730236551591096461074512559364005619897918727667", "59687350668922907546728499411103467595570086299270846212173129346100721652706", "70233048867008466815658280180805215377093416533241498408239987281659910422793", "27037175157601008346879531391342188968723274172248624419481625083934239034089", "60390245745138106588872268166020818104532265332509132679098720900244952863200", "107688162755121894223736359657030486669170719660323945660239355803623955212244", "26501617322211154570601716636123542016672165078856840671819192469715413946927", "18189522387202556108460658308440618105583671158999709476376305644091687054968", "27364499777674349196305924308008671012954304276267732023014012801426124466422", "78637179476004702170712635335431640032229722143691535021055514365883351360671", "31441653575364898059256015141198235339722138126032426034448433836357644882052", "107480201560582717436171580990471704614846531268541042630649644733264952683194", "55816650269178886074722779637805014881057128577259473922601535583589592449828", "41238382609593516817581041549512851556107132002959406901007798671650880577055", "9518148234205121121903931526876973778374942468546543846470862306418688003477", "64268105487262205684038400078510204056859190406722915873915635010326779938142", "77079268506612327595817593989305101265964212945265000729161237376162616591260", "98721050843463090901136042107249983799679731325282420634213475204052971249762", "86198442925632736807760891895654782883260716049451448458148188239622977941802", "97866724405004011175464497715158200741837337829650412229135363625158133307056", "54834131460867221318365111922726750797958157809596774864816050153445792173474", "77588136261612341924914439337083479996026921050944741027266848971175433921067", "111877228513393134227194514356659114401010255635394401635324629727273270847071", "31822120594908557176569637483813082517757760886220703136703408807897557185273", "21591145467911259271043310530833126849395424133871625457111684769038508275397", "27934286176086579590318271727914808056052214338326753543670090008786173780346", "35988545767188543419401457587627951220187895636678252921686126056292740468387", "68750999984274894922082054916713162306638791106250788129395146089603615633972", "107104681135425904208217848819482509138370897027216753478834259476371288715067", "29190743436452245727555602115144932314945389289282315152604518453725289592056", "76446001975587911007541108896706005732229271164285079574678362685058355835204", "111968163966582027558460143205337837377442430800942377420502241231827551446485", "42467302243425631148326775514979666278108413164402186281781546017221128551559", "43097282172229754388435120848887441413498504328232298730177900400506799759715", "99391103564874810004726093916162580160775984918253671433175890880014053295315", "17871842346303235580536012904769518604075490920982491908638595865492460566315", "32203727082821624169378143749439183893848842027259160390729877069633538372034", "45619232453938431821065694153627825589973681346174628981425996856544153088306", "4424127038006933832533193991885410846512813113529522861137402903450461601047", "94517342477264795552743456279877955581549391110537915112877780034520177174508", "10382209406184583962390178188072958629654523646895584193889741316487157346213", "33029788954261792985626754954587024720874001427799948985996466220718714197500", "90376541463041497284650869028647390504065736278428464492034263300819478272109", "110151211209995419738391078883052719572543824412976462547878913341618131882767", "89806916146557041885819369181055167696827180192675652716242143466780628095116", "50123631362927878750842420455028705711002835457653523769992915479022122928131", "18013724136832732579305634099347146931727735561556105469994519712765111845045", "82248397028758555375104108595416118796627198692127745335011833081080403404408", "99857800248414929713545073406130037975652671110073885244595863042283526614122", "40597879140129360754772230802870706410157178525604855538118625547150442581421", "95731250996954187016784694023610042613632962662432193920896747173286669440988", "65689454208703691716797443862529976788775180566696540167357528155359303642484", "72579852184056512165053292445349082133302624702886868376093968801010430679318", "8635261519041280437572219305079150730142507193254802416536247053694392731186", "24582689451500155846120188280590079016491598381407754913399090020534408041407", "41144323874827786790027038544707831034772152696233210813554913188671891902032", "49991345438310639146194725002843149220018890067971632464137343909251559430710", "99138085739721102330349444056846161909975496540312621682668559712600537377230", "114045226371588483337363262414255354074846139978156140733577683975308088103768", "24488548422015561880438440200219595735304539466430383792821366900712960040740", "39150959853744624271490816189565988796994543458341503562767193293243664180349", "61836533804232886197985528235804047930145839866641567617487149765616634187920", "90783071720964683657520670584335998785282112096273261368326054004946306511244", "86174062768419556283009625367398343803705574764754534032620666012637921088845", "8839557767076058692466139472038713050940366117252529965712985998089021140168", "106425511280656310607659876891710719499226494318537060934563522130301008683473", "76018657753523545950488679719945051922100672694974831441109188004047145246786", "3865487134242980653965326523935506015533811662575845340977333112045780664985", "71732736186418354395331072655846828262064818218157917963430598974644064318316", "84132579038439211049711554843501322779118455080842050753009817036139595831748", "102689650752294684810424477845074631932047157702275633026651440701483404447788", "17689976243461360099466390206530503244179605208734049388805023905091666551060", "76377928158174678315479307570372043839819045120325438496837098090709374475813", "103269656075329088768492338564672785807382064824255497898900124897559901803826", "101185347621504139588527282050184089398883281238118772342950018664260910541309", "31165144618764680515573998043915712721868702580292298471840079684361580962919", "44822724825930712670265060519184954519180046365483596739210034969623838170995", "26832681813374720395474339135987497836305378904082729679606529053647323399414", "85657149093432047124166001997654727642756590546234338437872848454797044621835", "79277156951862760647375309685082191276625593872793995238245852607075289542040", "83099264612512449709354732718366184430169461877681929337393577357445156311931", "30912657325370393883076049833980685798168192203374319080516342010161386063534", "60651249049518864226134571871466005919317458420979124848522949312888001765962", "64581000207428630103366631843880521178575552884849295186310077414321913462065", "70792725277446376724559952835228931004711527455489585934333765309955114939614", "100494471035585866872900124855101763304416117979736262401498205819605144410229", "8168928665106774750937020443443868342888764634234715692294176661440812824214", "79884420883444438650805151741551759821172482457321181213113088013919679364117", "99662758749892067054831834954235958561199575412194323592937847884337942085962", "91642930027583438984456363342817383675165513245946913499702332431260487097878", "15338900909299219906228608012354124261410077171449113672708541489655730027864", "44544361483348347063600183623206181381711548403440439605207224989570625267796", "19999835618152279837764500566142341313142819964906711739034631040718531049949", "69498789660363731146712577635419349760331875285646088417273876211722938044835", "101171491672365019892309610367526172109952832971790700550477825830514662905062", "104196706832303905102591334128065364243688532150634862705873279874295445046278", "83435320049617834916843152756779857435713410609624483349045687446092108929197", "61288158915975424169398933771377948896279457752267751466413026349576820169917", "22575777440023416889183405232727425412695455894199454937468444873903374457263", "44807008959891457845650789809730796757296775435016777397623339501095712400248", "11201325517803770492847308772467409109480780577644621707154054290145158886577", "96632797154584371105983942459889256244271643399473926316456549675537953442230", "36594936855303638234539839075193268869125551782294154728469916641442073767867", "51359865930050192603432540932329087354051988841081767238176993899663582711145", "42142318549237104806633349767436700157051562200702401507610190930609924050686", "3785370251533479069060166547759589135786161931603415397575949876128346733718", "78694952931001195873608459707703515408439230882555690901588383199803289893034", "57376953912608922235982215687187967973324138967375921034206450753137564003972", "69395799785550773695741354116738960825030355073886346385340127365847407454211", "84251831465443768880792791563067954862953066215461877023491938812584071170461", "80064008181133293406531068187149401172760401567527898803789392661628266010750", "92698584889980708398182455891859221351072514798849993924358028101114700295160", "37701264096741651896850881413824885834478619184326607608721478035163010121484", "110300077948862438112242560136601935107982847370480841934422663105604084628142", "27487923326039556991723103957408428367511073428583709760971938850497682422666", "106793895394414657925895021675456815632058465097934898421180784400552876402189", "48606722225913273238416038124749382653156678865452420894786746486817513729848", "89093334570651142333464655974015606761120637068247810600509927545285831006646", "7692386574291085322636048329413457165954368825488597982755890304593220563456", "91375662389196995037066686370087751064488308576129317115048113871715292556955", "81187836139135187705072827018699930969653680757208362832438046513919336970226", "46117637658994953122819447313939763989496837222229816751977839380230705590413", "66261016400738448230384609939350488409687233231399294177138385694979536682725", "60925595560899135767006842072314268033492811860314756165856849515852430147324", "81076656679329105684497470024131893881786864662755433217014076233789805955293", "93631972308483522232918391293061589670041078197691780536437429602846793178867", "10059038941412889372310246407628386421482387975961298158418407412299785108335", "8039282889290713981502950529933209543575455967883576547347072296049846896179", "109117039648321303396529947011249333002042628000484999406309322607413723553693", "89652480543114434160952300617808292430656498174909115313905083856277312618971", "92688004742106838756644219531530865475129665636278040728303599361898910899989", "101815228386650097334223805128255339197554362043354717822616044819826426798141", "67471000463160188455081441697741626124384070378397687162424478280751978751628", "17856037264065020613989406141407069303895559046424128320702839462152435170607", "98280951215287370117787871814092580489256706761353909892910871867107986264321", "83819833163043969937169824392052672258675611810000784513351476815048866801391", "102816771772941406948243923522594261885280120500753561056207236362768148404102", "58646934939269535499721703647227995715628907409679052439690015644588245967659", "80407931680674987011380988916271848244228433456584795859160344716270291848592", "104022494619876999131941772005648357212278723274499194078318820676409199032051", "11184745512747163546089301616480128490439062227667277301312274708477383871300", "82035224284928654618056044436014337584064762194882633495355421023949652715076", "115152791606699283475186033054908149296475289089876629090740202711354684770445", "74335613529979869320587706382232121359724287252246062684226526875702097408132", "77378208933905592857057099672459887137811520482729866352264765344756076217223", "27221502578221477582823123219069015074040667121947375637756452874263349242070", "55149275037491769964418718513008180514728626029731348722086185861995333325303", "97634417173197290432077261094848342611234572018497680772199584595611111657009", "65434569719814131589347286693433702429636945361821763690295333317559281576508", "79809793542611287829267508443006493297624862461591897377860024417991039420408", "95739959539670044151710812751894098811737129550588366404793745643975358745392", "66341100315617067258228226205146586144640348312415289340489822162624772571426", "54650975744714940128141017271169957461020975349912156381244612979608502833125", "61710620602222745897053054845868238025581049131216204504101430008207001935250", "25634787939752151150641230458368875419323589059885317311121816163130105784426", "97853787683921862720513821775765429867019348145695767936132019275381559422354", "94710065755598056910206710179192880145402661133508051233808442753756414867673", "9190180179548388052502732993450643704811611640774552206410594789474517074655", "51528037963567548434904399254528395809986617678211870524837143380942719819128", "21241376066352970232993114191229414718109628088935133832822741043265645176503", "30997259263817559151273054631993335231976273012909437369863517670868380907667", "10089655439609004410488266296097348663132758797421688205028215332886071851365", "74005061220629551264241897304591452902342931000371983125935855063494397547491", "14473312747452082952313193537667937380200935493558757567754761014942096647494", "18962638151182185041776273000322904632245470378958535213298449833832294539566", "99815601676859127186893388236960908344723252274295605108118318733347291237049", "3440146584836353118384262883389813874552743757265864708847668635904208201520", "72912560830238848267974288516351710850036639734127810850206841826734857477113", "5232501784741119910312754007300374745063329085919578987191549094988364168254", "37896655528840840137947834497767653323717825686678398751564844561927332665774", "91684483130275485454170207048612441356660944510136046294101158743250539246525", "103983903947038308435566970574218299933186248228093630569548605875906896371598", "106357824454224776988427396123947633154972499535900131351437539396061645477165", "76854113994508906659072559481832928824291652310379592154958540083778646112236", "72498152794513628182298158392845825394514597523126185205395057733976399732776", "47894464072141197783471229818431316346288514231384490129692373381683689091780", "115440320979705086531282609279582610906669041895643182350199161473946278000697", "103139316211147262348495885326742115651055677503006503957479537909938011973724", "65043538837258610688608583502648227558335459633731619209335833484694288107053", "114962660823877152822595986087004311953167415213887189757007128899960732914469", "78839030785670388510034617901920132170738217030460077315742311271770969757762", "1154896689484933485392120499048896008496096759631895664090261508537181498031", "64999209710396758182707012790614491371318092874277499862203902170514694528814", "1664515027249017596042253458669663330869144074819871262928609216046523822131", "71170302235505743145266669051387967436817388762429957591257426827657339926787", "34892700850491345647488736728914592637802065735743534230959532804783078417302", "68522419945042151763546356617722597835838041836071029217123903908334457432685", "48018058280382100650206237669316392815212276182333603992249039219562496826671", "89545282189715281414532595302455221069988807843552702071654901572920726062037", "102983275624610317511926015089166278417003638968850077955793577350275822275338", "4414334762489808431134171860111476360090293678854686001984234597364951126140", "19941357629174846492044482972618108289171662192778340994562271558391684640044", "38812040916803738223480664375432069757900308260515845510189382708176870904286", "107048598545631450111747119024986990426557543030783445190561462894571203454042", "79382715765841238507042362890858302018730619789809340895682151632710772997931", "51276566132773847598183290246658595483767910606913689461180760029726197112327", "115441331371297563004572059141190703661071088716142405800950093569212154409557", "26441261244023237697372497118240288828305493996638362344307871061847965398682", "112707203661108609534105554470449747135243253252496065999394391584354686619663", "20603431400429527827310804203332685037257737068276732436968068935215725884436", "96376714344879871163713603024986734726492533034593728209588344567824349794200", "3834154549424017014224315993623652148831116550050697221345234499126414446448", "29069994750348503308075869900691896135253044018948385956425818925113288687524", "25173880287715854624128529133771248045636010325037053522537128402355909047736", "3669540477651599104717336128350336350812581229493377280406142636996378468744", "52317850086919988978181094096166802269026092242022109843375951697104980457647", "53523374980915733900231095209105548095545997984832556355541385223355949008230", "97939655667205528876361029881704741266277155505825763666110402632167858737550", "33109254852381867697574541317348355691137006067790519820978499607897363485822", "107495486059722067571558235037702449551673601959776786897723493188739236608312", "44490269392809905148801598858540809343190666884793259837613497949231572851989", "66881611688930197809384090629112886519812918421365300564565887015494682091328", "93021526016909945800695411252575988846501492679891940525761835857670444250479", "4087333912609585850995051275441761304938679927870468056991206446849613387662", "7703310110755598192013802873922696625932054517418178526171664218064412105781", "98340102670303432029902373929161615220104689594045033565577702979432946825131", "105506575031476862022895070221844196485935707693742289925291725781976417327876", "50100497426331348143767520479489545551830614458610554236894642491810273527878", "102039607638948532268421154586556854522689816201657315340563476103642821960499", "24590351768381534846079850043878606556048621575369407739123463496275552210790", "10618755958482863400220716066086547735603315728855427472791521443605928705070", "60266820568269665148725822701155902800755037677114358486533592610054387067762", "61855762875418324673996760504054299646832290094745292114639550182460950297450", "73478652642210007405939862437470639934757918069326460367537007229473931917685", "22948991496599055789695928769585519649734410699952587596681277468717963639158", "113521703325272742024333816184908467834986856391335957024520321919375143534693", "3201274301628378924577543153973484362141023491511897408512844393846999418659", "56605592147704671632591560957239714841315158321097750008204028931921525033571", "92321105474605526194972573214378874449789361556851907054561316086907023652917"]);
                 const witnessForLookupBlock2 = convertEachElemToBN(["8963643371682738473450924692769350727279266077003678431383487563458226397294", "76101152201259987743353908078425079029217421611834125667053749516685588268847", "81420180578556533853761379964677670633813431822721134152762817279647347674309", "91053362039204328150890276486180011843979519640953141206029032135945377757360", "61437236032856391506302864496435608036472828890294198125687494704069818222179", "20253417315191791987679829085661355952477727574240487930446682450295605277247", "39524716669375812180625471693991375437602440070623071170439362881481113476621", "256964027651652819802975400768347450708", "107615188432581881618562694883178492645722586828471376606327371846584270846096", "93275026361354322768356043649690990116381389428683579425924864879149387298905", "91824986402028989397717827804176476823179085384193975646389660952305070087566", "85995416534161217458171351432002451748111414888719107848838495133837056076386", "88922435538208849520233033817093391593822429131572458173575787298694056239836", "66086705618891001910454284381214837370650465899223157838098967025036215808828", "31871945956674185231842013707326544885965190162728113148491988344362466174424", "94158558957270945470951044043925545478", "1581856148773354729385262349023366611301385654534980823049483408588828106532", "103466334442389340816550128681116089510648146769155375242932462791836980064760", "56951298804400580350556418496070100700738596637488774548087262402337058448247", "64321448641073547245479563556369094179786463253194406843572485160607787909452", "4870055632245225200774014202835809781413155833806741515571754868219602624815", "77598125062261573133095488906962326955927451128873918452072458569436058792313", "74816809015057107581473584243130635058242246064882323684220782358430356256962", "111894620326824546582946529809176698994", "68383858669145237363786954888159045300995059500528481700114473490150656731502", "46317802724259792482920389127827470279104476256504672500906444287693147082912", "27911974467790130727280041129237906323026286177411677326388148303675927620595", "42606821610366442793077381804199842287206280917253866130656737419456187041384", "67629449619159884831391352224879743772794377481191996290928613365715297785622", "18078841703191922917404317312522818137373877360281634852002641031286404663333", "55061458327016657675853926330429637859098669855836300900919266404020263469911", "7785711279922598678184108647321734024", "30369897102754908974036423079736071639382198697707988050528326043907076148838", "50736801320374067867740359615253609210241586890527502797714883923976964284772", "9958798621858204432480115398424639787804608903364198712305938658762065974456", "5208332606093595489854223302964262658020383283381691535782512548736342075747", "11265425332701493257726663848970920145269656589462156988256105844188698302713", "10570945172276434348331439570762054588267583462058345062459964696658148482679", "75855236261488008998307932688137382071185906954280730460359041895859945271579", "206165339489245063384748636522711600257", "74085130170793134403534458663388400745268454797749676659742663116845416958699", "23181836673897251983015975554889937014618908657037801836826740597407016581338", "29122345765934580904376758799918939367457614051820033483037954256178606520255", "12297175851394926982367426898552317173589957101859344794423008791752654427241", "43375885136534692550111064014946252686969726584305375745824926891926403535326", "75147853292031641078393043020911738279848251278375841173953789999120387458396", "97380027349841722698544845771128800745659285160271334788119444274611611239211", "263986210364440324944924629740337289910", "27633389020496616506724666666638999207848833344781692986620408837817259607067", "78717612820920743934150217133694023506392845236745661160165494802135282432501", "82846377712112349725380346112258035514052734597356941733334769145880350259187", "108033704501754479459957022734674122502431242569067549825879441868240565150573", "36328302027469296603671394506871001750799256428238080687261909916266764900683", "59879305997701930288739171815067498780508548309993703035730498243015307027701", "82552986665086169859201438108380230570373770025171044710883580878271133319115", "333231255157150986766438790375794027446", "75792470496390837759375336479475217323753782946553339615281458933704817140491", "83337715520138004103353433399500727378266068820807718305312591512867619210407", "18604378733071488245775511000991889307539440264311820760539612476196915077197", "71792656110909816104736191579845946811100871855831734714184345269652083743050", "17488209402498425983606010257636323124601229354905993500424415490497352483478", "36079792092134447188296285929280192176116762011862524144528290307474131570117", "94157829730768115777329817239185096903484881450118032611049576784080242557885", "14688788635852414522049323649957069011", "115025156812550447101528286493660611871406474323730297077112828061805103244917", "59444198611234710669776274822676015226347952523123575118291389957453309199175", "76630501645593074504564820880219248189777495860805202143261947859355183227174", "41132665670502280195550398114739358042723804084092827872215118788742148007123", "7632479753121373298877535230514299679818036298412016870263787608461317876920", "6787097873482268344275491340665914073070330597481005682259553640048924790932", "48471285677042073491988616270120851977591520400349737772792255089990892267103", "186665220136917381020626299892359758927", "64063929564331235622739649948484584368433181695883057375280883210779733464233", "80640036498809380173521996407995468417319266601985128174973270346366906500197", "56987957307864259987731318670470518465356144857589253422915867271352601174849", "81108904277732664946805266617529659991293930507251348119846535009466672796608", "94900150280737186626282691231647277948426729469389686017454254313726532504830", "64966855323568348275004906074185233119618553087683840124878212683343368144250", "86532948876580731839222004831428661259534123126868145235316538193342683755798", "132537352676363003013594561577339740566", "54862645471132728951678376780141463972654820840213142483277871835354281448579", "82461847554548103973972165783212365269202338777864255209089439523584555513670", "51220020391047574436110748482742985430250496723887136693678754589400313290256", "91003573365565294626353180164749274254771818756065640610219608114338253241652", "96008563540068102722321113746178186261730807905255547522313069740452083972219", "8260825840214472727414474735736835180207004233674216105770685096191913894439", "11471733982088603248911555857074805262573663499916848923041257336264168968589", "102064806466836291999768238124796444874", "55979486118405947476075781158659210509579816044798015435049068112531813190841", "69303357000522163774859573099284327320228499478167736128195249460288582327573", "86756282416104043332610431137468917076113060846653404520841491292458198237892", "1093735962683362303456210825749167301351322245393108061076248249213075574632", "50645116061416576942050215275943531414367169499429898033696735853630162721399", "26081124387616567208513451471677735124111060405024919426107580768605612367723", "9679314932777721145652282269940947230555525191328626196813047456978910403003", "203050343592282198744800985371772408658", "83303225523377140501545822387407739933270081901049743956052692626001984185629", "69306162600805908627816545214311788620819101830603672680764707597293089252763", "80758544576180237071172599476820735231962559203696437156583396945510562672781", "30995560520248293657951488879659438738872177966512749780019943147260543834947", "73558707967721691624058565503314259183763913546249817017240584271828629784088", "89221574303972913414091047660429417176202142800595125363018411551480595273644", "47814316639148213600308379428930316458430192622065387241488209582715249873352", "104886769375438241080716363877789277751", "62003276501215194053346179647634524933382668325938443890648518004540830067424", "13023083493672858352657802688261172465651043923289282639988381508134323349726", "3404944352428725372784690694065977874107439985641911877374648400400545659341", "86268432098191812898975620548681673791912175200697843467275111118194539682522", "72966492223264790943455989819487639830669740330336557197022328864564065889408", "64970417838245293847281251269414475256661304349439442898385575699261321087160", "77712984085374232174990832475855769963025113704690801918979358711817229279508", "159407147258085866026992944154985833023", "17500596131573924301972998901473587097605431992329819888730596973535862635305", "85239689996704323033516773002024534670304141314808818398353310261609994531642", "69592263768688921098967806746792726159643294098988845374617635437230979419291", "26470648144341607210504942997912981225520368025525332368935602776598010164794", "17177074039109852417277710591362227481273419699986140390762537579289882919305", "57752017628545396977996371266493411947702281539160828512196606215022278344070", "98503480573718113342018273951416464956444183954389533913962001776405565781163", "336802792109688770704484190647223610034", "7640567822021118442662769774586936076089697842239369554317639454352446222838", "35255712806800037099207381142853924232435672492620722632762763242887163332169", "79082440126316557941450908714689294782873836427173491109121607463827761214907", "78965590944493496872384788461289583995941245181358974259354157340879831111540", "17599978310380480238430026235839493953471116849601367099701235453602287649967", "17771562570098497151428214776394274205281718423976357707765363042541356198525", "51431303010825964295360092808694478692641581738022927543037916015478531354311", "237311053173222200216097764407097915291", "5332803939696865628620031271053520031547705792816734960792801532807842031375", "22938725251238792581837849978547545073012196685447502077702154038721534320676", "69281369004265934361721166784169479438102849086212632083458156760117359969119", "103987239254464886625035103767468395646629326030472534865100050074179405770142", "104513239199520966946902028195585927424669974789299362801128392714853437422335", "93808237543839931128225428680157346122770065717405225380642906363486646774073", "51860601197023101237296551676691620561923975381125773766737496765930360011480", "260613919257993304229757744167440971335", "98351762643161732801708810734184345638869634854159395922420905687535111664903", "40586763384416445509414283140272244953875597892697732089521280590620263650978", "49428202062887118249273301938564472976848827288543157630934814313282052825030", "65344099762488143378477041898808027481959357581112327324330798199336121305568", "90624686436893693231892347482960993842479880839359088218371095754051338476016", "85209690519000026991089289705944881835228515166919042046796420309025274641114", "62593313741200523705072717687391765397652303061098810106350587667713563334047", "303515125636649036688080046853865958620", "54455124375673418317432230602280758669564807861846791387246510951647801593161", "99212090833301105105384834236011946810861514306244525791813196599039852985175", "63433721095730076591305988114169942777006277136675312626740301993521262034897", "39323944024136806178719526785044028403442924926795648858940658709258891297190", "107715951271507436620640207898085180957354796429706783202011741450994317591806", "52736833823623039313045079261522356575749869231574877290800631005869429484796", "106428046201228316982484754781130409032907151878504101446987035543818022578733", "337139060362069456659271876299689661944", "100058515868894419062757677140071355034284929188021488481528981173361573727366", "108858910734470271181633297392295183348933761176286371661223637453270932471397", "21964492967621082529926780081952774765319879987831845298053219322253628127940", "1324769134347118417526606152944801931772667489809288006566957915675672363499", "69149699155718763662962120234425033357863385485316406441905136310179191442368", "41376103722605423905573599331707190894440271680635916611751293556192861827233", "76696465120801240829860764888042665550037086449652265045199122598901007385632", "174772139310177233043218918960292703920", "55785053695516672787778563180109932632581328400184946062630514895452451036553", "35642519599598517892206625030197514306584753702109498399981855717391089860824", "29690198185942767892968537854273294957039902457822718943143728606330448535082", "47332039464876225789166022313388905617260152270626485245652319058265081025570", "60295005094249406494785050148313927303263882697411269729561870159278537377989", "91394673752299227301901661153890847109629697265347447121826119157327072165876", "56703797021502759027908991252239314167280918750934107387192211882211814373315", "294432244325546826819783280083097785202", "76925037403113356957177656382582863968258009081698249418717884566780102556389", "52776827217547569431556732026993989505178412536098781954486512577976530429158", "18482828874922641135679036495575369194435323207544808597857945014192010122825", "9885195257895902044186894277150574108266000059931880840950122225690701808060", "64889787917836865999163766625394514522617640118496936630389953669541892946400", "95310851459365754162172587248774836722777847222146328217212651367736007666027", "99127289623155028024138875164020308869392869165257874278343907917508211909070", "49582364072044288971957929741331953390", "39822099118413472917269608949065369855956732328111867006450585539851517375444", "40777491733682461638169061001988933183958673656996038058263576773576336113749", "79398039928408481055764497019807826233861536894954590982825932996578812886147", "96194075343202018120624437177534555237161660096506319314096062209450064566176", "112393354519524620671654684911327529023922606561879239968562030756557236725679", "55441278338422209782414135717082637355249041312688036531788284596249131504218", "8296063897488690610730953685257123029225240797351561113799514707290228530486", "218223717467346962489442015458593249393", "10649126361600283213854967671182505441133732957220812000638088013465803912378", "44427201041958010441548452568405908783837757912864516327773812188320398873834", "111479131641790353100050580769378548570206637606508361058764722875855233543645", "106268980954589873901055773125679600883318825536442697567990023633819547458670", "3361607532537800143938154549973883260205545960479484388171644891341271905209", "72996990388783477484862723656129606767512081730510813001901672295029609115084", "40590882183063943215477755517648824614277395779823428565075645704552023025168", "138746805331539657534187781592095251255", "110898854309976532626568620953766029453541922367696517689811066613512449420645", "63311105435763425457433618262932527784200397523319221608483781793652642486851", "112634659211988325672888074936828023082397482801639633157512778556279001901019", "43638920484805832168114533219558890915055781852095362613295351607136225602123", "3908618662238107265552812973900213806982019820769731975590869116573767332680", "45471992384565233632661185846348898419258852517024076884383239856661725735886", "45801256724118269424372323825787946008641550614936971497106972407927905507252", "129456582065032304970178296339251709113", "27509136095905293540126901988329700468258432123022832533998124420174824141869", "94416784806949934656231244361323595980203438890641886596825214127750101615974", "48130965529796566291676194299316711624938462070217188273261493315136567701474", "11228196923729503644703520313207369620321852230496713879578193212871712007440", "79733892391792737714727299860748294388090256975422391875280079354203462110011", "115018693608322966516791231643578501153384947339996224330497326910677722801455", "97380027349841722698544845771128800745646178912504676849578372476095983379465", "263986210364440324944924629740337289910", "19136750680882574735121747157340431138694084356910436138565052935262903891381", "38912755676730149247071200921984485450643576063479984695680700415899462457411", "33294134448433329047559768577867079813764251017298725173255267083863733152193", "56742392694553919478541954896455869633122582787132280923220761356197241761113", "88859171425091522087971594247678508201944530468856215361407340273440277793252", "82964879006139594814669006353976310882745958402448494725211152819124399812211", "17842498040856762551188139087676949188745241700665165458695870626045417893770", "204026216373315404777800021901513734764", "1892667502026451834991421318403758360875955212312316240866148516775845870336", "106655122369458366418475221289656508326616534650095207065126408090056445524809", "107661448161148715689418989851424652384731050085173099409906949035899831293210", "97245806130673246199065001910520854096884138701482887615557676435257827121787", "46862124359825693782326502050327486780644477795322356654998858641402657441817", "101456165793597306311037732347054412500519635143984064048651378300839352030509", "38266959332243782597743588096044950124351387892507635062225055581397195695432", "330697183480383318524718854795244545689", "79291816564594652838896952744561759608470618786807291776563433651797538119965", "95775177808981374564496940760621041306188435933164097758136415770649220966056", "95397380508325526963444592330271086673111202015433609793866088653921619337484", "69888162504910491690960910039079948761888827569375618754468279096211454752243", "20067645843271209258533750437395994285532887183201043130893374873080005615547", "2536491800895950255182554368595332560875810103513083866805962069218263069982", "24588327702739034975241368999605184772151422630316439436642381387391279232871", "24532653128137101337917567789707129288", "100128452756581884738087724912688036673225984447242732219092129301204018044480", "112420439360991431672577083027377642302731976283788843057440154668245799352843", "7366428917688829735720909872022029915594243443787659409198024189635767947568", "66339988629973600780203509783352356669474766077415470513014784493278692117282", "72529566973900540883221314835210093512541818123158836740765059860295806052610", "60078753952002773842266148116103221327731039491411860386205297520474442599525", "22725405029337012849026289839059181952792035078747229443340119304713486317443", "244852469571430481336568899388728510258", "16513051647964510719731085659248858987703610160152814303410397113795018357289", "68622085357698387418362253668950058854529061089182529554221593958935428591654", "4148527433138627974960498401329748578267955170602060694359652056828999002260", "62137634593277284619833018526652915525904596654600788756154830315611755612853", "11423342819853647224984273050843904192367170390978631157860869730092442533654", "43698707243567090816070497117081488672220439517733829964206040482503928892842", "14592252096574703586022116096661029911195636373528592208378011333336869267372", "121406941096058002543866290275216086925", "29687343214265414011568951545007181056804713254308431675199988935773378124229", "14716883716509167662384081257649335437200310970265164701652725272582098106068", "90843822916644494502585363994292071375912272140922235717788516308479392726276", "13163668954969182141591025922320542802390380877625337439991313437956561269193", "1157782300169302435574202426942671794384743313297164900042057194990334913295", "56841214833330550199641028524342341666971017605599616155619598296000960808714", "20542228988390009299674539168327866553457833620121199748579937796258729600488", "314558693647475504484960483173463464439", "79949120979220273011958339353395983878151493488169876477670783377288718104538", "72825051850815917623257386299505556418700804753494131096114903845803490484698", "108244998461394982225553560557311488785334973424429243270274884827377436057661", "30704163150126706091461908255173047745897575898878401284221317932273904067231", "106314904083958200019034888355414622870102656503422030918866523428419640714565", "100266107422978035353844098323340913920573881220621572793418829486757550656037", "31218045331541621205955877923453105736966681506815007883074151935904343869030", "310689204259113826275143211597846298832", "87179283597792708162083400855092941572278644677651695418042484783303848524449", "73810976178760922678207860842802424669023080677939425662213446806212906653211", "70625425017296692360069961376093700310892749387573178496325686399865829320627", "5724967420505628462385635182326440924998068602544617856692369466230082909671", "6518480115673357632294396184610747705653221864043150065200601357341245956947", "25425209897310239205939709637576931691263733798793605599572016794930473298607", "54972992491025029328728204648537977273784854626303027161097231124553501971869", "118011911825167762914260812046265432761", "109172264443123600690410541950718001922088683049661856727985953400106626142245", "36418669677419136212760653337771908638505055507777326563905054510786844159369", "13436258422095529851557103366665850891830176096792611265007406717541173848501", "114452740405594029257572489217549424197323017782913005793752624460357627799632", "58965144387267427888530128664946201638062120666125299275371713291025184710121", "47624968312653688671413548458047183715741245358012442086073865876757880409389", "13999692334692766420966342985147934615929434422700143986610089310219934218550", "266564829373042312781167804380215511283", "63474910585415680863538056597925593231386007416012529007683400249560724430378", "13227616505453918035106842134594461367107472487014881735912157550741821832904", "70394216398251562740128910929207453934287839791860357301103301166842975089483", "96251644943355511920328572277783349000918381359036899563210408642545860033725", "46600842012301570112384786608006062094298806235030846812247147289041663820175", "99179647014634661549363159120894297983839232405447843892516743224919083095404", "29666481305648658301253701295317023321285055865576809117525394976490770037937", "33602142316501068016454695385340106779", "14246627469976708562178813193222470540332525497593175432144379005962318201924", "78811751421730235615494607106539856268057513882995762473356681678647988936601", "35510032514166845713437571030522198896945310340950931007891692729574606323420", "44704512935756377760616513892872019491555897727927491923302306024098980557723", "21808612367758244099665057464547790276094979524203424521435252011047731137623", "72856552887174521669642577796664314695619699515265083400611174104483465474274", "16152764888692040285420905728784980705369478520031772326400325162315117048916", "250143688945907563828218762299324766914", "28831519054305670887058974680159311881353839433452334848080756798964136338978", "39509536532041338854909161166581186873803186430096095393646966040863580488462", "85716002413439085598879402957434256758672399570356756466026347787730173401227", "104452414461384291865071178960867060497368022995868684339330144320139969190601", "3548128200200684499016221493530147878117810994789819304569976225112328726247", "53562111422830154823216521302231460544156693470956347298467670133985287291123", "68202204152221418756282643168074987118741620480567522886853411655218229639894", "328842614551792926512674689377887224053", "49678606376023090153972989793201087706689969740966723333512089271244310888475", "89999901229091019744856209161334383230851603436548102165556082746480690696335", "66371132062899479544950267696447919180724114286337965391616640599395344447363", "13355659602297027202477704586850307622021356912607077708546158813694043726676", "63125311443601357250118457285807631925714947780352405770314395666403490231605", "90689938255238519979435804799103738065765063666840646369886738447912922755854", "24588327702739034975241368999605184772151422630316439436642381387391279232871", "24532653128137101337917567789707129288", "29353078068379466365047524504283851693672258422408453601982470431965566346772", "52901810096139298197143791545169058501116931460688322839104819328638836201990", "103791935281405275818666568904076618881019315484196737870934183367997309417086", "62297427190471672339266162321261757824678935474145695079154232941687553786756", "20720504617779797951218501768094263282594598221500635200982046393981484050196", "54092880116707068451607320425141080455336408756406362712301437529885042212930", "101909615980962110149118362961615270224802320537159742115023443722888723675773", "333378404182560622467968456636012090064", "55976683556314391883598673203327248477931174886275649955852539078723326067755", "69820931632539596945374831952186100265808384163196120679315221863636576114856", "92955600170798378290221122353854461660875426755897370822466396560230046185112", "55718023479591023504165299754422431946776587948150032903619770467757525264281", "83126007762067343983867084447143086298038739738551294691383690151535853131076", "3369174448525297067386429657638144697618399941660780116478360626298550055229", "67366673456822472895563393049458621611869276279413797625323618117872151558855", "137828954446888791058045413457500936506", "43239070929086741834966521615771266936651669028904750552734010068210014390769", "34673922779685106980360519301420271563121838158325132147605928640771536342704", "55929572979400262022662725459124552717056073796032857877399755581403148214484", "4840188522915261387689876824490074056132114979618473314409240627783017327766", "1899998649116478528166735502262915180300274539963928635842993319385414591996", "50245648005524932776675960958809712395666701431838003729621951136443406314469", "68323578306539036010835497805761278908765171654758214871483281432953239370204", "203542869648771430186644754580433043367", "44972865074776534103222198810035631610372834929352490456931007109921646612221", "15309366219074068776071034224937109367400247059081725733743154186704743203782", "27897816918746180744310885953152610626302339319479935338237185067451039239865", "101271014883512366243362082102953432747449346432893004707429754635893625644149", "34895834984627631322332454766832254646004870147276594914658343920540677488162", "42285262429063949750996430261514327636769420351809411195182883009031114176210", "47095103527012739541387988577206591816760841952995578642879964253024615165002", "21211668726836097479014443000589730328", "37047430297485252605209766525904016166854996849102286175024034260082807874787", "35345609466509216839007159721046909660555159544403713368959811489735841972835", "103456989280140555799473269063714848907931531987039693849254885961556851864762", "78685288643035284745140290056009827803630564669615944614197333167699778485121", "97096295951636384505346708382082147558661127241558669505097370653305400969651", "80960506859600065621175227413963021090410161197650875289010801576879738446643", "59339507513358703293409391716296775048829459883636175222251888449244109051259", "272196481569311174369015020828032946733", "75347442054970925011010138172496169736450151538655904907018214779459923631226", "65337135374943091492415483527577475364443797603204999495296940310509270387315", "103303687090393113883605263905452813366516453222233809580817891714835607327696", "2849674989267292275240652248577786712877103423282835658849699635005978317359", "48172800498389134363072736345531630296234216835581933278406937622093013885044", "77268041439423142508116948690023316865241604406604761214070022940175805587012", "98767240231854382995545868870605355833562455003613027472669388565196640494659", "147105728624455012480105131921220812174", "10180070287224198953431349037204580213926322023892092198518326993556601976933", "52742804465828489264578723875815848752871910663645525931949496992092672309025", "86416635924334167610094656849944021961898672368857183633862331999702220333912", "88953561769835299941397005771544662448348769894970760417335673326266745189130", "100888687335898269436791764317603037881094870488196541799847500870631202617211", "51408989547424877515370255147862604687645384957405767059103102559735551070850", "108265186652075285753262245068505205209991823778048367098338244308776020791099", "325083742277914789507842204189200880128", "76061075933178508254602285099147481083790018845375397687167850009743731408908", "64282507166228355221359877276322339455126576365910395488046007588384009289798", "113640145273028537458948126625218385792490628484421507090117317993183082012183", "84594779523803000852125684012975684289155762731255930549915314084604582464631", "70734077270456809548202194066543750378006466017884202645561837176611842822055", "50245648005524932776675960958809712395639550092559388325258203959288407719727", "68323578306539036010835497805761278908765171654758214871483281432953239370204", "203542869648771430186644754580433043367", "105633292629019541165032802081802704385145941812401832218540468297048437806099", "6553639475670390411207604339710563674610571456780732264382051202245720762340", "109732692779425913601953926846841968396097789280854439535421132767449662101860", "71911010887744802240355720733867149000234369984816743306566745672116546883929", "103790637759194335159242603664682464666178481962506673446429246651515744321191", "67065997087203664338199936137311692328746823663986404838003012054013541990225", "30291818828487426649824452496234958528986461800921599100581079999658113936356", "312906232220255243903844030807690182561", "114884266973979978068007098046527555125137980429785979409171483669958133223219", "54814394273578829210498527546974140278334081318159151703371202790891465037539", "78898702451183360132174049596653638808023918720695453802029821559773631789212", "107323631577986393097164190912784641600419661706426590209720238944206051081508", "7109877113702196700713370622827760522057170506459410133390740166228122811227", "98726037601858032359731337449159185649735252442191789131837413434155837217071", "103840839271238594775338528660005439319018653881382412906737913359519897876881", "53709961497539423497916829709510833072", "50761971196312609528471147583661820460462532261769857653760275160910183260916", "85056348955939010769110837350975343498398603210198760401467857185477722746592", "104043532169297811091125690674969161372806415069037056752599187693185221932853", "108044546299175605840765539632916948474567354072610860295238128543803412559458", "24968778159397355139988170766196869657351487685420406257565894221344300250239", "88263546990227748826693875280277452536692093986583636491520829670975077245297", "108557800326516801867122970669931907356587106358346616268555934774960575244246", "323871301477408616335421803068485435320", "109110938777211405098678356154467129624589139451843968707325853599775046058866", "33455032984759409002680077242289656815691668428314298385795529291564127377506", "31928036486753042529620487286486579429175110972658972687585266632917182842515", "94449086515853992035408732766076094981885579777510904304792290529758487949944", "92798819273288420956223588165013423973979992824528726252643728754446291026735", "25022825037671663278651845084849174647288071165522030912466210336672690634308", "108445176040742250672261839123952600978358870939537174413315374413039619022769", "221544099357030904174770451875161758729", "104419914286258830132764950008593490247008691224594868839674013607594508651933", "97876134377545907534347940259509468545421772361848449719937387612148635128365", "104090942820624367452576263418534810043068924865921485140744744541716124719850", "82005735154473815224405781349632979411190883362377518026101240685289496734008", "20163883378722938660797643692054208115241186750728002219911309094987441118902", "108272059947347602232919101316317236341268534281092780620281232631135896545045", "83557884734584228862226494306567275115852512588687212706426178493862068492738", "306522351634243126171744707268012541318", "95212643045247225347897915152092297657003219304064767905857104608621138904153", "266115083753886088451193077050255409684448884723787477756185511987697550268", "87552785589768447482554019236596164121541402216493414177809668407516016033668", "79462721831838187567867545231742816498447233695524175897288206559849181836005", "54244868169477520232651262803494749101416782342240195639310432053984706861431", "65283599053034893218092999821951248069214900443728166363203277414693846519505", "64319477924782449507963634894644869214334731385794458128833131528852216107771", "207883273331747190953209921275266490274", "26864473899673128694105512412593606292652107776124902434019763697959043790087", "53346084855282633244448329878020804806972776110991082102809817719203384028452", "82278591985745701783599070431668783151568773286618878030719810468619282564028", "56167778329541297701393334814315895656863058186068259958124376690365512992271", "74600406522027674502680932143945881484847770789553335293497047620877570091457", "63373872363251893877230081900392926232904720999597651716409119592605208869955", "23809320687014337457052009294208843966996595280414509977473225488359859529695", "69637294176015123852227405423848345372", "49116289071625833309961191317950347721968464813780687365846688104980807583155", "100875647966429493669295345421971670477043217240383185151551188378610250612795", "61751655568638816693559300836791852627047151379085179442221709922600820934654", "111624800173444117858904445960886358284580099811825769647836093761578007792677", "53001427434542943866810744035351346540689290865911902171612468371736927601173", "39995579930847760901194794448212007218268419738761144825401201967285004781447", "1559389557803780124718386293728967747648955682378790086317663785986425484032", "170877869505770417215475502337612337236", "103596204123709793846369335642354614615949038248387721245931680295417646936825", "82495768323006597822427351804575664772344573832966575799735593214850265931777", "34718053015280005416603815056389074059117811569568988878904032022350626210709", "27093664644483700120926599587880368697788186067942190848824969068772360160219", "115070764009566725429262827336301326328221399265747723513327178721406464805859", "57684646052873617681034290482525708306764578285844126276274177305683597989780", "67298169278660261370201928856343639706524352277405510276027410592246984594361", "295592064502212820368939703412487419921", "36919775949455354402575198600776702543103064640015789019871562434724465056185", "49516458939091117633744761725118186349543709863432245625357636657414894469708", "104120767188732392028459964478206100445745963192928630518081260653635421315506", "38109258543610179988006792280134539045548224782805073863670543049629492288739", "59594794707629327614847945739621519242216069249921904357910056983863218405607", "91903780511903668618284866503458556827465892786140580088143018368290146371224", "27212289596343381626297074426462573382801525779518891912775065038869752773972", "189163946274599270287489794777645960693", "15302991712561498539233496569034749432371016477498689915146818216444921833356", "29299197216450268043741591381319006915264172141566287318324313600367463651175", "26919228158663509880484827752226722112150999204746945886850744501864399624931", "41226286096779613897705352242923688684490849811442358152528492796358782365774", "91666646483965886836963547987183311676226299047055271469952043026445978009232", "81869791975421079644514196562526238895744128062967335855895834391087460809486", "29342788252557323414674248841209201992549974283741517475097381690400914566060", "116076187837225375114946365066756507470", "92430184022236105974851752481754747195643857112805931930236844350344601461819", "47462584357794192898077280222754134011468214013268621170340205937595793840251", "35583589622651393061082163782655297668599914445442527678277417245380347388170", "86484681012981207165089549655537176412549308847094505447292017711171242891577", "77215291322444951091559327716595642921054716563354345788611859126126507574744", "36079792092134447188296285929280192176116762011862524144528290307474131570117", "94157829730768115777329817239185096903484881450118032611049576784080242557885", "14688788635852414522049323649957069011", "44001397807859795411200311552854305388503694174872698533744172091142977045556", "87399298974010878369631591347937138525934773900883853137858874772366091859124", "73828524417678368448262201220160163866625055890442912556568229400268914894007", "102328041848514256890110549452746206556797332432660365081260237715772366834420", "95843638313611273804114876443541028184829178504980235831303676517373278714802", "81871156254917426193366638451640090558540602242111119594750259967838474330223", "105963426917534777136834677880471701474817722362170363370542272648264329337071", "147381880943924325028357734169638117215", "87348455573455008810434415203832289483090070702381497262325749130439371741326", "30854113270640020576042851976886488929052167790404298921810581577385567418558", "57139274151596536206606374277780734266393684411086864188876424371869176896285", "86493322296947509454004323594166725684569826168144808510797480824044115534259", "31252378704742021428988237740157795934661693215495123763195092261463332476636", "34747279922729701184038454960035415272482051361993962286158336390383874908141", "10340519443575230941421132768564817439013591816270204718871289898545504917282", "256061546346198827273483271399826745653", "90171292401036470276096725848923641184223165070744699844544675121490653771749", "104143071693333693180660126367039367190730065721316086348872819194506785889107", "112878360240562076423346638666480672995343776738434701686523504119255462080151", "114176185081561130847149304304412026616140482846647978840435404851775581126776", "14086982291102866670116213194887055733331241614534361363982629480502941171691", "18870540588478808782715795249339707163294423955479621626799645344118742992302", "41730666428024516027442619023389617971233686789984749416262803316676466723392", "126182400258431884724980991307512767562", "30553976648319613412091101519060885880517779722674841128960693246703091270544", "17302081713127287845576675701330879687710149258066251032700894159119804354720", "24414746980319138906133702427672544153038639301877241852313279870495751077438", "20122531217503666827219483003125111275971168620177248120829582631011376647622", "49952782216250967013203242540355710822770660174820338270173451637699986250352", "56509038427173342817673793163349289871532912761336955456302223382486491026806", "24596165142995816800359866657684255831178086557996050103751123493320508404979", "224928880926368942738256524309773294534", "13121170580702404134813008393450292104697568498623030853347292520501384481965", "70232160872250031487724758592321230899517820313408862094289529888899239052297", "71041734336291929204798024199556064682323989396115524133250442110970535508512", "88743532091008673965310148980456512670935879104793767155635388711347625834177", "13578872521556437459295801915773565650131451208118079839083092853116932814975", "113544129384437411453928842999529319274825368796693460625865967706913181449215", "55397422778641131036795240254226621807234792177522327882522632724218729328397", "141684087830658381027859838163156037786"]);
@@ -2679,16 +2927,16 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block3, accounts[1]);
                 await submitBlockHeader(block4, accounts[1]);
 
-                const stakeAccount0BeforeDispute = await testimonium.getStake({ from: accounts[0] });
-                const stakeAccount1BeforeDispute = await testimonium.getStake({ from: accounts[1] });
+                const stakeAccount0BeforeDispute = await testimonium.getStake({from: accounts[0]});
+                const stakeAccount1BeforeDispute = await testimonium.getStake({from: accounts[1]});
 
                 await testimonium.disputeBlockHeader(web3.utils.hexToBytes(block2.hash), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
 
-                const stakeAccount0AfterDispute = await testimonium.getStake({ from: accounts[0] });
-                const stakeAccount1AfterDispute = await testimonium.getStake({ from: accounts[1] });
+                const stakeAccount0AfterDispute = await testimonium.getStake({from: accounts[0]});
+                const stakeAccount1AfterDispute = await testimonium.getStake({from: accounts[1]});
 
                 // tried to dispute a legal block -> nothing should have been changed
                 expect(stakeAccount0AfterDispute).to.be.bignumber.equal(stakeAccount0BeforeDispute);
@@ -2704,7 +2952,7 @@ contract('Testimonium', async (accounts) => {
     // This is a workaround for a bug discussed at https://github.com/ethereum/web3.js/issues/2077#issuecomment-482932690
     const convertEachElemToBN = (strNumArray) => {
         let resultingArray = new Array(strNumArray.length);
-        strNumArray.forEach( (elem, index) => {
+        strNumArray.forEach((elem, index) => {
             resultingArray[index] = new BN(elem);
         });
 
@@ -2713,14 +2961,14 @@ contract('Testimonium', async (accounts) => {
 
     const submitBlockHeader = async (header, accountAddr) => {
         const rlpHeader = createRLPHeader(header);
-        return await testimonium.submitBlock(rlpHeader, { from: accountAddr, gasPrice: GAS_PRICE_IN_WEI });
+        return await testimonium.submitBlock(rlpHeader, {from: accountAddr, gasPrice: GAS_PRICE_IN_WEI});
     };
 
     const submitBlockHeaders = async (expectedHeaders, accountAddr) => {
         await asyncForEach(expectedHeaders, async expected => {
             const rlpHeader = createRLPHeader(expected.block);
             await time.increase(time.duration.seconds(15));
-            await testimonium.submitBlock(rlpHeader, { from: accountAddr, gasPrice: GAS_PRICE_IN_WEI });
+            await testimonium.submitBlock(rlpHeader, {from: accountAddr, gasPrice: GAS_PRICE_IN_WEI});
             const submitTime = await time.latest();
             expected.lockedUntil = submitTime.add(LOCK_PERIOD);
         });
@@ -2770,11 +3018,34 @@ contract('Testimonium', async (accounts) => {
         const submitTime = await time.latest();
         const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
         await time.increaseTo(increasedTime);  // unlock all blocks
-        await testimonium.withdrawStake(stake, { from: accountAddr, gasPrice: GAS_PRICE_IN_WEI });
+        await testimonium.withdrawStake(stake, {from: accountAddr, gasPrice: GAS_PRICE_IN_WEI});
     };
 
-});
+    const submitEpochData = async (ethashContractInstance, epoch, fullSizeIn128Resolution, branchDepth, merkleNodes) => {
+        let start = new BN(0);
+        let nodes = [];
+        let mnlen = 0;
+        let index = 0;
+        for (let mn of merkleNodes) {
+            nodes.push(mn);
+            if (nodes.length === 40 || index === merkleNodes.length - 1) {
+                mnlen = new BN(nodes.length);
 
+                if (index < 440 && epoch === 128) {
+                    start = start.add(mnlen);
+                    nodes = [];
+                    return;
+                }
+
+                await ethashContractInstance.setEpochData(epoch, fullSizeIn128Resolution, branchDepth, convertEachElemToBN(nodes), start, mnlen);
+
+                start = start.add(mnlen);
+                nodes = [];
+            }
+            index++;
+        }
+    };
+});
 
 function Block(
     hash,

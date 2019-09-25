@@ -111,6 +111,7 @@ contract Testimonium is TestimoniumCore {
 
         require(feeInWei == msg.value, "transfer amount not equal to function parameter");
         require(feeInWei >= REQUIRED_VERIFICATION_FEE_IN_WEI, "provided fee is less than expected fee");
+        require(isBlock(blockHash), "block does not exist");
 
         uint8 result;
 
@@ -135,7 +136,7 @@ contract Testimonium is TestimoniumCore {
         return result;
     }
 
-    event VerifyTransaction(uint result);
+    event VerifyTransaction(uint8 result);
     /// @dev Verifies if a transaction is included in the given block's transactions Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
     /// @param blockHash the hash of the block that contains the Merkle root hash
@@ -153,7 +154,7 @@ contract Testimonium is TestimoniumCore {
         return result;
     }
 
-    event VerifyReceipt(uint result);
+    event VerifyReceipt(uint8 result);
     /// @dev Verifies if a receipt is included in the given block's receipts Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
     /// @param blockHash the hash of the block that contains the Merkle root hash
@@ -171,7 +172,7 @@ contract Testimonium is TestimoniumCore {
         return result;
     }
 
-    event VerifyState(uint result);
+    event VerifyState(uint8 result);
     /// @dev   Verifies if a node is included in the given block's state Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
     /// @param blockHash the hash of the block that contains the Merkle root hash

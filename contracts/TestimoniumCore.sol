@@ -123,7 +123,7 @@ contract TestimoniumCore {
         return iterableEndpoints[index];
     }
 
-    function isBlock(bytes32 hash) internal view returns (bool) {
+    function isBlock(bytes32 hash) public view returns (bool) {
         return headers[hash].nonce != 0;
     }
 

@@ -18,8 +18,8 @@ contract Testimonium is TestimoniumCore {
     uint8 constant VERIFICATION_TYPE_RECEIPT = 2;
     uint8 constant VERIFICATION_TYPE_STATE = 3;
 
-    mapping (address => bytes32[]) blocksSubmittedByClient;
-    mapping (address => uint) clientStake;
+    mapping(address => bytes32[]) blocksSubmittedByClient;
+    mapping(address => uint) clientStake;
 
     // The contract is initialized with block 8084509 and the total difficulty of that same block.
     // The contract creator needs to make sure that these values represent a valid block of the tracked blockchain.
@@ -35,24 +35,23 @@ contract Testimonium is TestimoniumCore {
     /// @dev Withdraws the stake of a client. The stake is reduced by the specified amount. Emits an event WithdrawStake
     ///      containing the client's address and the amount of withdrawn stake.
     function withdrawStake(uint amount) public {
+        uint withdrawnStake = 0;
         if (clientStake[msg.sender] >= amount) {
             if (getUnusedStake(msg.sender) >= amount) {
                 withdraw(msg.sender, amount);
-                emit WithdrawStake(msg.sender, amount);
-                return;
+                withdrawnStake = amount;
             }
             else {
-                // no enough free stake -> try to clean up array (search for stake used blocks that have already passed the lock period)
+                // no enough free stake -> try to clean up array (search for stakes used by blocks that have already passed the lock period)
                 cleanSubmitList(msg.sender);
                 if (getUnusedStake(msg.sender) >= amount) {
                     withdraw(msg.sender, amount);
-                    emit WithdrawStake(msg.sender, amount);
-                    return;
+                    withdrawnStake = amount;
                 }
             }
         }
 
-        emit WithdrawStake(msg.sender, 0);
+        emit WithdrawStake(msg.sender, withdrawnStake);
     }
 
     function getStake() public view returns (uint) {
@@ -74,7 +73,7 @@ contract Testimonium is TestimoniumCore {
     event SubmitBlock(bytes32 blockHash);
     function submitBlock(bytes memory rlpHeader) public {
         // client must have enough stake to be able to submit blocks
-        if(getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
+        if (getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
             // client has not enough unused stake -> check whether some of the blocks submitted by the client have left the lock period
             cleanSubmitList(msg.sender);
             if (getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
@@ -111,7 +110,6 @@ contract Testimonium is TestimoniumCore {
 
         require(feeInWei == msg.value, "transfer amount not equal to function parameter");
         require(feeInWei >= REQUIRED_VERIFICATION_FEE_IN_WEI, "provided fee is less than expected fee");
-        require(isBlock(blockHash), "block does not exist");
 
         uint8 result;
 
@@ -211,13 +209,15 @@ contract Testimonium is TestimoniumCore {
     function cleanSubmitList(address client) private returns (uint) {
         uint deletedElements = 0;
 
-        for (uint i = 0; i < blocksSubmittedByClient[client].length; ) {
+        for (uint i = 0; i < blocksSubmittedByClient[client].length;) {
             bytes32 blockHash = blocksSubmittedByClient[client][i];
             if (!isBlock(blockHash) || isUnlocked(blockHash)) {
                 // block has been removed or is already unlocked (i.e., lock period has elapsed) -> remove hash from array
                 uint lastElemPos = blocksSubmittedByClient[client].length - 1;
-                blocksSubmittedByClient[client][i] = blocksSubmittedByClient[client][lastElemPos];  // copy last element to position i (overwrite current elem)
-                blocksSubmittedByClient[client].length--;  // remove last element
+                // copy last element to position i (overwrite current elem)
+                blocksSubmittedByClient[client][i] = blocksSubmittedByClient[client][lastElemPos];
+                // remove last element
+                blocksSubmittedByClient[client].length--;
                 deletedElements += 1;
                 // i is not increased, since we copied the last element to position i (otherwise the copied element would not be checked)
             }

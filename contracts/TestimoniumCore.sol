@@ -266,6 +266,97 @@ contract TestimoniumCore {
         return true;
     }
 
+    function absoluteDiff(uint val1, uint val2) private pure returns (uint) {
+        if (val1 < val2) {
+            return val2 - val1;
+        }
+
+        return val1 - val2;
+    }
+
+    function isBlockPartOfFork(bytes32 blockHash, bytes32 forkEndpoint) private view returns (bool, uint[] memory) {
+        bytes32 current = forkEndpoint;
+        uint maxNoOfJmps = absoluteDiff(headers[forkEndpoint].blockNumber, headers[blockHash].blockNumber) + 1;
+        uint[] memory visitedOrderedIndices = new uint[](maxNoOfJmps);  // at most maxNoOfJmps jumps to fork points will be made (when each header in-between is forked)
+        uint forkCount = 0;
+
+        // save orderedIndex of endpoint, otherwise it would be missed when loop is never entered
+        visitedOrderedIndices[forkCount] = headers[current].meta.orderedIndex;
+        forkCount += 1;
+
+        while (headers[current].meta.orderedIndex > headers[blockHash].meta.orderedIndex) {
+            // go to next fork point
+            current = headers[current].meta.latestFork;
+            // safe ordered index in visitedOrderedIndices
+            visitedOrderedIndices[forkCount] = headers[current].meta.orderedIndex;
+            forkCount += 1;
+        }
+
+        if (headers[current].meta.orderedIndex < headers[blockHash].meta.orderedIndex) {
+            return (false, new uint[](0));   // the requested block is NOT part of the longest chain
+        }
+
+        if (headers[current].blockNumber < headers[blockHash].blockNumber) {
+            // current and the requested block are on a fork with the same orderedIndex
+            // however, the requested block comes after the fork point (current), so the requested block cannot be part of the longest chain
+            return (false, new uint[](0));
+        }
+
+        forkCount -= 1;  // do not return last visited fork
+        uint[] memory visitedOrderedIndicesReverse = new uint[](forkCount);
+        // return visitedOrderedIndices in reverse order
+        for (uint i = 0; i < forkCount; i++) {
+            visitedOrderedIndicesReverse[i] = visitedOrderedIndices[forkCount - i - 1];
+        }
+        return (true, visitedOrderedIndicesReverse);
+
+    }
+
+    function isHeaderUnlockedAndConfirmed(bytes32 blockHash, uint requiredConfirmations, uint[] memory orderedIndices, uint arrayIdx) private view returns (bool) {
+        if (!isUnlocked(blockHash)) {
+            return false;
+        }
+        if (requiredConfirmations == 0) {
+            return true;
+        }
+        if (headers[blockHash].meta.successors.length == 0) {
+            // no successors available, but still confirmations required
+            return false;
+        }
+
+        bytes32 successor;
+        uint nextArrayIdx;
+
+        if (headers[blockHash].meta.successors.length == 1) {
+            successor = headers[blockHash].meta.successors[0];
+            nextArrayIdx = arrayIdx;
+        }
+        else {
+            uint nextOrderedIdx;
+            if (orderedIndices.length == 0) { // no jumps have been made in isBlockPartOfFork, i.e., blockHash is on the same fork as the fork endpoint
+                nextOrderedIdx = headers[blockHash].meta.orderedIndex;
+            }
+            else {
+                nextOrderedIdx = orderedIndices[arrayIdx];
+                nextArrayIdx = arrayIdx + 1;
+            }
+            successor = getSuccessorByOrderedIndex(blockHash, nextOrderedIdx);
+        }
+
+        return isHeaderUnlockedAndConfirmed(successor, requiredConfirmations - 1, orderedIndices, nextArrayIdx);
+    }
+
+    function getSuccessorByOrderedIndex(bytes32 blockHash, uint orderedIndex) private view returns (bytes32) {
+        for (uint i = 0; i < headers[blockHash].meta.successors.length; i++) {
+            bytes32 successor = headers[blockHash].meta.successors[i];
+            if (headers[successor].meta.orderedIndex == orderedIndex) {
+                return successor;
+            }
+        }
+
+        return blockHash;
+    }
+
     /// @dev Verifies a Merkle Patricia proof for a given block
     /// @param blockHash the hash of the block that contains the Merkle root hash
     /// @param noOfConfirmations the required number of succeeding blocks needed for a block to be considered as confirmed
@@ -279,7 +370,12 @@ contract TestimoniumCore {
         bytes memory path, bytes memory rlpEncodedNodes, bytes32 merkleRootHash) internal view returns (uint8) {
 
         require(isBlock(blockHash), "block does not exist");
-        require(isBlockConfirmedAndUnlocked(blockHash, noOfConfirmations), "block is not confirmed by enough succeeding blocks or locked");
+
+        (bool isPartOfLongestPoWCFork, uint[] memory visitedOrderedIndices) = isBlockPartOfFork(blockHash, longestChainEndpoint);
+        require(isPartOfLongestPoWCFork, "block is not part of the longest PoW chain");
+
+        bool unlockedAndConfirmed = isHeaderUnlockedAndConfirmed(blockHash, noOfConfirmations, visitedOrderedIndices, 0);
+        require(unlockedAndConfirmed, "block is locked or not confirmed by enough blocks");
 
         if (MerklePatriciaProof.verify(rlpEncodedValue, path, rlpEncodedNodes, merkleRootHash) > 0) {
             return 1;

@@ -1139,12 +1139,13 @@ contract('Testimonium', async (accounts) => {
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
             expectedBlocks.forEach((block, index) => {
-                console.log(`block ${index}: ${block.lockedUntil}`)
+                console.log(`block ${index+1}: ${block.lockedUntil}`)
             });
 
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
                 console.log((await time.latest()).toString());
                 for (let j = 0; j < i; j++) {
+                    // console.log(`i: ${i}, j: ${j}`);
                     let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
                     let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 

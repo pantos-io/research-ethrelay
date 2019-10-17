@@ -211,139 +211,95 @@ contract TestimoniumCore {
         return submitters;
     }
 
-    // @dev Verifies the existence of a transaction ('txHash') within a certain block ('blockHash').
+    /// @dev Verifies the existence of a transaction ('txHash') within a certain block ('blockHash').
+    /// @param blockHash the hash of the block that contains the Merkle root hash
+    /// @param noOfConfirmations the required number of succeeding blocks needed for a block to be considered as confirmed
+    /// @param rlpEncodedValue the value of the Merkle Patricia trie (e.g, transaction, receipt, state) in RLP format
+    /// @param path the path (key) in the trie indicating the way starting at the root node and ending at the value (e.g., transaction)
+    /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element the value
+    /// @param merkleRootHash the hash of the root node of the Merkle Patricia trie
+    /// @return 0: verification was successful
+    ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
+    //
     // The verification follows the following steps:
     //     1. Verify that the given block is part of the longest Proof of Work chain
-    //     2. Verify that the block has passed the dispute period in which the validity of a block can be disputed
-    //     3. Verify that the block has been confirmed by at least n succeeding unlocked blocks ('noOfConfirmations')
+    //     2. Verify that the block is unlcoked and has been confirmed by at least n succeeding unlocked blocks ('noOfConfirmations')
+    //     3. Verify the Merkle Patricia proof of the given block
     //
     // In case we have to check whether enough block confirmations occurred
     // starting from the requested block ('blockHash'), we go to the latest
     // unlocked block on the longest chain path (could be the requested block itself)
     // and count the number of confirmations (i.e. the number of unlocked blocks),
     // starting from the latest unlocked block along the longest chain path.
-    function isBlockConfirmedAndUnlocked(bytes32 blockHash, uint8 noOfConfirmations) private view returns (bool) {
-        bytes32 last = longestChainEndpoint;
-        bytes32 current = longestChainEndpoint;
-        bytes32 checkpoint = blockHash;
-        bool confirmed = false;
+    function verifyMerkleProof(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedValue,
+        bytes memory path, bytes memory rlpEncodedNodes, bytes32 merkleRootHash) internal view returns (uint8) {
 
-        while (true) {
-            if (!confirmed && checkpoint == blockHash) {
-                if (isUnlocked(current)) {
-                    if (headers[current].blockNumber >= headers[blockHash].blockNumber + noOfConfirmations) {
-                        // We found a block that is unlocked AND confirms the requested block
-                        // by at least 'noOfConfirmations' confirmations
-                        confirmed = true;
-                    } else {
-                        // We found a block that is unlocked, but the requested block cannot be considered confirmed yet.
-                        // Since all blocks before the current block will also be unlocked, we only need to check whether
-                        // enough blocks follow the current block along the longest chain which are also unlocked.
-                        // 'Enough' is determined by the number of blocks required for the requested block to be considered confirmed.
-                        checkpoint = getSuccessor(current, last);
-                        noOfConfirmations = (uint8)(headers[blockHash].blockNumber + noOfConfirmations - headers[checkpoint].blockNumber);
-                    }
-                }
-            }
+        require(isBlock(blockHash), "block does not exist");
 
-            if (headers[current].meta.orderedIndex < headers[blockHash].meta.orderedIndex) {
-                return false;   // the requested block is NOT part of the longest chain
-            }
+        (bool isPartOfLongestPoWCFork, bytes32 confirmationStart) = isBlockPartOfFork(blockHash, longestChainEndpoint);
+        require(isPartOfLongestPoWCFork, "block is not part of the longest PoW chain");
 
-            if (headers[current].meta.orderedIndex == headers[blockHash].meta.orderedIndex) {
-                break;  // the requested block is part of the longest chain --> jump out of the loop
-            }
-
-            // go to next fork
-            last = current;
-            current = headers[current].meta.latestFork;
+        if (headers[confirmationStart].blockNumber <= headers[blockHash].blockNumber + noOfConfirmations) {
+            noOfConfirmations = noOfConfirmations - uint8(headers[confirmationStart].blockNumber - headers[blockHash].blockNumber);
+            bool unlockedAndConfirmed = hasEnoughConfirmations(confirmationStart, noOfConfirmations);
+            require(unlockedAndConfirmed, "block is locked or not confirmed by enough blocks");
         }
 
-        if (!confirmed && !hasEnoughConfirmations(checkpoint, noOfConfirmations)) {
-            return false;
+        if (MerklePatriciaProof.verify(rlpEncodedValue, path, rlpEncodedNodes, merkleRootHash) > 0) {
+            return 1;
         }
 
-        return true;
+        return 0;
     }
 
-    function absoluteDiff(uint val1, uint val2) private pure returns (uint) {
-        if (val1 < val2) {
-            return val2 - val1;
-        }
-
-        return val1 - val2;
-    }
-
-    function isBlockPartOfFork(bytes32 blockHash, bytes32 forkEndpoint) private view returns (bool, uint[] memory) {
+    function isBlockPartOfFork(bytes32 blockHash, bytes32 forkEndpoint) private view returns (bool, bytes32) {
         bytes32 current = forkEndpoint;
-        uint maxNoOfJmps = absoluteDiff(headers[forkEndpoint].blockNumber, headers[blockHash].blockNumber) + 1;
-        uint[] memory visitedOrderedIndices = new uint[](maxNoOfJmps);  // at most maxNoOfJmps jumps to fork points will be made (when each header in-between is forked)
-        uint forkCount = 0;
+        uint lastForkIndex = headers[forkEndpoint].meta.orderedIndex;
+        bytes32 confirmationStartHeader;    // the hash from where to start the confirmation count in case the requested block header is part of the longest chain
 
-        // save orderedIndex of endpoint, otherwise it would be missed when loop is never entered
-        visitedOrderedIndices[forkCount] = headers[current].meta.orderedIndex;
-        forkCount += 1;
+        // Current is still the endpoint
+        // if the endpoint is already unlocked we need to start the confirmation verification from the endpoint
+        if (isUnlocked(current)) {
+            confirmationStartHeader = current;
+        }
 
         while (headers[current].meta.orderedIndex > headers[blockHash].meta.orderedIndex) {
             // go to next fork point
             current = headers[current].meta.latestFork;
-            // safe ordered index in visitedOrderedIndices
-            visitedOrderedIndices[forkCount] = headers[current].meta.orderedIndex;
-            forkCount += 1;
+
+            // set confirmationStartHeader only if it has not been set before
+            if (confirmationStartHeader == 0) {
+                if (isUnlocked(current)) {
+                    confirmationStartHeader = getSuccessorByOrderedIndex(current, lastForkIndex);
+                }
+            }
+
+            // only now we set the lastForkIndex
+            lastForkIndex = headers[current].meta.orderedIndex;
         }
 
         if (headers[current].meta.orderedIndex < headers[blockHash].meta.orderedIndex) {
-            return (false, new uint[](0));   // the requested block is NOT part of the longest chain
+            return (false, confirmationStartHeader);   // the requested block is NOT part of the longest chain
         }
 
         if (headers[current].blockNumber < headers[blockHash].blockNumber) {
             // current and the requested block are on a fork with the same orderedIndex
             // however, the requested block comes after the fork point (current), so the requested block cannot be part of the longest chain
-            return (false, new uint[](0));
+            return (false, confirmationStartHeader);
         }
 
-        forkCount -= 1;  // do not return last visited fork
-        uint[] memory visitedOrderedIndicesReverse = new uint[](forkCount);
-        // return visitedOrderedIndices in reverse order
-        for (uint i = 0; i < forkCount; i++) {
-            visitedOrderedIndicesReverse[i] = visitedOrderedIndices[forkCount - i - 1];
+        // if no earlier block header has been found from where to start the confirmation verification,
+        // we start the verification from the requested block header
+        if (confirmationStartHeader == 0) {
+            confirmationStartHeader = blockHash;
         }
-        return (true, visitedOrderedIndicesReverse);
+
+        return (true, confirmationStartHeader);
 
     }
 
-    function isHeaderUnlockedAndConfirmed(bytes32 blockHash, uint requiredConfirmations, uint[] memory orderedIndices, uint arrayIdx) private view returns (bool) {
-        if (!isUnlocked(blockHash)) {
-            return false;
-        }
-        if (requiredConfirmations == 0) {
-            return true;
-        }
-        if (headers[blockHash].meta.successors.length == 0) {
-            // no successors available, but still confirmations required
-            return false;
-        }
-
-        bytes32 successor;
-        uint nextArrayIdx;
-
-        if (headers[blockHash].meta.successors.length == 1) {
-            successor = headers[blockHash].meta.successors[0];
-            nextArrayIdx = arrayIdx;
-        }
-        else {
-            uint nextOrderedIdx;
-            if (orderedIndices.length == 0) { // no jumps have been made in isBlockPartOfFork, i.e., blockHash is on the same fork as the fork endpoint
-                nextOrderedIdx = headers[blockHash].meta.orderedIndex;
-            }
-            else {
-                nextOrderedIdx = orderedIndices[arrayIdx];
-                nextArrayIdx = arrayIdx + 1;
-            }
-            successor = getSuccessorByOrderedIndex(blockHash, nextOrderedIdx);
-        }
-
-        return isHeaderUnlockedAndConfirmed(successor, requiredConfirmations - 1, orderedIndices, nextArrayIdx);
+    function isUnlocked(bytes32 blockHash) internal view returns (bool) {
+        return headers[blockHash].meta.lockedUntil < now;
     }
 
     function getSuccessorByOrderedIndex(bytes32 blockHash, uint orderedIndex) private view returns (bytes32) {
@@ -355,58 +311,6 @@ contract TestimoniumCore {
         }
 
         return blockHash;
-    }
-
-    /// @dev Verifies a Merkle Patricia proof for a given block
-    /// @param blockHash the hash of the block that contains the Merkle root hash
-    /// @param noOfConfirmations the required number of succeeding blocks needed for a block to be considered as confirmed
-    /// @param rlpEncodedValue the value of the Merkle Patricia trie (e.g, transaction, receipt, state) in RLP format
-    /// @param path the path (key) in the trie indicating the way starting at the root node and ending at the value (e.g., transaction)
-    /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element the value
-    /// @param merkleRootHash the hash of the root node of the Merkle Patricia trie
-    /// @return 0: verification was successful
-    ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
-    function verifyMerkleProof(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedValue,
-        bytes memory path, bytes memory rlpEncodedNodes, bytes32 merkleRootHash) internal view returns (uint8) {
-
-        require(isBlock(blockHash), "block does not exist");
-
-        (bool isPartOfLongestPoWCFork, uint[] memory visitedOrderedIndices) = isBlockPartOfFork(blockHash, longestChainEndpoint);
-        require(isPartOfLongestPoWCFork, "block is not part of the longest PoW chain");
-
-        bool unlockedAndConfirmed = isHeaderUnlockedAndConfirmed(blockHash, noOfConfirmations, visitedOrderedIndices, 0);
-        require(unlockedAndConfirmed, "block is locked or not confirmed by enough blocks");
-
-        if (MerklePatriciaProof.verify(rlpEncodedValue, path, rlpEncodedNodes, merkleRootHash) > 0) {
-            return 1;
-        }
-
-        return 0;
-    }
-
-    function isUnlocked(bytes32 blockHash) internal view returns (bool) {
-        return headers[blockHash].meta.lockedUntil < now;
-    }
-
-    // @dev Returns the successor of the given block ('blockHash').
-    // If a block does not have any successors, the block itself is returned.
-    // If a block only has one successor, that successor is returned.
-    // If a block has multiple successors, the successor in the direction of the next fork ('nextFork') is returned.
-    function getSuccessor(bytes32 blockHash, bytes32 nextFork) private view returns (bytes32) {
-        if (headers[blockHash].meta.successors.length == 1) {
-            return headers[blockHash].meta.successors[0];
-        }
-
-        if (headers[blockHash].meta.successors.length > 1) {
-            for (uint i = 0; i<headers[blockHash].meta.successors.length; i++) {
-                bytes32 successor = headers[blockHash].meta.successors[i];
-                if (headers[successor].meta.orderedIndex == headers[nextFork].meta.orderedIndex) {
-                    return successor;
-                }
-            }
-        }
-
-        return blockHash;   // --> either block has no successors or the right successor could not be determined
     }
 
     // @dev Checks whether a block has enough succeeding blocks that are unlocked (dispute period is over).

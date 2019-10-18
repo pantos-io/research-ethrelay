@@ -254,7 +254,7 @@ contract TestimoniumCore {
 
     function isBlockPartOfFork(bytes32 blockHash, bytes32 forkEndpoint) private view returns (bool, bytes32) {
         bytes32 current = forkEndpoint;
-        uint lastForkIndex = headers[forkEndpoint].meta.orderedIndex;
+        uint lastForkIndex;
         bytes32 confirmationStartHeader;    // the hash from where to start the confirmation count in case the requested block header is part of the longest chain
 
         // Current is still the endpoint
@@ -264,7 +264,8 @@ contract TestimoniumCore {
         }
 
         while (headers[current].meta.orderedIndex > headers[blockHash].meta.orderedIndex) {
-            // go to next fork point
+            // go to next fork point but remember last ordered fork index
+            lastForkIndex = headers[current].meta.orderedIndex;
             current = headers[current].meta.latestFork;
 
             // set confirmationStartHeader only if it has not been set before
@@ -273,9 +274,6 @@ contract TestimoniumCore {
                     confirmationStartHeader = getSuccessorByOrderedIndex(current, lastForkIndex);
                 }
             }
-
-            // only now we set the lastForkIndex
-            lastForkIndex = headers[current].meta.orderedIndex;
         }
 
         if (headers[current].meta.orderedIndex < headers[blockHash].meta.orderedIndex) {

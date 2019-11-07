@@ -1,7 +1,7 @@
 const Web3 = require("web3");
 const {BN, expectRevert, time, balance} = require('openzeppelin-test-helpers');
 const {createRLPHeader, calculateBlockHash, createRLPHeaderWithoutNonce, addToHex} = require('../utils/utils');
-const {expectEvent} = require('./setup');
+const expectEvent = require('./expectEvent');
 
 const Testimonium = artifacts.require('./TestimoniumTestContract');
 const Ethash = artifacts.require('./Ethash');

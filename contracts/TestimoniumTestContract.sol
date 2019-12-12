@@ -6,7 +6,7 @@ contract TestimoniumTestContract is Testimonium {
     constructor(bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) Testimonium(_rlpHeader, totalDifficulty, _ethashContractAddr) public {}
 
     function getBlockMetaInfo(bytes32 blockHash) public view returns (
-        bytes32[] memory successors, uint orderedIndex, uint iterableIndex, bytes32 latestFork, uint lockedUntil,
+        bytes32[] memory successors, uint forkId, uint iterableIndex, bytes32 latestFork, uint lockedUntil,
         address submitter
     ) {
         return super.getHeaderMetaInfo(blockHash);

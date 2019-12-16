@@ -4,7 +4,7 @@ import "./MerklePatriciaProof.sol";
 
 contract EthashInterface {
     function verifyPoW(uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint nonce, uint difficulty,
-        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (bool, uint, uint);
+        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (uint, uint);
 }
 
 
@@ -15,26 +15,35 @@ contract EthashInterface {
 contract TestimoniumCore {
 
     using RLPReader for *;
-    uint constant LOCK_PERIOD_IN_MIN = 5 minutes;
-    uint constant ALLOWED_FUTURE_BLOCK_TIME = 15 seconds;
-    uint constant MAX_GAS_LIMIT = 2**63-1;
-    uint constant MIN_GAS_LIMIT = 5000;
+    uint16 constant LOCK_PERIOD_IN_MIN = 5 minutes;
+    uint8 constant ALLOWED_FUTURE_BLOCK_TIME = 15 seconds;
+    uint8 constant MAX_EXTRA_DATA_SIZE = 32;
+    uint8 constant REQU_SUCEEDING_BLOCKS = 3;
+    uint16 constant MIN_GAS_LIMIT = 5000;
     int64 constant GAS_LIMIT_BOUND_DIVISOR = 1024;
+    uint constant MAX_GAS_LIMIT = 2**63-1;
     bytes32 constant EMPTY_UNCLE_HASH = hex"1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347";
 
     EthashInterface ethashContract;
 
 
     struct MetaInfo {
-        bytes32[] successors;    // in case of forks a blockchain can have multiple successors
-        uint forkId;
-        uint iterableIndex;      // index at which the block header is/was stored in the iterable endpoints array
+        uint64 iterableIndex;      // index at which the block header is/was stored in the iterable endpoints array
+        uint64 forkId;
+        uint64 lockedUntil;        // timestamp until which it is possible to dispute a given block
         bytes32 latestFork;      // contains the hash of the latest node where the current fork branched off
-        uint lockedUntil;        // timestamp until which it is possible to dispute a given block
         address submitter;
+        bytes32[] successors;    // in case of forks a blockchain can have multiple successors
     }
 
-    struct BlockHeader {
+    struct Header {
+        uint24 blockNumber;
+        uint232 totalDifficulty;
+        bytes32 hash;
+        MetaInfo meta;
+    }
+
+    struct FullHeader {
         bytes32 parent;
         bytes32 uncleHash;
         bytes32 stateRoot;
@@ -42,56 +51,42 @@ contract TestimoniumCore {
         bytes32 receiptsRoot;
         uint blockNumber;
         uint gasLimit;
+        uint gasUsed;
         bytes32 rlpHeaderHashWithoutNonce;   // sha3 hash of the header without nonce and mix fields
         uint timestamp;                      // block timestamp is needed for difficulty calculation
         uint nonce;                          // blockNumber, rlpHeaderHashWithoutNonce and nonce are needed for verifying PoW
         uint difficulty;
-        uint totalDifficulty;
-        MetaInfo meta;
+        bytes extraData;
     }
 
-    mapping (bytes32 => BlockHeader) private headers;  // sha3 hash -> Header
-    uint constant lockPeriodInMin = 5 minutes;
-    uint constant requiredSucceedingBlocks = 3;
-    uint maxForkId = 0;
-    bytes32[] iterableEndpoints;
+    uint64 maxForkId = 0;
     bytes32 public longestChainEndpoint;
+    mapping (bytes32 => Header) private headers;  // sha3 hash -> Header
+    bytes32[] iterableEndpoints;
 
     // The contract is initialized with block 8084509 and the total difficulty of that same block.
     // The contract creator needs to make sure that these values represent a valid block of the tracked blockchain.
     constructor (bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) internal {
-        bytes32 newBlockHash;
-        BlockHeader memory newHeader;
-        (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
-        newHeader.totalDifficulty = totalDifficulty;
+        bytes32 newBlockHash = keccak256(_rlpHeader);
+        FullHeader memory parsedHeader = parseRlpEncodedHeader(_rlpHeader);
+        Header memory newHeader;
+        newHeader.hash = newBlockHash;
+        newHeader.blockNumber = uint24(parsedHeader.blockNumber);
+        newHeader.totalDifficulty = uint232(totalDifficulty);
         newHeader.meta.forkId = maxForkId;
-        maxForkId += 1;
-        newHeader.meta.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
-        newHeader.meta.lockedUntil = now;    // the first block does not need a confirmation period
+        newHeader.meta.iterableIndex = uint64(iterableEndpoints.push(newBlockHash) - 1);
+        newHeader.meta.lockedUntil = uint64(now);    // the first block does not need a confirmation period
         headers[newBlockHash] = newHeader;
         longestChainEndpoint = newBlockHash;
 
         ethashContract = EthashInterface(_ethashContractAddr);
     }
 
-    function getHeader(bytes32 blockHash) public view returns (
-        bytes32 parent, bytes32 uncleHash, bytes32 stateRoot, bytes32 transactionsRoot, bytes32 receiptsRoot,
-        uint blockNumber, uint gasLimit, bytes32 rlpHeaderHashWithoutNonce, uint timestamp, uint nonce,
-        uint difficulty, uint totalDifficulty
-    ) {
-        BlockHeader storage header = headers[blockHash];
+    function getHeader(bytes32 blockHash) public view returns (bytes32 hash, uint blockNumber, uint totalDifficulty) {
+        Header storage header = headers[blockHash];
         return (
-            header.parent,
-            header.uncleHash,
-            header.stateRoot,
-            header.transactionsRoot,
-            header.receiptsRoot,
+            header.hash,
             header.blockNumber,
-            header.gasLimit,
-            header.rlpHeaderHashWithoutNonce,
-            header.timestamp,
-            header.nonce,
-            header.difficulty,
             header.totalDifficulty
         );
     }
@@ -100,7 +95,7 @@ contract TestimoniumCore {
         bytes32[] memory successors, uint forkId, uint iterableIndex, bytes32 latestFork, uint lockedUntil,
         address submitter
     ) {
-        BlockHeader storage header = headers[blockHash];
+        Header storage header = headers[blockHash];
         return (
             header.meta.successors,
             header.meta.forkId,
@@ -124,92 +119,125 @@ contract TestimoniumCore {
         return iterableEndpoints[index];
     }
 
-    function isBlock(bytes32 hash) public view returns (bool) {
-        return headers[hash].nonce != 0;
+    function isHeaderStored(bytes32 hash) public view returns (bool) {
+        return headers[hash].blockNumber != 0;
     }
 
-    function getTransactionsRoot(bytes32 blockHash) internal view returns (bytes32) {
-        return headers[blockHash].transactionsRoot;
-    }
+    /// @dev Accepts an RLP encoded header. The provided header is parsed and its hash along with some meta data is stored.
+    event SubmitHeader( bytes32 hash );
+    function submitHeader(bytes memory _rlpHeader, address submitter) public returns (bytes32) {
+        Header memory newHeader;
 
-    function getReceiptsRoot(bytes32 blockHash) internal view returns (bytes32) {
-        return headers[blockHash].receiptsRoot;
-    }
+        // calculate block hash and check that block header does not already exist
+        bytes32 blockHash = keccak256(_rlpHeader);
+        require(!isHeaderStored(blockHash), "block already exists");
 
-    function getStateRoot(bytes32 blockHash) internal view returns (bytes32) {
-        return headers[blockHash].stateRoot;
-    }
+        bytes32 decodedParent;
+        uint decodedBlockNumber;
+        uint decodedDifficulty;
+        (decodedParent, decodedBlockNumber, decodedDifficulty) = getParentBlockNumberDiff(_rlpHeader);
+        // Get parent header
+        require(isHeaderStored(decodedParent), "parent does not exist");
+        Header storage parentHeader = headers[decodedParent];
+        parentHeader.meta.successors.push(blockHash);
 
-    /// @dev Accepts an RLP encoded header. The provided header is parsed, validated and some fields are stored.
-    function submitHeader(bytes memory _rlpHeader, address submitter) internal returns (bytes32) {
-        bytes32 newBlockHash;
-        BlockHeader memory newHeader;
-        (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
-
-        // Get parent header and set next pointer to newHeader
-        BlockHeader storage parentHeader = headers[newHeader.parent];
-        parentHeader.meta.successors.push(newBlockHash);
-        newHeader.meta.lockedUntil = now + LOCK_PERIOD_IN_MIN;
+        newHeader.hash = blockHash;
+        newHeader.blockNumber = uint24(decodedBlockNumber);
+        newHeader.totalDifficulty = uint232(parentHeader.totalDifficulty + decodedDifficulty);
+        newHeader.meta.lockedUntil = uint64(now + LOCK_PERIOD_IN_MIN);
         newHeader.meta.submitter = submitter;
 
         // check if parent is an endpoint
-        if (iterableEndpoints.length > parentHeader.meta.iterableIndex && iterableEndpoints[parentHeader.meta.iterableIndex] == newHeader.parent) {
+        if (iterableEndpoints.length > parentHeader.meta.iterableIndex && iterableEndpoints[parentHeader.meta.iterableIndex] == decodedParent) {
             // parentHeader is an endpoint (and no fork) -> replace parentHeader in endpoints by new header (since new header becomes new endpoint)
             newHeader.meta.forkId = parentHeader.meta.forkId;
-            iterableEndpoints[parentHeader.meta.iterableIndex] = newBlockHash;
+            iterableEndpoints[parentHeader.meta.iterableIndex] = newHeader.hash;
             newHeader.meta.iterableIndex = parentHeader.meta.iterableIndex;
             delete parentHeader.meta.iterableIndex;
             newHeader.meta.latestFork = parentHeader.meta.latestFork;
         }
         else {
             // parentHeader is forked
-            newHeader.meta.forkId = maxForkId;
             maxForkId += 1;
-            newHeader.meta.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
-            newHeader.meta.latestFork = newHeader.parent;
+            newHeader.meta.forkId = maxForkId;
+            newHeader.meta.iterableIndex = uint64(iterableEndpoints.push(newHeader.hash) - 1);
+            newHeader.meta.latestFork = decodedParent;
 
             if (parentHeader.meta.successors.length == 2) {
                 // a new fork was created, so we set the latest fork of the original branch to the newly created fork
                 // this has to be done only the first time a fork is created
-                setLatestForkAtSuccessors(headers[parentHeader.meta.successors[0]], newHeader.parent);
+                setLatestForkAtSuccessors(headers[parentHeader.meta.successors[0]], decodedParent);
             }
         }
 
         if (newHeader.totalDifficulty > headers[longestChainEndpoint].totalDifficulty) {
-            longestChainEndpoint = newBlockHash;
+            longestChainEndpoint = blockHash;
         }
 
-        headers[newBlockHash] = newHeader; // make sure to persist the header only AFTER all property changes
-        return newBlockHash;
+        headers[newHeader.hash] = newHeader; // make sure to persist the header only AFTER all property changes
+        emit SubmitHeader(newHeader.hash);
+
+        return newHeader.hash;
     }
 
-    event PoWValidationResult(bool isPoWValid, uint errorCode, uint errorInfo);
+    event DisputeBlock(uint errorCode);
+    event PoWValidationResult(uint errorCode, uint errorInfo);
     /// @dev If a client is convinced that a certain block header is invalid, it can call this function which validates
     ///      whether enough PoW has been carried out.
-    /// @param blockHash the hash of the block to dispute
+    /// @param rlpHeader the encoded version of the block header to dispute
+    /// @param rlpParent the encoded version of the block header's parent
     /// @param dataSetLookup contains elements of the DAG needed for the PoW verification
     /// @param witnessForLookup needed for verifying the dataSetLookup
     /// @return A list of addresses belonging to the submitters of illegal blocks
-    function disputeBlock(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) internal returns (address[] memory) {
+    function disputeBlock(bytes memory rlpHeader, bytes memory rlpParent, uint[] memory dataSetLookup,
+                          uint[] memory witnessForLookup) internal returns (address[] memory) {
         // Currently, once the dispute period is over and the block is unlocked we accept it as valid.
         // In that case, no validation is carried out anymore.
-        // TO DISCUSS: There might not be a problem to accept disputes even after a block has been unlocked.
-        // If an already unlocked block is disputed, certain transactions might have been illegally verified.
-        require(!isUnlocked(blockHash), "dispute period is expired");
-        BlockHeader memory header = headers[blockHash];
-        bool isPoWCorrect;
-        uint errorCode;
-        uint errorInfo;
-        address[] memory submitters = new address[](0);
-        (isPoWCorrect, errorCode, errorInfo) = ethashContract.verifyPoW(header.blockNumber, header.rlpHeaderHashWithoutNonce,
-            header.nonce, header.difficulty, dataSetLookup, witnessForLookup);
-        emit PoWValidationResult(isPoWCorrect, errorCode, errorInfo);
 
-        if (!isPoWCorrect && errorCode == 2) {   // remove branch only if not enough work was performed, i.e., difficulty is too low (errorCode == 2)
-            submitters = removeBranch(blockHash);
+        bytes32 headerHash = keccak256(rlpHeader);
+        require(isHeaderStored(headerHash), "provided header does not exist");
+        require(isHeaderStored(keccak256(rlpParent)), "provided parent does not exist");
+        require(!isUnlocked(headerHash), "dispute period is expired");
+
+        Header storage storedHeader = headers[headerHash];
+        Header storage storedParent = headers[keccak256(rlpParent)];
+        require(isHeaderSuccessorOfParent(storedHeader, storedParent), "stored parent is not a predecessor of stored header within Testimonium");
+
+        FullHeader memory providedHeader = parseRlpEncodedHeader(rlpHeader);
+        FullHeader memory providedParent = parseRlpEncodedHeader(rlpParent);
+        require(headerHash == providedParent.parent, "provided parent's parent does not match with provided header's hash");
+
+        uint returnCode = checkHeaderValidity(providedHeader, providedParent);
+
+        if (returnCode == 0) {
+            // header validation without checking Ethash was successful -> verify Ethash
+            uint errorInfo;
+            (returnCode, errorInfo) = ethashContract.verifyPoW(storedHeader.blockNumber, getRlpHeaderHashWithoutNonce(rlpHeader),
+                providedHeader.nonce, providedHeader.difficulty, dataSetLookup, witnessForLookup);
+
+            emit PoWValidationResult(returnCode, errorInfo);
+
         }
 
+        address[] memory submitters = new address[](0);
+
+        if (returnCode != 0) {
+            submitters = removeBranch(headerHash, storedParent);
+        }
+
+        emit DisputeBlock(returnCode);
         return submitters;
+    }
+
+    function isHeaderSuccessorOfParent(Header memory header, Header memory parent) private pure returns (bool) {
+        for (uint i = 0; i < parent.meta.successors.length; i++) {
+            bytes32 successor = parent.meta.successors[i];
+            if (successor == header.hash) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// @dev Verifies the existence of a transaction ('txHash') within a certain block ('blockHash').
@@ -235,7 +263,7 @@ contract TestimoniumCore {
     function verifyMerkleProof(bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedValue,
         bytes memory path, bytes memory rlpEncodedNodes, bytes32 merkleRootHash) internal view returns (uint8) {
 
-        require(isBlock(blockHash), "block does not exist");
+        require(isHeaderStored(blockHash), "block does not exist");
 
         (bool isPartOfLongestPoWCFork, bytes32 confirmationStart) = isBlockPartOfFork(blockHash, longestChainEndpoint);
         require(isPartOfLongestPoWCFork, "block is not part of the longest PoW chain");
@@ -334,7 +362,7 @@ contract TestimoniumCore {
         return hasEnoughConfirmations(headers[start].meta.successors[0], noOfConfirmations - 1);
     }
 
-    function setLatestForkAtSuccessors(BlockHeader storage header, bytes32 latestFork) private {
+    function setLatestForkAtSuccessors(Header storage header, bytes32 latestFork) private {
         if (header.meta.latestFork == latestFork) {
             // latest fork has already been set
             return;
@@ -348,19 +376,16 @@ contract TestimoniumCore {
     }
 
     event RemoveBranch( bytes32 root );
-    function removeBranch(bytes32 rootHash) private returns (address[] memory) {
-        bytes32 parentHash = headers[rootHash].parent;
-        BlockHeader storage parentHeader = headers[parentHash];
-
+    function removeBranch(bytes32 rootHash, Header storage parentHeader) private returns (address[] memory) {
         address[] memory submitters = pruneBranch(rootHash, 0);
 
         if (parentHeader.meta.successors.length == 1) {
             // parentHeader has only one successor --> parentHeader will be an endpoint after pruning
-            parentHeader.meta.iterableIndex = iterableEndpoints.push(parentHash) - 1;
+            parentHeader.meta.iterableIndex = uint64(iterableEndpoints.push(parentHeader.hash) - 1);
         }
 
         // remove root (which will be pruned) from the parent's successor list
-        for (uint i=0; i<parentHeader.meta.successors.length; i++) {
+        for (uint i=0; i < parentHeader.meta.successors.length; i++) {
             if (parentHeader.meta.successors[i] == rootHash) {
                 // overwrite root with last successor and delete last successor
                 parentHeader.meta.successors[i] = parentHeader.meta.successors[parentHeader.meta.successors.length - 1];
@@ -382,7 +407,7 @@ contract TestimoniumCore {
     }
 
     function pruneBranch(bytes32 root, uint counter) private returns (address[] memory) {
-        BlockHeader storage rootHeader = headers[root];
+        Header storage rootHeader = headers[root];
         address[] memory submitters;
 
         counter += 1;
@@ -441,12 +466,10 @@ contract TestimoniumCore {
         return resultArr;
     }
 
-    event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent, bytes32 transactionsRoot );
-    function parseAndValidateBlockHeader( bytes memory rlpHeader ) private returns (bytes32, BlockHeader memory) {
-        BlockHeader memory header;
+    function parseRlpEncodedHeader(bytes memory rlpHeader) private pure returns (FullHeader memory) {
+        FullHeader memory header;
 
         RLPReader.Iterator memory it = rlpHeader.toRlpItem().iterator();
-        uint gasUsed;   // we do not store gasUsed with the header as we do not need to access it after the header validation has taken place
         uint idx;
         while(it.hasNext()) {
             if( idx == 0 ) header.parent = bytes32(it.next().toUint());
@@ -457,35 +480,85 @@ contract TestimoniumCore {
             else if ( idx == 7 ) header.difficulty = it.next().toUint();
             else if ( idx == 8 ) header.blockNumber = it.next().toUint();
             else if ( idx == 9 ) header.gasLimit = it.next().toUint();
-            else if ( idx == 10 ) gasUsed = it.next().toUint();
+            else if ( idx == 10 ) header.gasUsed = it.next().toUint();
             else if ( idx == 11 ) header.timestamp = it.next().toUint();
+            else if ( idx == 12 ) header.extraData = it.next().toBytes();
             else if ( idx == 14 ) header.nonce = it.next().toUint();
             else it.next();
 
             idx++;
         }
 
-        // calculate block hash and check that block header does not already exist
-        bytes32 blockHash = keccak256(rlpHeader);
-        require(!isBlock(blockHash), "block already exists");
+        return header;
+    }
 
+    function getRlpHeaderHashWithoutNonce(bytes memory rlpHeader) private pure returns (bytes32) {
         // duplicate rlp header and truncate nonce and mixDataHash
         bytes memory rlpWithoutNonce = copy(rlpHeader, rlpHeader.length-42);  // 42: length of none+mixHash
         uint16 rlpHeaderWithoutNonceLength = uint16(rlpHeader.length-3-42);  // rlpHeaderLength - 3 prefix bytes (0xf9 + length) - length of nonce and mixHash
         bytes2 headerLengthBytes = bytes2(rlpHeaderWithoutNonceLength);
         rlpWithoutNonce[1] = headerLengthBytes[0];
         rlpWithoutNonce[2] = headerLengthBytes[1];
-        bytes32 rlpHeaderHashWithoutNonce = keccak256(rlpWithoutNonce);
 
-        header.rlpHeaderHashWithoutNonce = rlpHeaderHashWithoutNonce;
-        checkHeaderValidity(header, gasUsed);
+        return keccak256(rlpWithoutNonce);
+    }
 
-        // Get parent header and set total difficulty
-        BlockHeader storage parentHeader = headers[header.parent];
-        header.totalDifficulty = parentHeader.totalDifficulty + header.difficulty;
+    function getTxRoot(bytes memory rlpHeader) internal pure returns (bytes32) {
+        RLPReader.Iterator memory it = rlpHeader.toRlpItem().iterator();
+        uint idx;
+        while(it.hasNext()) {
+            if ( idx == 4 ) return bytes32(it.next().toUint());
+            else it.next();
 
-        emit SubmitBlockHeader(blockHash, rlpHeaderHashWithoutNonce, header.nonce, header.difficulty, header.parent, header.transactionsRoot);
-        return (blockHash, header);
+            idx++;
+        }
+
+        return 0;
+    }
+
+    function getStateRoot(bytes memory rlpHeader) internal pure returns (bytes32) {
+        RLPReader.Iterator memory it = rlpHeader.toRlpItem().iterator();
+        uint idx;
+        while(it.hasNext()) {
+            if ( idx == 3 ) return bytes32(it.next().toUint());
+            else it.next();
+
+            idx++;
+        }
+
+        return 0;
+    }
+
+    function getReceiptsRoot(bytes memory rlpHeader) internal pure returns (bytes32) {
+        RLPReader.Iterator memory it = rlpHeader.toRlpItem().iterator();
+        uint idx;
+        while(it.hasNext()) {
+            if ( idx == 5 ) return bytes32(it.next().toUint());
+            else it.next();
+
+            idx++;
+        }
+
+        return 0;
+    }
+
+    function getParentBlockNumberDiff(bytes memory rlpHeader) internal pure returns (bytes32, uint, uint) {
+        uint idx;
+        bytes32 parent;
+        uint blockNumber;
+        uint difficulty;
+        RLPReader.Iterator memory it = rlpHeader.toRlpItem().iterator();
+
+        while(it.hasNext()) {
+            if( idx == 0 ) parent = bytes32(it.next().toUint());
+            else if ( idx == 7 ) difficulty = it.next().toUint();
+            else if ( idx == 8 ) blockNumber = it.next().toUint();
+            else it.next();
+
+            idx++;
+        }
+
+        return (parent, blockNumber, difficulty);
     }
 
     function copy(bytes memory sourceArray, uint newLength) private pure returns (bytes memory) {
@@ -502,36 +575,36 @@ contract TestimoniumCore {
         return newArray;
     }
 
-    // @dev Validates the fields of a block header without validating the PoW
+    // @dev Validates the fields of a block header without validating Ethash.
     // The validation largely follows the header validation of the geth implementation:
     // https://github.com/ethereum/go-ethereum/blob/aa6005b469fdd1aa7a95f501ce87908011f43159/consensus/ethash/consensus.go#L241
-    function checkHeaderValidity(BlockHeader memory header, uint gasUsed) private view {
+    function checkHeaderValidity(FullHeader memory header, FullHeader memory parent) private view returns (uint) {
         if (iterableEndpoints.length == 0) {
             // we do not check header validity for the genesis block
             // since the genesis block is submitted at contract creation.
-            return;
+            return 0;
         }
 
-        // validate parent
-        BlockHeader storage parent = headers[header.parent];
-        require(parent.nonce != 0, "non-existent parent");
+        if (header.extraData.length > MAX_EXTRA_DATA_SIZE) return 3;
 
-        // validate block number
-        require(parent.blockNumber + 1 == header.blockNumber, "illegal block number");
+        // check block number
+        if (parent.blockNumber + 1 != header.blockNumber) return 4;
 
-        // validate timestamp
-        require(header.timestamp <= now + ALLOWED_FUTURE_BLOCK_TIME, "illegal timestamp");
-        require(parent.timestamp < header.timestamp, "illegal timestamp");
+        // check timestamp
+        if (header.timestamp > now + ALLOWED_FUTURE_BLOCK_TIME) return 5;
+        if (parent.timestamp >= header.timestamp) return 6;
 
-        // validate difficulty
+        // check difficulty
         uint expectedDifficulty = calculateDifficulty(parent, header.timestamp);
-        require(expectedDifficulty == header.difficulty, "wrong difficulty");
+        if (expectedDifficulty != header.difficulty) return 7;
 
         // validate gas limit
-        require(header.gasLimit <= MAX_GAS_LIMIT, "gas limit too high");  // verify that the gas limit is <= 2^63-1
-        require(header.gasLimit >= MIN_GAS_LIMIT, "gas limit too small"); // verify that the gas limit is >= 5000
-        require(gasLimitWithinBounds(int64(header.gasLimit), int64(parent.gasLimit)), "illegal gas limit");
-        require(gasUsed <= header.gasLimit, "gas used is higher than the gas limit"); // verify that the gasUsed is <= gasLimit
+        if (header.gasLimit > MAX_GAS_LIMIT) return 8; // verify that the gas limit is <= 2^63-1
+        if (header.gasLimit < MIN_GAS_LIMIT) return 9; // verify that the gas limit is >= 5000
+        if (!gasLimitWithinBounds(int64(header.gasLimit), int64(parent.gasLimit))) return 10;
+        if (header.gasUsed > header.gasLimit) return 11;
+
+        return 0;
     }
 
     function gasLimitWithinBounds(int64 gasLimit, int64 parentGasLimit) private pure returns (bool) {
@@ -547,7 +620,7 @@ contract TestimoniumCore {
     //         (parent_diff / 2048 * max((2 if len(parent.uncles) else 1) - ((timestamp - parent.timestamp) // 9), -99))
     //        ) + 2^(periodCount - 2)
     // https://github.com/ethereum/go-ethereum/blob/aa6005b469fdd1aa7a95f501ce87908011f43159/consensus/ethash/consensus.go#L335
-    function calculateDifficulty(BlockHeader memory parent, uint timestamp) private pure returns (uint) {
+    function calculateDifficulty(FullHeader memory parent, uint timestamp) private pure returns (uint) {
         int x = int((timestamp - parent.timestamp) / 9);
 
         // take into consideration uncles of parent

@@ -538,7 +538,7 @@ contract Ethash is SHA3_512 {
     }
 
     function verifyPoW(uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint nonce, uint difficulty,
-        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (bool, uint, uint) {
+        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (uint, uint) {
 
         // verify ethash
         uint epoch = blockNumber / EPOCH_LENGTH;
@@ -557,9 +557,9 @@ contract Ethash is SHA3_512 {
                 errorCode = 2;
                 errorInfo = ethash;
             }
-            return (false, errorCode, errorInfo);
+            return (errorCode, errorInfo);
         }
 
-        return (true, 0, 0);
+        return (0, 0);
     }
 }

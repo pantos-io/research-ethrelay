@@ -278,4 +278,6 @@ blockchain/history
 yarn.lock
 package-lock.json
 
+test/results
+
 # End of https://www.gitignore.io/api/node,macos,intellij,solidity,soliditytruffle

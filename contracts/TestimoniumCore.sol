@@ -180,8 +180,8 @@ contract TestimoniumCore {
         return newHeader.hash;
     }
 
-    event DisputeBlock(uint errorCode);
-    event PoWValidationResult(uint errorCode, uint errorInfo);
+    event DisputeBlock(uint returnCode);
+    event PoWValidationResult(uint returnCode, uint errorInfo);
     /// @dev If a client is convinced that a certain block header is invalid, it can call this function which validates
     ///      whether enough PoW has been carried out.
     /// @param rlpHeader the encoded version of the block header to dispute
@@ -205,7 +205,7 @@ contract TestimoniumCore {
 
         FullHeader memory providedHeader = parseRlpEncodedHeader(rlpHeader);
         FullHeader memory providedParent = parseRlpEncodedHeader(rlpParent);
-        require(headerHash == providedParent.parent, "provided parent's parent does not match with provided header's hash");
+        require(providedHeader.parent == keccak256(rlpParent), "provided header's parent does not match with provided parent' hash");
 
         uint returnCode = checkHeaderValidity(providedHeader, providedParent);
 

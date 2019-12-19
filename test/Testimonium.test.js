@@ -267,7 +267,7 @@ contract('Testimonium', async (accounts) => {
             const expectedBlocks = [
                 {
                     block: expectedGenesis,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: ZERO_HASH,
                     lockedUntil: initTime,
@@ -296,7 +296,7 @@ contract('Testimonium', async (accounts) => {
             const expectedBlocks = [
                 {
                     block: block1,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: ZERO_HASH,
                     successors: [],
@@ -329,7 +329,7 @@ contract('Testimonium', async (accounts) => {
             const expectedBlocks = [
                 {
                     block: block1,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: ZERO_HASH,
                     successors: [block2.hash],
@@ -337,7 +337,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block2,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: ZERO_HASH,
                     successors: [],
@@ -381,7 +381,7 @@ contract('Testimonium', async (accounts) => {
             const expectedBlocks = [
                 {
                     block: block1,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: block1.parentHash,
                     successors: [],
@@ -389,7 +389,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block2,
-                    orderedIndex: 1,
+                    forkId: 1,
                     iterableIndex: 1,
                     latestFork: block2.parentHash,
                     successors: [],
@@ -433,7 +433,7 @@ contract('Testimonium', async (accounts) => {
             const expectedBlocks = [
                 {
                     block: block1,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: block1.parentHash,
                     successors: [block2.hash],
@@ -441,7 +441,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block2,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: block1.parentHash,
                     successors: [],
@@ -449,7 +449,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block3,
-                    orderedIndex: 1,
+                    forkId: 1,
                     iterableIndex: 1,
                     latestFork: block3.parentHash,
                     successors: [],
@@ -499,7 +499,7 @@ contract('Testimonium', async (accounts) => {
             const expectedBlocks = [
                 {
                     block: block1,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: block1.parentHash,
                     successors: [],
@@ -507,7 +507,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block2,
-                    orderedIndex: 1,
+                    forkId: 1,
                     iterableIndex: 1,
                     latestFork: block2.parentHash,
                     successors: [],
@@ -515,7 +515,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block3,
-                    orderedIndex: 2,
+                    forkId: 2,
                     iterableIndex: 2,
                     latestFork: block3.parentHash,
                     successors: [],
@@ -562,7 +562,7 @@ contract('Testimonium', async (accounts) => {
             const expectedBlocks = [
                 {
                     block: block1,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: block1.parentHash,
                     successors: [block2.hash],
@@ -570,7 +570,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block2,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: block1.parentHash,
                     successors: [block3.hash],
@@ -578,7 +578,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block3,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: block1.parentHash,
                     successors: [block5.hash],
@@ -586,7 +586,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block4,
-                    orderedIndex: 1,
+                    forkId: 1,
                     iterableIndex: 1,
                     latestFork: block4.parentHash,
                     successors: [],
@@ -594,7 +594,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block5,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: block1.parentHash,
                     successors: [],
@@ -657,7 +657,7 @@ contract('Testimonium', async (accounts) => {
             const expectedBlocks = [
                 {
                     block: block1,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: ZERO_HASH,
                     successors: [block2.hash],
@@ -665,7 +665,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block2,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: ZERO_HASH,
                     successors: [block3.hash, block5.hash],
@@ -673,7 +673,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block3,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: block2.hash,
                     successors: [block4.hash, block6.hash],
@@ -681,7 +681,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block4,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: block3.hash,
                     successors: [],
@@ -689,7 +689,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block5,
-                    orderedIndex: 1,
+                    forkId: 1,
                     iterableIndex: 0,
                     latestFork: block2.hash,
                     successors: [block7.hash],
@@ -697,7 +697,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block6,
-                    orderedIndex: 2,
+                    forkId: 2,
                     iterableIndex: 2,
                     latestFork: block3.hash,
                     successors: [],
@@ -705,7 +705,7 @@ contract('Testimonium', async (accounts) => {
                 },
                 {
                     block: block7,
-                    orderedIndex: 1,
+                    forkId: 1,
                     iterableIndex: 1,
                     latestFork: block2.hash,
                     successors: [],
@@ -1039,7 +1039,7 @@ contract('Testimonium', async (accounts) => {
             const expectedBlocks = [
                 {
                     block: block1,
-                    orderedIndex: 0,
+                    forkId: 0,
                     iterableIndex: 0,
                     latestFork: ZERO_HASH,
                     successors: [],
@@ -2182,7 +2182,7 @@ contract('Testimonium', async (accounts) => {
                 const expectedBlocks = [
                     {
                         block: block1,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: ZERO_HASH,
                         successors: [],
@@ -2262,7 +2262,7 @@ contract('Testimonium', async (accounts) => {
                 const expectedBlocks = [
                     {
                         block: block1,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: ZERO_HASH,
                         successors: [block3.hash],
@@ -2271,7 +2271,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block3,
-                        orderedIndex: 1,
+                        forkId: 1,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [block6.hash],
@@ -2280,7 +2280,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block6,
-                        orderedIndex: 1,
+                        forkId: 1,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [],
@@ -2365,7 +2365,7 @@ contract('Testimonium', async (accounts) => {
                 const expectedBlocks = [
                     {
                         block: block1,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: ZERO_HASH,
                         successors: [block2.hash],
@@ -2374,7 +2374,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block2,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [block4.hash],
@@ -2383,7 +2383,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block4,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [block5.hash],
@@ -2392,7 +2392,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block5,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [],
@@ -2493,7 +2493,7 @@ contract('Testimonium', async (accounts) => {
                 const expectedBlocks = [
                     {
                         block: block1,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: ZERO_HASH,
                         successors: [block2.hash, block3.hash],
@@ -2502,7 +2502,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block2,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [block5.hash],
@@ -2511,7 +2511,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block3,
-                        orderedIndex: 1,
+                        forkId: 1,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [block6.hash],
@@ -2520,7 +2520,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block5,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [],
@@ -2529,7 +2529,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block6,
-                        orderedIndex: 1,
+                        forkId: 1,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [block8.hash],
@@ -2538,7 +2538,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block8,
-                        orderedIndex: 1,
+                        forkId: 1,
                         iterableIndex: 1,
                         latestFork: block1.hash,
                         successors: [],
@@ -2633,7 +2633,7 @@ contract('Testimonium', async (accounts) => {
                 const expectedBlocks = [
                     {
                         block: block1,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: ZERO_HASH,
                         successors: [block2.hash, block4.hash],
@@ -2642,7 +2642,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block2,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [block5.hash],
@@ -2651,7 +2651,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block4,
-                        orderedIndex: 2,
+                        forkId: 2,
                         iterableIndex: 1,
                         latestFork: block1.hash,
                         successors: [],
@@ -2660,7 +2660,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block5,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [],
@@ -2756,7 +2756,7 @@ contract('Testimonium', async (accounts) => {
                 const expectedBlocks = [
                     {
                         block: block1,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: ZERO_HASH,
                         successors: [block4.hash, block3.hash],
@@ -2765,7 +2765,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block3,
-                        orderedIndex: 1,
+                        forkId: 1,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [block6.hash],
@@ -2774,7 +2774,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block4,
-                        orderedIndex: 2,
+                        forkId: 2,
                         iterableIndex: 0,
                         latestFork: block1.hash,
                         successors: [],
@@ -2783,7 +2783,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block6,
-                        orderedIndex: 1,
+                        forkId: 1,
                         iterableIndex: 1,
                         latestFork: block1.hash,
                         successors: [],
@@ -2846,7 +2846,7 @@ contract('Testimonium', async (accounts) => {
                 const expectedBlocks = [
                     {
                         block: block1,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: ZERO_HASH,
                         successors: [block2.hash],
@@ -2855,7 +2855,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block2,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: ZERO_HASH,
                         successors: [block3.hash],
@@ -2864,7 +2864,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block3,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: ZERO_HASH,
                         successors: [block4.hash],
@@ -2873,7 +2873,7 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block4,
-                        orderedIndex: 0,
+                        forkId: 0,
                         iterableIndex: 0,
                         latestFork: ZERO_HASH,
                         successors: [],
@@ -3148,7 +3148,7 @@ function Block(
     number,
     lockedUntil,
     totalDifficulty,
-    orderedIndex,
+    forkId,
     iterableIndex,
     latestFork
 ) {
@@ -3157,7 +3157,7 @@ function Block(
     this.number = number;
     this.lockedUntil = lockedUntil;
     this.totalDifficulty = totalDifficulty;
-    this.orderedIndex = orderedIndex;
+    this.forkId = forkId;
     this.iterableIndex = iterableIndex;
     this.latestFork = latestFork;
 }
@@ -3169,7 +3169,7 @@ Block.prototype.toString = function blockToString() {
     blockHeight: ${this.number.toString()},
     lockedUntil: ${this.lockedUntil.toString()},
     totalDifficulty: ${this.totalDifficulty.toString()},
-    orderedIndex: ${this.orderedIndex.toString()},
+    forkId: ${this.forkId.toString()},
     iterableIndex: ${this.iterableIndex.toString()},
     latestFork: ${this.latestFork},
   }`
@@ -3191,7 +3191,7 @@ const assertHeaderEqual = (actual, expected) => {
 
 const assertMetaEqual = (actual, expected) => {
     expect(actual.latestFork).to.equal(expected.latestFork);
-    expect(actual.orderedIndex).to.be.bignumber.equal(new BN(expected.orderedIndex));
+    expect(actual.forkId).to.be.bignumber.equal(new BN(expected.forkId));
     expect(actual.iterableIndex).to.be.bignumber.equal(new BN(expected.iterableIndex));
     expect(actual.lockedUntil).to.be.bignumber.equal(expected.lockedUntil);
     expect(actual.successors).to.deep.equal(expected.successors);

@@ -27,7 +27,7 @@ contract TestimoniumCore {
 
     struct MetaInfo {
         bytes32[] successors;    // in case of forks a blockchain can have multiple successors
-        uint orderedIndex;       // index at which the block header is/was stored in the ordered endpoints array
+        uint forkId;
         uint iterableIndex;      // index at which the block header is/was stored in the iterable endpoints array
         bytes32 latestFork;      // contains the hash of the latest node where the current fork branched off
         uint lockedUntil;        // timestamp until which it is possible to dispute a given block
@@ -53,7 +53,7 @@ contract TestimoniumCore {
     mapping (bytes32 => BlockHeader) private headers;  // sha3 hash -> Header
     uint constant lockPeriodInMin = 5 minutes;
     uint constant requiredSucceedingBlocks = 3;
-    bytes32[] orderedEndpoints;   // contains the hash of each fork's recent block
+    uint maxForkId = 0;
     bytes32[] iterableEndpoints;
     bytes32 public longestChainEndpoint;
 
@@ -64,7 +64,8 @@ contract TestimoniumCore {
         BlockHeader memory newHeader;
         (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
         newHeader.totalDifficulty = totalDifficulty;
-        newHeader.meta.orderedIndex = orderedEndpoints.push(newBlockHash) - 1;
+        newHeader.meta.forkId = maxForkId;
+        maxForkId += 1;
         newHeader.meta.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
         newHeader.meta.lockedUntil = now;    // the first block does not need a confirmation period
         headers[newBlockHash] = newHeader;
@@ -96,13 +97,13 @@ contract TestimoniumCore {
     }
 
     function getHeaderMetaInfo(bytes32 blockHash) internal view returns (
-        bytes32[] memory successors, uint orderedIndex, uint iterableIndex, bytes32 latestFork, uint lockedUntil,
+        bytes32[] memory successors, uint forkId, uint iterableIndex, bytes32 latestFork, uint lockedUntil,
         address submitter
     ) {
         BlockHeader storage header = headers[blockHash];
         return (
             header.meta.successors,
-            header.meta.orderedIndex,
+            header.meta.forkId,
             header.meta.iterableIndex,
             header.meta.latestFork,
             header.meta.lockedUntil,
@@ -115,7 +116,7 @@ contract TestimoniumCore {
     }
 
     function getNoOfForks() internal view returns (uint) {
-        return iterableEndpoints.length;    // Important: do not use orderedEndpoints.length since that array contains gaps
+        return iterableEndpoints.length;
     }
 
     // @dev Returns the block hash of the endpoint at the specified index
@@ -152,10 +153,9 @@ contract TestimoniumCore {
         newHeader.meta.submitter = submitter;
 
         // check if parent is an endpoint
-        if (orderedEndpoints[parentHeader.meta.orderedIndex] == newHeader.parent) {
+        if (iterableEndpoints.length > parentHeader.meta.iterableIndex && iterableEndpoints[parentHeader.meta.iterableIndex] == newHeader.parent) {
             // parentHeader is an endpoint (and no fork) -> replace parentHeader in endpoints by new header (since new header becomes new endpoint)
-            orderedEndpoints[parentHeader.meta.orderedIndex] = newBlockHash;
-            newHeader.meta.orderedIndex = parentHeader.meta.orderedIndex;
+            newHeader.meta.forkId = parentHeader.meta.forkId;
             iterableEndpoints[parentHeader.meta.iterableIndex] = newBlockHash;
             newHeader.meta.iterableIndex = parentHeader.meta.iterableIndex;
             delete parentHeader.meta.iterableIndex;
@@ -163,7 +163,8 @@ contract TestimoniumCore {
         }
         else {
             // parentHeader is forked
-            newHeader.meta.orderedIndex = orderedEndpoints.push(newBlockHash) - 1;
+            newHeader.meta.forkId = maxForkId;
+            maxForkId += 1;
             newHeader.meta.iterableIndex = iterableEndpoints.push(newBlockHash) - 1;
             newHeader.meta.latestFork = newHeader.parent;
 
@@ -254,7 +255,7 @@ contract TestimoniumCore {
 
     function isBlockPartOfFork(bytes32 blockHash, bytes32 forkEndpoint) private view returns (bool, bytes32) {
         bytes32 current = forkEndpoint;
-        uint lastForkIndex;
+        uint lastForkId;
         bytes32 confirmationStartHeader;    // the hash from where to start the confirmation count in case the requested block header is part of the longest chain
 
         // Current is still the endpoint
@@ -263,25 +264,25 @@ contract TestimoniumCore {
             confirmationStartHeader = current;
         }
 
-        while (headers[current].meta.orderedIndex > headers[blockHash].meta.orderedIndex) {
-            // go to next fork point but remember last ordered fork index
-            lastForkIndex = headers[current].meta.orderedIndex;
+        while (headers[current].meta.forkId > headers[blockHash].meta.forkId) {
+            // go to next fork point but remember last fork id
+            lastForkId = headers[current].meta.forkId;
             current = headers[current].meta.latestFork;
 
             // set confirmationStartHeader only if it has not been set before
             if (confirmationStartHeader == 0) {
                 if (isUnlocked(current)) {
-                    confirmationStartHeader = getSuccessorByOrderedIndex(current, lastForkIndex);
+                    confirmationStartHeader = getSuccessorByForkId(current, lastForkId);
                 }
             }
         }
 
-        if (headers[current].meta.orderedIndex < headers[blockHash].meta.orderedIndex) {
+        if (headers[current].meta.forkId < headers[blockHash].meta.forkId) {
             return (false, confirmationStartHeader);   // the requested block is NOT part of the longest chain
         }
 
         if (headers[current].blockNumber < headers[blockHash].blockNumber) {
-            // current and the requested block are on a fork with the same orderedIndex
+            // current and the requested block are on a fork with the same fork id
             // however, the requested block comes after the fork point (current), so the requested block cannot be part of the longest chain
             return (false, confirmationStartHeader);
         }
@@ -300,10 +301,10 @@ contract TestimoniumCore {
         return headers[blockHash].meta.lockedUntil < now;
     }
 
-    function getSuccessorByOrderedIndex(bytes32 blockHash, uint orderedIndex) private view returns (bytes32) {
+    function getSuccessorByForkId(bytes32 blockHash, uint forkId) private view returns (bytes32) {
         for (uint i = 0; i < headers[blockHash].meta.successors.length; i++) {
             bytes32 successor = headers[blockHash].meta.successors[i];
-            if (headers[successor].meta.orderedIndex == orderedIndex) {
+            if (headers[successor].meta.forkId == forkId) {
                 return successor;
             }
         }
@@ -355,7 +356,6 @@ contract TestimoniumCore {
 
         if (parentHeader.meta.successors.length == 1) {
             // parentHeader has only one successor --> parentHeader will be an endpoint after pruning
-            orderedEndpoints[parentHeader.meta.orderedIndex] = parentHash;
             parentHeader.meta.iterableIndex = iterableEndpoints.push(parentHash) - 1;
         }
 
@@ -399,9 +399,8 @@ contract TestimoniumCore {
         if (rootHeader.meta.successors.length == 1) {
             submitters = pruneBranch(rootHeader.meta.successors[0], counter);
         }
-        if (orderedEndpoints[rootHeader.meta.orderedIndex] == root) {
+        if (iterableEndpoints.length > rootHeader.meta.iterableIndex && iterableEndpoints[rootHeader.meta.iterableIndex] == root) {
             // root is an endpoint --> delete root in endpoints array, since root will be deleted and thus can no longer be an endpoint
-            delete orderedEndpoints[rootHeader.meta.orderedIndex];
             bytes32 lastIterableElement = iterableEndpoints[iterableEndpoints.length - 1];
             iterableEndpoints[rootHeader.meta.iterableIndex] = lastIterableElement;
             iterableEndpoints.length--;
@@ -507,7 +506,7 @@ contract TestimoniumCore {
     // The validation largely follows the header validation of the geth implementation:
     // https://github.com/ethereum/go-ethereum/blob/aa6005b469fdd1aa7a95f501ce87908011f43159/consensus/ethash/consensus.go#L241
     function checkHeaderValidity(BlockHeader memory header, uint gasUsed) private view {
-        if (orderedEndpoints.length == 0) {
+        if (iterableEndpoints.length == 0) {
             // we do not check header validity for the genesis block
             // since the genesis block is submitted at contract creation.
             return;

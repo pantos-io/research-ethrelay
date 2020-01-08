@@ -4,7 +4,7 @@ import "./MerklePatriciaProof.sol";
 
 contract EthashInterface {
     function verifyPoW(uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint nonce, uint difficulty,
-        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (bool, uint, uint);
+        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (uint, uint);
 }
 
 
@@ -41,6 +41,7 @@ contract TestimoniumCore {
         bytes32 transactionsRoot;
         bytes32 receiptsRoot;
         uint blockNumber;
+        uint gasUsed;
         uint gasLimit;
         bytes32 rlpHeaderHashWithoutNonce;   // sha3 hash of the header without nonce and mix fields
         uint timestamp;                      // block timestamp is needed for difficulty calculation
@@ -62,7 +63,7 @@ contract TestimoniumCore {
     constructor (bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) internal {
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
-        (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
+        (newBlockHash, newHeader) = parseBlockHeader(_rlpHeader);  // block is also validated by this function
         newHeader.totalDifficulty = totalDifficulty;
         newHeader.meta.forkId = maxForkId;
         maxForkId += 1;
@@ -144,7 +145,7 @@ contract TestimoniumCore {
     function submitHeader(bytes memory _rlpHeader, address submitter) internal returns (bytes32) {
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
-        (newBlockHash, newHeader) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
+        (newBlockHash, newHeader) = parseBlockHeader(_rlpHeader);  // block is also validated by this function
 
         // Get parent header and set next pointer to newHeader
         BlockHeader storage parentHeader = headers[newHeader.parent];
@@ -183,7 +184,7 @@ contract TestimoniumCore {
         return newBlockHash;
     }
 
-    event PoWValidationResult(bool isPoWValid, uint errorCode, uint errorInfo);
+    event PoWValidationResult(uint errorCode, uint errorInfo);
     /// @dev If a client is convinced that a certain block header is invalid, it can call this function which validates
     ///      whether enough PoW has been carried out.
     /// @param blockHash the hash of the block to dispute
@@ -197,15 +198,20 @@ contract TestimoniumCore {
         // If an already unlocked block is disputed, certain transactions might have been illegally verified.
         require(!isUnlocked(blockHash), "dispute period is expired");
         BlockHeader memory header = headers[blockHash];
-        bool isPoWCorrect;
-        uint errorCode;
-        uint errorInfo;
-        address[] memory submitters = new address[](0);
-        (isPoWCorrect, errorCode, errorInfo) = ethashContract.verifyPoW(header.blockNumber, header.rlpHeaderHashWithoutNonce,
-            header.nonce, header.difficulty, dataSetLookup, witnessForLookup);
-        emit PoWValidationResult(isPoWCorrect, errorCode, errorInfo);
 
-        if (!isPoWCorrect && errorCode == 2) {   // remove branch only if not enough work was performed, i.e., difficulty is too low (errorCode == 2)
+        bool isHeaderValid = isHeaderValid(header);
+
+        uint returnCode = 0;
+        address[] memory submitters = new address[](0);
+
+        if (isHeaderValid) {
+            uint errorInfo;
+            (returnCode, errorInfo) = ethashContract.verifyPoW(header.blockNumber, header.rlpHeaderHashWithoutNonce,
+                header.nonce, header.difficulty, dataSetLookup, witnessForLookup);
+            emit PoWValidationResult(returnCode, errorInfo);
+        }
+
+        if (!isHeaderValid || returnCode == 2) {   // remove branch only if not enough work was performed, i.e., difficulty is too low (errorCode == 2)
             submitters = removeBranch(blockHash);
         }
 
@@ -442,11 +448,10 @@ contract TestimoniumCore {
     }
 
     event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent, bytes32 transactionsRoot );
-    function parseAndValidateBlockHeader( bytes memory rlpHeader ) private returns (bytes32, BlockHeader memory) {
+    function parseBlockHeader( bytes memory rlpHeader ) private returns (bytes32, BlockHeader memory) {
         BlockHeader memory header;
 
         RLPReader.Iterator memory it = rlpHeader.toRlpItem().iterator();
-        uint gasUsed;   // we do not store gasUsed with the header as we do not need to access it after the header validation has taken place
         uint idx;
         while(it.hasNext()) {
             if( idx == 0 ) header.parent = bytes32(it.next().toUint());
@@ -457,7 +462,7 @@ contract TestimoniumCore {
             else if ( idx == 7 ) header.difficulty = it.next().toUint();
             else if ( idx == 8 ) header.blockNumber = it.next().toUint();
             else if ( idx == 9 ) header.gasLimit = it.next().toUint();
-            else if ( idx == 10 ) gasUsed = it.next().toUint();
+            else if ( idx == 10 ) header.gasUsed = it.next().toUint();
             else if ( idx == 11 ) header.timestamp = it.next().toUint();
             else if ( idx == 14 ) header.nonce = it.next().toUint();
             else it.next();
@@ -478,9 +483,9 @@ contract TestimoniumCore {
         bytes32 rlpHeaderHashWithoutNonce = keccak256(rlpWithoutNonce);
 
         header.rlpHeaderHashWithoutNonce = rlpHeaderHashWithoutNonce;
-        checkHeaderValidity(header, gasUsed);
 
         // Get parent header and set total difficulty
+        require(iterableEndpoints.length == 0 || isBlock(header.parent), "non-existent parent");
         BlockHeader storage parentHeader = headers[header.parent];
         header.totalDifficulty = parentHeader.totalDifficulty + header.difficulty;
 
@@ -505,33 +510,35 @@ contract TestimoniumCore {
     // @dev Validates the fields of a block header without validating the PoW
     // The validation largely follows the header validation of the geth implementation:
     // https://github.com/ethereum/go-ethereum/blob/aa6005b469fdd1aa7a95f501ce87908011f43159/consensus/ethash/consensus.go#L241
-    function checkHeaderValidity(BlockHeader memory header, uint gasUsed) private view {
+    function isHeaderValid(BlockHeader memory header) private view returns (bool) {
         if (iterableEndpoints.length == 0) {
             // we do not check header validity for the genesis block
             // since the genesis block is submitted at contract creation.
-            return;
+            return true;
         }
 
         // validate parent
         BlockHeader storage parent = headers[header.parent];
-        require(parent.nonce != 0, "non-existent parent");
+        if (parent.nonce == 0) return false;  // parent not stored
 
         // validate block number
-        require(parent.blockNumber + 1 == header.blockNumber, "illegal block number");
+        if (parent.blockNumber + 1 != header.blockNumber) return false;
 
         // validate timestamp
-        require(header.timestamp <= now + ALLOWED_FUTURE_BLOCK_TIME, "illegal timestamp");
-        require(parent.timestamp < header.timestamp, "illegal timestamp");
+        if (header.timestamp > now + ALLOWED_FUTURE_BLOCK_TIME) return false;
+        if (parent.timestamp >= header.timestamp) return false;
 
         // validate difficulty
         uint expectedDifficulty = calculateDifficulty(parent, header.timestamp);
-        require(expectedDifficulty == header.difficulty, "wrong difficulty");
+        if (expectedDifficulty != header.difficulty) return false;
 
         // validate gas limit
-        require(header.gasLimit <= MAX_GAS_LIMIT, "gas limit too high");  // verify that the gas limit is <= 2^63-1
-        require(header.gasLimit >= MIN_GAS_LIMIT, "gas limit too small"); // verify that the gas limit is >= 5000
-        require(gasLimitWithinBounds(int64(header.gasLimit), int64(parent.gasLimit)), "illegal gas limit");
-        require(gasUsed <= header.gasLimit, "gas used is higher than the gas limit"); // verify that the gasUsed is <= gasLimit
+        if (header.gasLimit > MAX_GAS_LIMIT) return false;
+        if (header.gasLimit < MIN_GAS_LIMIT) return false;
+        if (!gasLimitWithinBounds(int64(header.gasLimit), int64(parent.gasLimit))) return false;
+        if (header.gasUsed > header.gasLimit) return false;
+
+        return true;
     }
 
     function gasLimitWithinBounds(int64 gasLimit, int64 parentGasLimit) private pure returns (bool) {

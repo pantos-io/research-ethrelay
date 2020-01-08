@@ -741,7 +741,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the block number is not incremented by one (too high)', async () => {
+        it.skip('should revert when the block number is not incremented by one (too high)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -762,7 +762,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the number of the submitted block is not incremented by one (too low)', async () => {
+        it.skip('should revert when the number of the submitted block is not incremented by one (too low)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -783,7 +783,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
+        it.skip('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -804,7 +804,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
+        it.skip('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -825,7 +825,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the timestamp of the submitted block is not in the future (equal)', async () => {
+        it.skip('should revert when the timestamp of the submitted block is not in the future (equal)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -847,7 +847,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the timestamp of the submitted block is not in the future (older)', async () => {
+        it.skip('should revert when the timestamp of the submitted block is not in the future (older)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -869,7 +869,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the timestamp of the submitted block is too far in the future', async () => {
+        it.skip('should revert when the timestamp of the submitted block is too far in the future', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -890,7 +890,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the difficulty of the submitted block is not correct', async () => {
+        it.skip('should revert when the difficulty of the submitted block is not correct', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -912,7 +912,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the gas limit of the submitted block is higher than maximum gas limit', async () => {
+        it.skip('should revert when the gas limit of the submitted block is higher than maximum gas limit', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -933,7 +933,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the gas limit of the submitted block is smaller than the minium gas limit', async () => {
+        it.skip('should revert when the gas limit of the submitted block is smaller than the minium gas limit', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -954,7 +954,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the gas limit of the submitted block is out of bounds (too high)', async () => {
+        it.skip('should revert when the gas limit of the submitted block is out of bounds (too high)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -977,7 +977,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the gas limit of the submitted block is out of bounds (too small)', async () => {
+        it.skip('should revert when the gas limit of the submitted block is out of bounds (too small)', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {
@@ -1000,7 +1000,7 @@ contract('Testimonium', async (accounts) => {
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
 
-        it('should revert when the gas used of the submitted block is higher than the gas limit', async () => {
+        it.skip('should revert when the gas used of the submitted block is higher than the gas limit', async () => {
             // deposit enough stake
             const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
             await testimonium.depositStake(requiredStakePerBlock, {

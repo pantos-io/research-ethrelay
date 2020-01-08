@@ -4,7 +4,7 @@ import "./MerklePatriciaProof.sol";
 
 contract EthashInterface {
     function verifyPoW(uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint nonce, uint difficulty,
-        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (bool, uint, uint);
+        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (uint, uint);
 }
 
 
@@ -129,7 +129,7 @@ contract TestimoniumCore {
         return headers[blockHash].stateRoot;
     }
 
-    event PoWValidationResult(bool isPoWValid, uint errorCode, uint errorInfo);
+    event PoWValidationResult(uint errorCode, uint errorInfo);
     /// @dev Accepts an RLP encoded header. The provided header is parsed, validated and some fields are stored.
     function submitHeader(bytes memory _rlpHeader, uint[] memory dataSetLookup, uint[] memory witnessForLookup, address submitter) internal returns (bytes32) {
         bytes32 newBlockHash;
@@ -139,10 +139,10 @@ contract TestimoniumCore {
         (newBlockHash, newHeader, rlpHeaderHashWithoutNonce, nonce) = parseAndValidateBlockHeader(_rlpHeader);  // block is also validated by this function
 
         // verify Ethash
-        (bool isPoWCorrect, , ) = ethashContract.verifyPoW(newHeader.blockNumber, rlpHeaderHashWithoutNonce,
+        (uint returnCode, ) = ethashContract.verifyPoW(newHeader.blockNumber, rlpHeaderHashWithoutNonce,
             nonce, newHeader.difficulty, dataSetLookup, witnessForLookup);
-//        emit PoWValidationResult(isPoWCorrect, errorCode, errorInfo);
-        require(isPoWCorrect, "Ethash validation failed");
+        emit PoWValidationResult(returnCode, 0);
+        require(returnCode == 0, "Ethash validation failed");
 
         // Get parent header and set next pointer to newHeader
         BlockHeader storage parentHeader = headers[newHeader.parent];

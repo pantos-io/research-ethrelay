@@ -63,7 +63,7 @@ contract TestimoniumCore {
     constructor (bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) internal {
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
-        (newBlockHash, newHeader) = parseBlockHeader(_rlpHeader);  // block is also validated by this function
+        (newBlockHash, newHeader) = parseBlockHeader(_rlpHeader, true);  // block is also validated by this function
         newHeader.totalDifficulty = totalDifficulty;
         newHeader.meta.forkId = maxForkId;
         maxForkId += 1;
@@ -145,7 +145,7 @@ contract TestimoniumCore {
     function submitHeader(bytes memory _rlpHeader, address submitter) internal returns (bytes32) {
         bytes32 newBlockHash;
         BlockHeader memory newHeader;
-        (newBlockHash, newHeader) = parseBlockHeader(_rlpHeader);  // block is also validated by this function
+        (newBlockHash, newHeader) = parseBlockHeader(_rlpHeader, false);  // block is also validated by this function
 
         // Get parent header and set next pointer to newHeader
         BlockHeader storage parentHeader = headers[newHeader.parent];
@@ -448,7 +448,7 @@ contract TestimoniumCore {
     }
 
     event SubmitBlockHeader( bytes32 hash, bytes32 hashWithoutNonce, uint nonce, uint difficulty, bytes32 parent, bytes32 transactionsRoot );
-    function parseBlockHeader( bytes memory rlpHeader ) private returns (bytes32, BlockHeader memory) {
+    function parseBlockHeader( bytes memory rlpHeader, bool isGenesis ) private returns (bytes32, BlockHeader memory) {
         BlockHeader memory header;
 
         RLPReader.Iterator memory it = rlpHeader.toRlpItem().iterator();
@@ -485,7 +485,7 @@ contract TestimoniumCore {
         header.rlpHeaderHashWithoutNonce = rlpHeaderHashWithoutNonce;
 
         // Get parent header and set total difficulty
-        require(iterableEndpoints.length == 0 || isBlock(header.parent), "non-existent parent");
+        require(isGenesis || isBlock(header.parent), "non-existent parent");
         BlockHeader storage parentHeader = headers[header.parent];
         header.totalDifficulty = parentHeader.totalDifficulty + header.difficulty;
 

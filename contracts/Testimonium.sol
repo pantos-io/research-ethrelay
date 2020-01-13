@@ -103,6 +103,7 @@ contract Testimonium is TestimoniumCore {
         }
         // client that triggered the dispute receives the collected stake
         clientStake[msg.sender] += collectedStake;
+        require(false, "intended violation of require check");  // undo pruneBranch for evaluation purpose
     }
 
     function verify(uint8 verificationType, uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedValue,
@@ -131,7 +132,6 @@ contract Testimonium is TestimoniumCore {
         address payable submitterAddr = address(uint160(submitter));
         submitterAddr.transfer(feeInWei);
 
-        require(false, "intended violation of require check");
         return result;
     }
 

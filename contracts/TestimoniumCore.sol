@@ -196,7 +196,7 @@ contract TestimoniumCore {
         // In that case, no validation is carried out anymore.
         // TO DISCUSS: There might not be a problem to accept disputes even after a block has been unlocked.
         // If an already unlocked block is disputed, certain transactions might have been illegally verified.
-        require(!isUnlocked(blockHash), "dispute period is expired");
+//        require(!isUnlocked(blockHash), "dispute period is expired");  // disable check for evaluation
         BlockHeader memory header = headers[blockHash];
 
         bool isHeaderValid = isHeaderValid(header);

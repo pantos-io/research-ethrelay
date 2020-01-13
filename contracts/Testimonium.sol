@@ -131,6 +131,7 @@ contract Testimonium is TestimoniumCore {
         address payable submitterAddr = address(uint160(submitter));
         submitterAddr.transfer(feeInWei);
 
+        require(false, "intended violation of require check");
         return result;
     }
 

@@ -211,9 +211,9 @@ contract TestimoniumCore {
             emit PoWValidationResult(returnCode, errorInfo);
         }
 
-        if (!isHeaderValid || returnCode == 2) {   // remove branch only if not enough work was performed, i.e., difficulty is too low (errorCode == 2)
+//        if (!isHeaderValid || returnCode == 2) {   // remove branch only if not enough work was performed, i.e., difficulty is too low (errorCode == 2)
             submitters = removeBranch(blockHash);
-        }
+//        }
 
         return submitters;
     }
@@ -246,7 +246,7 @@ contract TestimoniumCore {
         (bool isPartOfLongestPoWCFork, bytes32 confirmationStart) = isBlockPartOfFork(blockHash, longestChainEndpoint);
         require(isPartOfLongestPoWCFork, "block is not part of the longest PoW chain");
 
-        if (headers[confirmationStart].blockNumber <= headers[blockHash].blockNumber + noOfConfirmations) {
+        if (headers[confirmationStart].blockNumber < headers[blockHash].blockNumber + noOfConfirmations) {
             noOfConfirmations = noOfConfirmations - uint8(headers[confirmationStart].blockNumber - headers[blockHash].blockNumber);
             bool unlockedAndConfirmed = hasEnoughConfirmations(confirmationStart, noOfConfirmations);
             require(unlockedAndConfirmed, "block is locked or not confirmed by enough blocks");
@@ -304,7 +304,8 @@ contract TestimoniumCore {
     }
 
     function isUnlocked(bytes32 blockHash) internal view returns (bool) {
-        return headers[blockHash].meta.lockedUntil < now;
+        return true;
+//        return headers[blockHash].meta.lockedUntil < now;
     }
 
     function getSuccessorByForkId(bytes32 blockHash, uint forkId) private view returns (bytes32) {

@@ -638,7 +638,12 @@ contract TestimoniumCore {
         if (x < 131072) {
             x = 131072;
         }
+
         uint bombDelayFromParent = 5000000 - 1;
+        if (parent.blockNumber + 1 >= 9200000) {
+            // https://eips.ethereum.org/EIPS/eip-2384
+            bombDelayFromParent = 9000000 - 1;
+        }
 
         // calculate a fake block number for the ice-age delay
         // Specification: https://eips.ethereum.org/EIPS/eip-1234

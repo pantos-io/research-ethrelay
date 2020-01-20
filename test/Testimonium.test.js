@@ -1992,18 +1992,18 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block3,
-                        forkId: 1,
+                        forkId: 0,
                         iterableIndex: 0,
-                        latestFork: block1.hash,
+                        latestFork: ZERO_HASH,
                         successors: [block6.hash],
                         lockedUntil: block3LockedUntil,
                         submitter: accounts[0]
                     },
                     {
                         block: block6,
-                        forkId: 1,
+                        forkId: 0,
                         iterableIndex: 0,
-                        latestFork: block1.hash,
+                        latestFork: ZERO_HASH,
                         successors: [],
                         lockedUntil: block6LockedUntil,
                         submitter: accounts[0]
@@ -2098,7 +2098,7 @@ contract('Testimonium', async (accounts) => {
                         block: block2,
                         forkId: 0,
                         iterableIndex: 0,
-                        latestFork: block1.hash,
+                        latestFork: ZERO_HASH,
                         successors: [block4.hash],
                         lockedUntil: block2LockedUntil,
                         submitter: accounts[0]
@@ -2107,7 +2107,7 @@ contract('Testimonium', async (accounts) => {
                         block: block4,
                         forkId: 0,
                         iterableIndex: 0,
-                        latestFork: block1.hash,
+                        latestFork: ZERO_HASH,
                         successors: [block5.hash],
                         lockedUntil: block4LockedUntil,
                         submitter: accounts[0]
@@ -2116,7 +2116,7 @@ contract('Testimonium', async (accounts) => {
                         block: block5,
                         forkId: 0,
                         iterableIndex: 0,
-                        latestFork: block1.hash,
+                        latestFork: ZERO_HASH,
                         successors: [],
                         lockedUntil: block5LockedUntil,
                         submitter: accounts[0]

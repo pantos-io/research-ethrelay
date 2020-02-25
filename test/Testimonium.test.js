@@ -736,291 +736,10 @@ contract('Testimonium', async (accounts) => {
             await expectRevert(testimonium.submitBlock(rlpHeader, {
                 from: accounts[0],
                 gasPrice: GAS_PRICE_IN_WEI
-            }), 'non-existent parent');
+            }), 'parent does not exist');
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
-
-        it('should revert when the block number is not incremented by one (too high)', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithWrongBlockNumber.number = GENESIS_BLOCK + 2;
-            blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
-            const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'illegal block number');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the number of the submitted block is not incremented by one (too low)', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithWrongBlockNumber.number = GENESIS_BLOCK - 1;
-            blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
-            const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'illegal block number');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithWrongBlockNumber.number = GENESIS_BLOCK;
-            blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
-            const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'illegal block number');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the number of the submitted block is not incremented by one (equal)', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithWrongBlockNumber.number = GENESIS_BLOCK;
-            blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
-            const rlpHeader = createRLPHeader(blockWithWrongBlockNumber);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'illegal block number');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the timestamp of the submitted block is not in the future (equal)', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-            const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithPastTimestamp.timestamp = genesisBlock.timestamp;
-            blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
-            const rlpHeader = createRLPHeader(blockWithPastTimestamp);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'illegal timestamp');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the timestamp of the submitted block is not in the future (older)', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-            const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithPastTimestamp.timestamp = genesisBlock.timestamp - 1;
-            blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
-            const rlpHeader = createRLPHeader(blockWithPastTimestamp);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'illegal timestamp');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the timestamp of the submitted block is too far in the future', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithPastTimestamp.timestamp = time.latest() + ALLOWED_FUTURE_BLOCK_TIME;
-            blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
-            const rlpHeader = createRLPHeader(blockWithPastTimestamp);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'illegal timestamp');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the difficulty of the submitted block is not correct', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const blockWithIllegalDifficulty = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            const newDifficulty = web3.utils.toBN(blockWithIllegalDifficulty.difficulty).add(web3.utils.toBN(1000));
-            blockWithIllegalDifficulty.difficulty = newDifficulty.toString();
-            blockWithIllegalDifficulty.hash = calculateBlockHash(blockWithIllegalDifficulty);
-            const rlpHeader = createRLPHeader(blockWithIllegalDifficulty);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'wrong difficulty');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the gas limit of the submitted block is higher than maximum gas limit', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithIllegalGasLimit.gasLimit = MAX_GAS_LIMIT.add(new BN(1));
-            blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
-            const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'gas limit too high');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the gas limit of the submitted block is smaller than the minium gas limit', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithIllegalGasLimit.gasLimit = MIN_GAS_LIMIT.sub(new BN(1));
-            blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
-            const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'gas limit too small');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the gas limit of the submitted block is out of bounds (too high)', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-            const limit = new BN(genesisBlock.gasLimit).div(GAS_LIMIT_BOUND_DIVISOR);
-            const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithIllegalGasLimit.gasLimit = new BN(genesisBlock.gasLimit).add(limit).add(new BN(1));
-            blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
-            const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'illegal gas limit');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the gas limit of the submitted block is out of bounds (too small)', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-            const limit = new BN(genesisBlock.gasLimit).div(GAS_LIMIT_BOUND_DIVISOR);
-            const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithIllegalGasLimit.gasLimit = new BN(genesisBlock.gasLimit).sub(limit).sub(new BN(1));
-            blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
-            const rlpHeader = createRLPHeader(blockWithIllegalGasLimit);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'illegal gas limit');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
-        it('should revert when the gas used of the submitted block is higher than the gas limit', async () => {
-            // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
-                from: accounts[0],
-                value: requiredStakePerBlock,
-                gasPrice: GAS_PRICE_IN_WEI
-            });
-
-            const blockWithIllegalGasUsed = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            blockWithIllegalGasUsed.gasUsed = new BN(blockWithIllegalGasUsed.gasLimit).add(new BN(1));
-            blockWithIllegalGasUsed.hash = calculateBlockHash(blockWithIllegalGasUsed);
-            const rlpHeader = createRLPHeader(blockWithIllegalGasUsed);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
-                from: accounts[0],
-                gasPrice: GAS_PRICE_IN_WEI
-            }), 'gas used is higher than the gas limit');
-
-            await withdrawStake(requiredStakePerBlock, accounts[0]);
-        });
-
 
         // Test Scenario:
         //
@@ -1066,7 +785,7 @@ contract('Testimonium', async (accounts) => {
             expect(submittedHeaders.length).to.equal(0);
 
             const header = await testimonium.getHeader(block1.hash);
-            expect(header.parent).to.equal(ZERO_HASH);  // check whether block does not exist in the contract
+            expect(header.hash).to.equal(ZERO_HASH);  // check whether block does not exist in the contract
         });
 
         it("should accept block due to enough unused stake", async () => {
@@ -1083,7 +802,7 @@ contract('Testimonium', async (accounts) => {
             expect(submittedHeaders[0]).to.equal(block1.hash);
 
             const header = await testimonium.getHeader(block1.hash);
-            expect(header.parent).to.equal(block1.parentHash);
+            expect(header.hash).to.equal(block1.hash);
 
             await withdrawStake(stake, accounts[0]);
         });
@@ -1114,7 +833,7 @@ contract('Testimonium', async (accounts) => {
             const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
             const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
             const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
-            const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
+            const requestedBlockInRlp = createRLPHeader(block1);
             const rlpEncodedTx = web3.utils.hexToBytes("0xf86b028502540be40082520894c5764928a94f13945ac9bed4613ee736f1cf65fc870cd082d184e0008026a024630f181ee975d3acf71d91eef1eebc565e723e394adbbf0b346f77d83af0f4a074c4e8e6a7f6ab446660637682efe2809bd6adc1cd9ddd288c0fbc5f2d12c89c");
             const path = web3.utils.hexToBytes("0x81a8");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf904ccb90134f90131a064e0f904be2c8f5d2bcf26b7546c6e5c685309aca6b64a4d7bbae8ff64ab369ea0b476aa430c8d17551dd4023c7d19bfe2ed867df51d9bd996ea82fb3b94bb8e60a078a3ba904db716bed50e89e67e4d1fc152338347542bcab7935febb02e5471c0a06f21f1f73702d35bca8f57c9e1656b747f0004f23a073061d8ed88649427810ca0242eb705b81f0ae1e11977b02481ce31a37d8dd11d2d84af7420834b93343332a068d3fce6c253a3580d01b4a2755cc4d92fed085fd567b8baf1d77161ac1b41cca00b259ae6f5eeda338fdabe23b830922515a632eb640c884ab477cb12d55bccf9a0d23bc74430048459efcd8820829207e705c1d9fb76aa4ce7daf76bcbbfad7ad0a068b734aa7e95bcb0e97611d0e5488556c1c6655889273c6f6e6ec43b6400fb3c8080808080808080b853f851a0f929cf7b8348dc73646c4058ef112ebaf9a1f041513f0becb221d50ac9b0ee88a062f1af03226a331c42918432660614140f99fa2f92a26b7fb6bd0f42dd3878c9808080808080808080808080808080b8b3f8b18080808080808080a094aac73e4c058372d5a80c0b7653bdea9276e6ce9a71b055ee059e6845f83890a0b27b821e7f47ae0bf86af752646b72bcca32f59471ee41be46db7ec4ff462408a0ca1bafc752d8e980bd9ecd8970f72b3fd3ef8ba5dae60f85a35058b7b1753445a05d193325ca6ccd69d2d667d3db9df9062b37b158fa62d89fdcf66d064d8225c7a01ac9ae461be3985c9197334cd2c69d7d534a8f49e9f358bc4ef48e220935db8e80808080b90214f90211a0c829cc875c044dcb90b86098de7598f32abeab6a7b2d6bd23199c2671b551a08a0eb92fc5d9df9f4a82759be2f37c2f3a153de2ebfde585ce8bf94d561c97e472ca01650b87c9e0ee4844079d9c38ccfbaaf9004864a3b03495be1a81b050df5ec1aa0a2de5fb828582d1ec48cd0ce73505b7d0a2284df43285f603d1e86185377def0a09f5baaf424d1338a896e8f61bab3f495a29f73e036a0bfe76f37fd1d84562b49a0688b365dd6c76cadfdaf5b35bb2c17f37fd358a568f3d056ae79ab9f18f2b4a9a0abe293657be1ed9f862868afe7dfde1ac207795493bef33f6f6bb029834d9a4ca0275a4fed8762b3f422b5fe8b3aacefb1675eb89a05144afbbd068b3626b617d7a0dcecfdec736d7883c8665729aaf02505a1d89622e1e25c962454633eed8cdb16a0a2a95bd9e724d1fc8b4acbd2e1e61e101272263b775c3e97ac9132dd973d474da0c9fb78deadf234efd43c925ce16a76198c47586f492aefd7d459396608fc2bdea06e855d3813257697fb66a03ef94119c73f98c71c2e1c3290cb15042a27ac8e1ca01d9e91bc3a6601979ad66e2139d2bb186ffc822b80260f6470aa60742bb87f08a0f860f5e1d3f5c6d7c8721d343f7a5aebb163aa1ea9318fbd7110ab3b5b8089a1a02aaa99a83589062b6c07157ee84e222427db1189edc8a78e311993217827259ba0b8bb75030b74f508233b200c70bf64906332138cef2678710e00585ea39a72f580b872f87020b86df86b028502540be40082520894c5764928a94f13945ac9bed4613ee736f1cf65fc870cd082d184e0008026a024630f181ee975d3acf71d91eef1eebc565e723e394adbbf0b346f77d83af0f4a074c4e8e6a7f6ab446660637682efe2809bd6adc1cd9ddd288c0fbc5f2d12c89c");
@@ -1149,7 +868,7 @@ contract('Testimonium', async (accounts) => {
                     let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
                     let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-                    let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                    let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                         from: verifierAddr,
                         value: verificationFee,
                         gasPrice: GAS_PRICE_IN_WEI
@@ -1164,7 +883,7 @@ contract('Testimonium', async (accounts) => {
                     expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
                 }
                 for (let j = i; j < expectedBlocks.length; j++) {
-                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                         from: verifierAddr,
                         value: verificationFee,
                         gasPrice: GAS_PRICE_IN_WEI
@@ -1210,7 +929,7 @@ contract('Testimonium', async (accounts) => {
             block4.nonce = addToHex(block4.nonce, 1);
             block4.hash = calculateBlockHash(block4);
 
-            const requestedBlockHash = web3.utils.hexToBytes(block4.hash);
+            const requestedBlockInRlp = createRLPHeader(block4);
             const expectedBlocks = [
                 {
                     block: block1,
@@ -1236,7 +955,7 @@ contract('Testimonium', async (accounts) => {
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
                 console.log((await time.latest()).toString());
                 for (let j = 0; j < expectedBlocks.length; j++) {
-                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                         from: verifierAddr,
                         value: verificationFee,
                         gasPrice: GAS_PRICE_IN_WEI
@@ -1315,7 +1034,7 @@ contract('Testimonium', async (accounts) => {
             block12.parentHash = block11.hash;
             block12.hash = calculateBlockHash(block12);
 
-            const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
+            const requestedBlockInRlp = createRLPHeader(block1);
             const expectedBlocks = [
                 {block: block1},
                 {block: block2},
@@ -1363,7 +1082,7 @@ contract('Testimonium', async (accounts) => {
                         let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
                         let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-                        let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                        let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                             from: verifierAddr,
                             value: verificationFee,
                             gasPrice: GAS_PRICE_IN_WEI
@@ -1378,7 +1097,7 @@ contract('Testimonium', async (accounts) => {
                         expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
                     }
                     if (expectedVerificationResults[i][j] === -1) {
-                        await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                        await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                             from: verifierAddr,
                             value: verificationFee,
                             gasPrice: GAS_PRICE_IN_WEI
@@ -1463,7 +1182,7 @@ contract('Testimonium', async (accounts) => {
             block12.parentHash = block10.hash;
             block12.hash = calculateBlockHash(block12);
 
-            const requestedBlockHash = web3.utils.hexToBytes(block2.hash);
+            const requestedBlockInRlp = createRLPHeader(block2);
             const expectedBlocks = [
                 {block: block1},
                 {block: block2},
@@ -1511,7 +1230,7 @@ contract('Testimonium', async (accounts) => {
                         let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
                         let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-                        let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                        let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                             from: verifierAddr,
                             value: verificationFee,
                             gasPrice: GAS_PRICE_IN_WEI
@@ -1526,7 +1245,7 @@ contract('Testimonium', async (accounts) => {
                         expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
                     }
                     if (expectedVerificationResults[i][j] === -1) {
-                        await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                        await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                             from: verifierAddr,
                             value: verificationFee,
                             gasPrice: GAS_PRICE_IN_WEI
@@ -1612,7 +1331,7 @@ contract('Testimonium', async (accounts) => {
             block12.parentHash = block10.hash;
             block12.hash = calculateBlockHash(block12);
 
-            const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
+            const requestedBlockInRlp = createRLPHeader(block1);
             const expectedBlocks = [
                 {block: block1},
                 {block: block2},
@@ -1630,7 +1349,7 @@ contract('Testimonium', async (accounts) => {
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
-            await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1661,7 +1380,7 @@ contract('Testimonium', async (accounts) => {
             const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
             const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
             const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
-            const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
+            const requestedBlockInRlp = createRLPHeader(block1);
             const rlpEncodedTx = web3.utils.hexToBytes("0xf86b028502540be40082520894c5764928a94f13945ac9bed4613ee736f1cf65fc870cd082d184e0008026a024630f181ee975d3acf71d91eef1eebc565e723e394adbbf0b346f77d83af0f4a074c4e8e6a7f6ab446660637682efe2809bd6adc1cd9ddd288c0fbc5f2d12c89c");
             const path = web3.utils.hexToBytes("0x81a8");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf904ccb90134f90131a064e0f904be2c8f5d2bcf26b7546c6e5c685309aca6b64a4d7bbae8ff64ab369ea0b476aa430c8d17551dd4023c7d19bfe2ed867df51d9bd996ea82fb3b94bb8e60a078a3ba904db716bed50e89e67e4d1fc152338347542bcab7935febb02e5471c0a06f21f1f73702d35bca8f57c9e1656b747f0004f23a073061d8ed88649427810ca0242eb705b81f0ae1e11977b02481ce31a37d8dd11d2d84af7420834b93343332a068d3fce6c253a3580d01b4a2755cc4d92fed085fd567b8baf1d77161ac1b41cca00b259ae6f5eeda338fdabe23b830922515a632eb640c884ab477cb12d55bccf9a0d23bc74430048459efcd8820829207e705c1d9fb76aa4ce7daf76bcbbfad7ad0a068b734aa7e95bcb0e97611d0e5488556c1c6655889273c6f6e6ec43b6400fb3c8080808080808080b853f851a0f929cf7b8348dc73646c4058ef112ebaf9a1f041513f0becb221d50ac9b0ee88a062f1af03226a331c42918432660614140f99fa2f92a26b7fb6bd0f42dd3878c9808080808080808080808080808080b8b3f8b18080808080808080a094aac73e4c058372d5a80c0b7653bdea9276e6ce9a71b055ee059e6845f83890a0b27b821e7f47ae0bf86af752646b72bcca32f59471ee41be46db7ec4ff462408a0ca1bafc752d8e980bd9ecd8970f72b3fd3ef8ba5dae60f85a35058b7b1753445a05d193325ca6ccd69d2d667d3db9df9062b37b158fa62d89fdcf66d064d8225c7a01ac9ae461be3985c9197334cd2c69d7d534a8f49e9f358bc4ef48e220935db8e80808080b90214f90211a0c829cc875c044dcb90b86098de7598f32abeab6a7b2d6bd23199c2671b551a08a0eb92fc5d9df9f4a82759be2f37c2f3a153de2ebfde585ce8bf94d561c97e472ca01650b87c9e0ee4844079d9c38ccfbaaf9004864a3b03495be1a81b050df5ec1aa0a2de5fb828582d1ec48cd0ce73505b7d0a2284df43285f603d1e86185377def0a09f5baaf424d1338a896e8f61bab3f495a29f73e036a0bfe76f37fd1d84562b49a0688b365dd6c76cadfdaf5b35bb2c17f37fd358a568f3d056ae79ab9f18f2b4a9a0abe293657be1ed9f862868afe7dfde1ac207795493bef33f6f6bb029834d9a4ca0275a4fed8762b3f422b5fe8b3aacefb1675eb89a05144afbbd068b3626b617d7a0dcecfdec736d7883c8665729aaf02505a1d89622e1e25c962454633eed8cdb16a0a2a95bd9e724d1fc8b4acbd2e1e61e101272263b775c3e97ac9132dd973d474da0c9fb78deadf234efd43c925ce16a76198c47586f492aefd7d459396608fc2bdea06e855d3813257697fb66a03ef94119c73f98c71c2e1c3290cb15042a27ac8e1ca01d9e91bc3a6601979ad66e2139d2bb186ffc822b80260f6470aa60742bb87f08a0f860f5e1d3f5c6d7c8721d343f7a5aebb163aa1ea9318fbd7110ab3b5b8089a1a02aaa99a83589062b6c07157ee84e222427db1189edc8a78e311993217827259ba0b8bb75030b74f508233b200c70bf64906332138cef2678710e00585ea39a72f580b872f87020b86df86b028502540be40082520894c5764928a94f13945ac9bed4613ee736f1cf65fc870cd082d184e0008026a024630f181ee975d3acf71d91eef1eebc565e723e394adbbf0b346f77d83af0f4a074c4e8e6a7f6ab446660637682efe2809bd6adc1cd9ddd288c0fbc5f2d12c89c");
@@ -1695,7 +1414,7 @@ contract('Testimonium', async (accounts) => {
             let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
             let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1734,7 +1453,7 @@ contract('Testimonium', async (accounts) => {
             const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
             const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
             const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
-            const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
+            const requestedBlockInRlp = createRLPHeader(block1);
             const rlpEncodedTx = web3.utils.hexToBytes("0xf8aa818d84b2d05e0083200b209481ea14e770101e2dfa61df3f38b663084bb0b7e880b844a9059cbb0000000000000000000000006996e47d5e2c91c26691de113e2361eeab964d8500000000000000000000000000000000000000000000003b658cfb29b608800026a0872c70c6dc720398eaac1efbed3b4f52aaf594f7d5490d6875b306f788bd9e7fa06684e264433eef21d57bde66fb6143171b29c9816eb122d2ebef59de120a6769");
             const path = web3.utils.hexToBytes("0x71");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90401b90134f90131a097e42bbdc349cedf2b1d12a86af52188303140beb0281f5d3f67b7052b11d350a00c68d9cba2174e909dd49f29fd052be03983d8ab103d4265f574daafe1eaa716a0640af8ccc0f62c68c2fd92f9336bd17da1e5ee5e17b6469ddbac6419f24f491ba0db6159aca85160bf87c8db0a27b15d6b7c14418a3a23ddacda6a6f300d2d4f1da0f18bf4a7a483897d772a9d6a1ffb1fbabb4c373eb3ca340fe5e073870bdd87efa0208113fa0be9974903b7487c6c56dbdce6e8bedc5d1cab1839eafbb87bd6fd75a037cf520c7e88309692e7688c199259b97dd669d4c3175bbabf688e789a1c54c6a083e562141a2ce249b5902d7d1c91146e5bb7a554aba45f2389d5d21d784f6642a07a9111372fe3306b1cd396bf8b5ea59db74772bb44c1d72a93b748bfe24b28628080808080808080b90214f90211a00af4d660415a685b9a59c1f5c54281e61dcaf01d3badb7b79e28260e4b9128caa0971027721be8afd6f353358da04b086e888df0549887348d52c7ebab9f1f3068a0b04491a5df5dbb103adabad39f55e2d66af96b996821a5a77a56fef9984cb010a050dc6710ffb88972934d96ee512cef5a56a76e03ce5997437052149383f09034a0f8f048156e5b3e6602d7872a040233b10f524250824cd4c598b297da7080d042a0d1734e0c1492d5e7f25048efd7bac0d2dc105c25c20681c39a8989655a6773dca0a75e3fa9a939f497c1abcd1d884d445a0b2f32f0ee5ce6fb86463048807749f8a096d8e1bcf9d3c7fdcab7409365ebc2f0b3b5b502fd2eeed563d66179930795a5a016e21786de0cb6e7c952f3be3900e2ef34f2ce7b8d5886f82fc194b0757f2ecda084b42cbf093d9db262105fd745eb3b1a2bb69a4179c922c28a4d7deffc507308a007e4b8f19ce14f4c7f9ff662a3de4c040586282e4e5f5b7d431d6aa158a01924a06e8600225413de53997af8b439bc270924c5649642a8d0229eb646dd075a968aa0499e66540cf915f8607651cddd9b8dd988bebe777049263b02dc357f869fafeda0c3f85a81cf6111221cbfddb47ad950b744739fd70be205ebd7671dd3169de604a0543e2e6ab126477758981f20fecd129e811b6b99225428d63bf95995709a0deaa0fdf4538f5e0553ef05bd315851520d4c6b711d548dd854b316fb42bf30e5558e80b8b1f8af20b8acf8aa818d84b2d05e0083200b209481ea14e770101e2dfa61df3f38b663084bb0b7e880b844a9059cbb0000000000000000000000006996e47d5e2c91c26691de113e2361eeab964d8500000000000000000000000000000000000000000000003b658cfb29b608800026a0872c70c6dc720398eaac1efbed3b4f52aaf594f7d5490d6875b306f788bd9e7fa06684e264433eef21d57bde66fb6143171b29c9816eb122d2ebef59de120a6769");
@@ -1768,7 +1487,7 @@ contract('Testimonium', async (accounts) => {
             let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
             let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1808,7 +1527,7 @@ contract('Testimonium', async (accounts) => {
             const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
             const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
             const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 6);  // this block will not be submitted
-            const requestedBlockHash = web3.utils.hexToBytes(block6.hash);
+            const requestedBlockInRlp = createRLPHeader(block6);
             const rlpEncodedTx = web3.utils.hexToBytes("0xf86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
             const path = web3.utils.hexToBytes("0x80");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90203b90134f90131a046a11582bfd9da02a0a857f572bbe08d0467502cb212d02048e9303986dabdfba0d7d90c16309409eca72d959ff2419b5f2feac4ba76acda1b3de8651db65b4c91a0b0a8904b11ada7fe8ada7c51c01a13deb2833b47f82a964d66d0b9ec9bd160baa061a791ece33a5cba8eb27345a4a58ab911d7b4684731b0ae8aa97ffc992b9bc8a0b135e0c562a97ca9bdab66f0187ac044dfbf7a3567d21acbe1363bf76a6b8768a07467253e2430335ac71e8ff93cbd8f71d7b501efdc9a9b5c40c042c6144df9f2a077a192fccfb384092b022e8c8fc5e629e1048d62c538401d15fd5bfdfa969bf1a0f905208d3cd9fd002508dc447a0f85fcf3271f07dc39fc1fc62f75704018e6a3a099341a1ae2fc30a64d825f7107c42167b3247f0f6fbbb4193a89b528a877b7a78080808080808080b853f851a0bab73d23919188d2dd5dba08a5bc0a09b49b1726a0f7452193d91f552f814051a062ca89fba3f46973e6198f9c01b58fc481d7e4cfab721fe9c84878760d7b63cd808080808080808080808080808080b875f87320b870f86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
@@ -1836,7 +1555,7 @@ contract('Testimonium', async (accounts) => {
                 console.log(`block ${index}: ${block.lockedUntil}`)
             });
 
-            await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1849,12 +1568,12 @@ contract('Testimonium', async (accounts) => {
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             const block0 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-            const requestedBlockHash = web3.utils.hexToBytes(block0.hash);
+            const requestedBlockInRlp = createRLPHeader(block0);
             const rlpEncodedTx = web3.utils.hexToBytes("0xf86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
             const path = web3.utils.hexToBytes("0x80");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90203b90134f90131a046a11582bfd9da02a0a857f572bbe08d0467502cb212d02048e9303986dabdfba0d7d90c16309409eca72d959ff2419b5f2feac4ba76acda1b3de8651db65b4c91a0b0a8904b11ada7fe8ada7c51c01a13deb2833b47f82a964d66d0b9ec9bd160baa061a791ece33a5cba8eb27345a4a58ab911d7b4684731b0ae8aa97ffc992b9bc8a0b135e0c562a97ca9bdab66f0187ac044dfbf7a3567d21acbe1363bf76a6b8768a07467253e2430335ac71e8ff93cbd8f71d7b501efdc9a9b5c40c042c6144df9f2a077a192fccfb384092b022e8c8fc5e629e1048d62c538401d15fd5bfdfa969bf1a0f905208d3cd9fd002508dc447a0f85fcf3271f07dc39fc1fc62f75704018e6a3a099341a1ae2fc30a64d825f7107c42167b3247f0f6fbbb4193a89b528a877b7a78080808080808080b853f851a0bab73d23919188d2dd5dba08a5bc0a09b49b1726a0f7452193d91f552f814051a062ca89fba3f46973e6198f9c01b58fc481d7e4cfab721fe9c84878760d7b63cd808080808080808080808080808080b875f87320b870f86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
 
-            await expectRevert(testimonium.verifyTransaction(verificationFee.add(new BN(1)), requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            await expectRevert(testimonium.verifyTransaction(verificationFee.add(new BN(1)), requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: accounts[0],
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1865,12 +1584,12 @@ contract('Testimonium', async (accounts) => {
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             const block0 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-            const requestedBlockHash = web3.utils.hexToBytes(block0.hash);
+            const requestedBlockInRlp = createRLPHeader(block0);
             const rlpEncodedTx = web3.utils.hexToBytes("0xf86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
             const path = web3.utils.hexToBytes("0x80");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90203b90134f90131a046a11582bfd9da02a0a857f572bbe08d0467502cb212d02048e9303986dabdfba0d7d90c16309409eca72d959ff2419b5f2feac4ba76acda1b3de8651db65b4c91a0b0a8904b11ada7fe8ada7c51c01a13deb2833b47f82a964d66d0b9ec9bd160baa061a791ece33a5cba8eb27345a4a58ab911d7b4684731b0ae8aa97ffc992b9bc8a0b135e0c562a97ca9bdab66f0187ac044dfbf7a3567d21acbe1363bf76a6b8768a07467253e2430335ac71e8ff93cbd8f71d7b501efdc9a9b5c40c042c6144df9f2a077a192fccfb384092b022e8c8fc5e629e1048d62c538401d15fd5bfdfa969bf1a0f905208d3cd9fd002508dc447a0f85fcf3271f07dc39fc1fc62f75704018e6a3a099341a1ae2fc30a64d825f7107c42167b3247f0f6fbbb4193a89b528a877b7a78080808080808080b853f851a0bab73d23919188d2dd5dba08a5bc0a09b49b1726a0f7452193d91f552f814051a062ca89fba3f46973e6198f9c01b58fc481d7e4cfab721fe9c84878760d7b63cd808080808080808080808080808080b875f87320b870f86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
 
-            await expectRevert(testimonium.verifyTransaction(verificationFee.sub(new BN(1)), requestedBlockHash, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            await expectRevert(testimonium.verifyTransaction(verificationFee.sub(new BN(1)), requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: accounts[0],
                 value: verificationFee.sub(new BN(1)),
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1902,7 +1621,7 @@ contract('Testimonium', async (accounts) => {
             const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
             const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
             const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
-            const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
+            const requestedBlockInRlp = createRLPHeader(block1);
             const rlpEncodedReceipt = web3.utils.hexToBytes("0xf901090183794fbab9010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0");
             const path = web3.utils.hexToBytes("0x81c4");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf9044cb90134f90131a0f74d899fc62f086414eebd261aa04a4992032294e82ce2085d7b6a4d3e6e825ca0ee6d38f3b6c110dc89ebdf4582fd120505ab20d031857f83726054ed23f81058a0778c762e8dca364dd80e2567acc694933de3dd18813e0320112153af2c779934a008d3897a534760675e65ddedfb45b1eccda26c11fd137a3cfa53acc98399afc4a0944883cd15bb23a25b7eb436a91b31f4e6520985a1d3e5ba19da9116107bd350a04f092aa6decdf866b158d31758284231d2442e1ce90ed24a58675b8da313f5cca028c411f29bdd0a3a032b4c74238802a2c5c08758229b7baa81af60e7b1ffef0ca0812524c8facb9d32bb7419fa1a78e23878efaa4c56b41b4a61a534b91a719871a07efe5d4e87a256651e96b2b9f502b424edad42b0915e425788642825bb7e81e78080808080808080b853f851a06ba46d309c7728e705b5e6c36c4ec2d3f4cae508f0d2a2912b238ccb6bb09d73a0bf7138cb07509ed152541705161e6cba94c759449f31f707fde4fe0abaaf03bc808080808080808080808080808080b8b3f8b18080808080808080a0f132279ce755b619b639c219228fdb0484f2db4535a7f8312b2af25ec9474f16a053f8994c7d232debdd4d3a63a906f2e95c032b7c44c0b0806d948a7e48eacd3fa05783254043a891f7009e6c052608808b3217d70149690daca4cd8ff893583dd9a07dce9411e4ecef937fb570094a3d5540e29a09faffe9a1aa67ca690ca9314b41a06fc8f193346cd559f4f3c264237a64176a9f438da1dc5659c03f494d4456bb3880808080b8f3f8f1a0b4b6f5396027ea19b1fcfc6500e6022521378add224108dc458882019ee65a58a06a2fe548a615870995c7c679477611d8f4ef8601d8915a596d46bd8594cc4414a085994cde3aa88ef04598975a4497af21d0150c8643c8a41d3a9b9df14b55710da03a0ca8f22d5628792ff26eaa2f07edab0bcb61ec3b7c920cb833d27f71329276a0aa0e117a0c59686177a234e357f03033a3b1ebbe28f34b82beddee51805323b5a00673dcaa9d93b9bbf8e8ad22756320d442a4f756987d4600d218d8deeab8826ca0c4f0400af2adbd1c7f240e71c30cc19044a1d05cbc0ad2ba83ffc1f621d758fb80808080808080808080b90113f9011020b9010cf901090183794fbab9010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0");
@@ -1936,7 +1655,7 @@ contract('Testimonium', async (accounts) => {
             let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
             let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-            let ret = await testimonium.verifyReceipt(verificationFee, requestedBlockHash, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
+            let ret = await testimonium.verifyReceipt(verificationFee, requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1974,7 +1693,7 @@ contract('Testimonium', async (accounts) => {
             const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
             const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
             const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
-            const requestedBlockHash = web3.utils.hexToBytes(block1.hash);
+            const requestedBlockInRlp = createRLPHeader(block1);
             const rlpEncodedReceipt = web3.utils.hexToBytes("0xf901a70183105509b9010000000000000000400000000000000000000000040000000000000000000000000000000000000004000000000000800000000000000000000000000010000000002000000000000000000028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000f89df89b9404cd48c02807a5b2443c6e50e274479642c41232f863a0ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3efa0000000000000000000000000632fca97032e8a83b418a0c04ca8e3e03731a042a000000000000000000000000065e4b61354bb6a01d045f34d2b7884e92474c25ca000000000000000000000000000000000000000000000003635c9adc5dea00000");
             const path = web3.utils.hexToBytes("0x22");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90502b90134f90131a000bd9dc24090a2a10bba1c60136307cce644dae9c3eee486a83b069a7061386fa019e9568ef63a654a2224c44300a9df314311bdf397cde928a5653728f490b554a0b6a85a847c922d53edb65a2a105a47d03abb0b75a23ff49fed988a61dad96787a074fe17d19927fb011255938043bd3cb0b6a55f51707d0efeb4533539f72a55cfa0b3a34f1c86e0826b417e056f2bf37da9d4ba73c17eb137bf9db593d095de6e51a0551ec16d0aaef2d3832a78cf71ba10b4e59cb6d2e7aa19c7edeb8c81b79c718ca04f6bb93bc8d85533fe210554091bf309efcc69feba90dc4f14c6b5ca992b3f81a078404170ba13f0a1e2e544a0936a1a08b79e35d34ab14f961155412658ab7025a088a3cbd4d0017c6d029acb0e82911ca26f3e91e91b2f2f2ab9924871013b003f8080808080808080b90214f90211a02b72e55f6fbe643c329f1fd3d9cb16ff6877c1be6414d8f2ce9d0f6ab8a1c37aa06f918e0eafa2ca9c05e7ec4d92420c7318163d74fd7cb5c933dfae6c1517078aa041043c6dd9446e90e7ae697b1bf75c8b1c2f3fa0d4a2e8461618ee06c84aff98a0d67c9b342106b8e9dc1fd0fc27e8fae5bd1c1900c4a9513d8ed83c7273f2e0dea029409cddec29f8ca665fea4bbbec525d76dca3136a859b8ed86de10913389ac9a09de16391edf6ee4db3aedccd320b31663d000824acc6c62adb85c999cda3ef1da0b56c405b56e572c643a7609498322d4846dbc196c74c930cc7ab084b19c6963aa03fb2fd93be6cbf09b520e86fbd9f32f462eb75ebff922c329986fcee1e751d7ca0426d244c2890858e9fe7bd9d832319bfabb18e886e784ac0267c4f564a296b69a08da0163f9c72e3faecc71f0945c2720eca5ea3824198c7ba593489274710d791a06809bde58a60220b45c7bdf5498f3fac28f4ecc0d03b77350a43d86be7a6d617a05950d12fae5c11848d732804118299e69d61e9d0a7c42aa470733af6624475c2a0d4bd864d57e6e58d438e16e8b56bb95121c60afd6e6a21e446708339712d5045a01329d668d030ebe4f40ceafcacd201275ebe98ef0ae17e1fa5fffff829ea1b98a07fd663123299c7f2cc95e979ce39c765f6c4e47d2954c78eabd062f2af94a77ba020cb97c35dc8183298265aeb4ad5e221c1af357fd38fa9dd0ee5885febea8ef180b901b1f901ae20b901aaf901a70183105509b9010000000000000000400000000000000000000000040000000000000000000000000000000000000004000000000000800000000000000000000000000010000000002000000000000000000028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000f89df89b9404cd48c02807a5b2443c6e50e274479642c41232f863a0ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3efa0000000000000000000000000632fca97032e8a83b418a0c04ca8e3e03731a042a000000000000000000000000065e4b61354bb6a01d045f34d2b7884e92474c25ca000000000000000000000000000000000000000000000003635c9adc5dea00000");
@@ -2008,7 +1727,7 @@ contract('Testimonium', async (accounts) => {
             let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
             let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-            let ret = await testimonium.verifyReceipt(verificationFee, requestedBlockHash, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
+            let ret = await testimonium.verifyReceipt(verificationFee, requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -2047,7 +1766,7 @@ contract('Testimonium', async (accounts) => {
             const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
             const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 5);
             const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 6);  // this block will not be submitted
-            const requestedBlockHash = web3.utils.hexToBytes(block6.hash);
+            const requestedBlockInRlp = createRLPHeader(block6);
             const rlpEncodedReceipt = web3.utils.hexToBytes("0xf901a70183105509b9010000000000000000400000000000000000000000040000000000000000000000000000000000000004000000000000800000000000000000000000000010000000002000000000000000000028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000f89df89b9404cd48c02807a5b2443c6e50e274479642c41232f863a0ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3efa0000000000000000000000000632fca97032e8a83b418a0c04ca8e3e03731a042a000000000000000000000000065e4b61354bb6a01d045f34d2b7884e92474c25ca000000000000000000000000000000000000000000000003635c9adc5dea00000");
             const path = web3.utils.hexToBytes("0x22");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90502b90134f90131a000bd9dc24090a2a10bba1c60136307cce644dae9c3eee486a83b069a7061386fa019e9568ef63a654a2224c44300a9df314311bdf397cde928a5653728f490b554a0b6a85a847c922d53edb65a2a105a47d03abb0b75a23ff49fed988a61dad96787a074fe17d19927fb011255938043bd3cb0b6a55f51707d0efeb4533539f72a55cfa0b3a34f1c86e0826b417e056f2bf37da9d4ba73c17eb137bf9db593d095de6e51a0551ec16d0aaef2d3832a78cf71ba10b4e59cb6d2e7aa19c7edeb8c81b79c718ca04f6bb93bc8d85533fe210554091bf309efcc69feba90dc4f14c6b5ca992b3f81a078404170ba13f0a1e2e544a0936a1a08b79e35d34ab14f961155412658ab7025a088a3cbd4d0017c6d029acb0e82911ca26f3e91e91b2f2f2ab9924871013b003f8080808080808080b90214f90211a02b72e55f6fbe643c329f1fd3d9cb16ff6877c1be6414d8f2ce9d0f6ab8a1c37aa06f918e0eafa2ca9c05e7ec4d92420c7318163d74fd7cb5c933dfae6c1517078aa041043c6dd9446e90e7ae697b1bf75c8b1c2f3fa0d4a2e8461618ee06c84aff98a0d67c9b342106b8e9dc1fd0fc27e8fae5bd1c1900c4a9513d8ed83c7273f2e0dea029409cddec29f8ca665fea4bbbec525d76dca3136a859b8ed86de10913389ac9a09de16391edf6ee4db3aedccd320b31663d000824acc6c62adb85c999cda3ef1da0b56c405b56e572c643a7609498322d4846dbc196c74c930cc7ab084b19c6963aa03fb2fd93be6cbf09b520e86fbd9f32f462eb75ebff922c329986fcee1e751d7ca0426d244c2890858e9fe7bd9d832319bfabb18e886e784ac0267c4f564a296b69a08da0163f9c72e3faecc71f0945c2720eca5ea3824198c7ba593489274710d791a06809bde58a60220b45c7bdf5498f3fac28f4ecc0d03b77350a43d86be7a6d617a05950d12fae5c11848d732804118299e69d61e9d0a7c42aa470733af6624475c2a0d4bd864d57e6e58d438e16e8b56bb95121c60afd6e6a21e446708339712d5045a01329d668d030ebe4f40ceafcacd201275ebe98ef0ae17e1fa5fffff829ea1b98a07fd663123299c7f2cc95e979ce39c765f6c4e47d2954c78eabd062f2af94a77ba020cb97c35dc8183298265aeb4ad5e221c1af357fd38fa9dd0ee5885febea8ef180b901b1f901ae20b901aaf901a70183105509b9010000000000000000400000000000000000000000040000000000000000000000000000000000000004000000000000800000000000000000000000000010000000002000000000000000000028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000f89df89b9404cd48c02807a5b2443c6e50e274479642c41232f863a0ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3efa0000000000000000000000000632fca97032e8a83b418a0c04ca8e3e03731a042a000000000000000000000000065e4b61354bb6a01d045f34d2b7884e92474c25ca000000000000000000000000000000000000000000000003635c9adc5dea00000");
@@ -2075,7 +1794,7 @@ contract('Testimonium', async (accounts) => {
                 console.log(`block ${index}: ${block.lockedUntil}`)
             });
 
-            await expectRevert(testimonium.verifyReceipt(verificationFee, requestedBlockHash, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
+            await expectRevert(testimonium.verifyReceipt(verificationFee, requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -2088,12 +1807,12 @@ contract('Testimonium', async (accounts) => {
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             const block0 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-            const requestedBlockHash = web3.utils.hexToBytes(block0.hash);
+            const requestedBlockInRlp = createRLPHeader(block0);
             const rlpEncodedReceipt = web3.utils.hexToBytes("0xf901a70183105509b9010000000000000000400000000000000000000000040000000000000000000000000000000000000004000000000000800000000000000000000000000010000000002000000000000000000028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000f89df89b9404cd48c02807a5b2443c6e50e274479642c41232f863a0ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3efa0000000000000000000000000632fca97032e8a83b418a0c04ca8e3e03731a042a000000000000000000000000065e4b61354bb6a01d045f34d2b7884e92474c25ca000000000000000000000000000000000000000000000003635c9adc5dea00000");
             const path = web3.utils.hexToBytes("0x22");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90502b90134f90131a000bd9dc24090a2a10bba1c60136307cce644dae9c3eee486a83b069a7061386fa019e9568ef63a654a2224c44300a9df314311bdf397cde928a5653728f490b554a0b6a85a847c922d53edb65a2a105a47d03abb0b75a23ff49fed988a61dad96787a074fe17d19927fb011255938043bd3cb0b6a55f51707d0efeb4533539f72a55cfa0b3a34f1c86e0826b417e056f2bf37da9d4ba73c17eb137bf9db593d095de6e51a0551ec16d0aaef2d3832a78cf71ba10b4e59cb6d2e7aa19c7edeb8c81b79c718ca04f6bb93bc8d85533fe210554091bf309efcc69feba90dc4f14c6b5ca992b3f81a078404170ba13f0a1e2e544a0936a1a08b79e35d34ab14f961155412658ab7025a088a3cbd4d0017c6d029acb0e82911ca26f3e91e91b2f2f2ab9924871013b003f8080808080808080b90214f90211a02b72e55f6fbe643c329f1fd3d9cb16ff6877c1be6414d8f2ce9d0f6ab8a1c37aa06f918e0eafa2ca9c05e7ec4d92420c7318163d74fd7cb5c933dfae6c1517078aa041043c6dd9446e90e7ae697b1bf75c8b1c2f3fa0d4a2e8461618ee06c84aff98a0d67c9b342106b8e9dc1fd0fc27e8fae5bd1c1900c4a9513d8ed83c7273f2e0dea029409cddec29f8ca665fea4bbbec525d76dca3136a859b8ed86de10913389ac9a09de16391edf6ee4db3aedccd320b31663d000824acc6c62adb85c999cda3ef1da0b56c405b56e572c643a7609498322d4846dbc196c74c930cc7ab084b19c6963aa03fb2fd93be6cbf09b520e86fbd9f32f462eb75ebff922c329986fcee1e751d7ca0426d244c2890858e9fe7bd9d832319bfabb18e886e784ac0267c4f564a296b69a08da0163f9c72e3faecc71f0945c2720eca5ea3824198c7ba593489274710d791a06809bde58a60220b45c7bdf5498f3fac28f4ecc0d03b77350a43d86be7a6d617a05950d12fae5c11848d732804118299e69d61e9d0a7c42aa470733af6624475c2a0d4bd864d57e6e58d438e16e8b56bb95121c60afd6e6a21e446708339712d5045a01329d668d030ebe4f40ceafcacd201275ebe98ef0ae17e1fa5fffff829ea1b98a07fd663123299c7f2cc95e979ce39c765f6c4e47d2954c78eabd062f2af94a77ba020cb97c35dc8183298265aeb4ad5e221c1af357fd38fa9dd0ee5885febea8ef180b901b1f901ae20b901aaf901a70183105509b9010000000000000000400000000000000000000000040000000000000000000000000000000000000004000000000000800000000000000000000000000010000000002000000000000000000028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000f89df89b9404cd48c02807a5b2443c6e50e274479642c41232f863a0ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3efa0000000000000000000000000632fca97032e8a83b418a0c04ca8e3e03731a042a000000000000000000000000065e4b61354bb6a01d045f34d2b7884e92474c25ca000000000000000000000000000000000000000000000003635c9adc5dea00000");
 
-            await expectRevert(testimonium.verifyReceipt(verificationFee.add(new BN(1)), requestedBlockHash, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
+            await expectRevert(testimonium.verifyReceipt(verificationFee.add(new BN(1)), requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
                 from: accounts[0],
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -2104,12 +1823,12 @@ contract('Testimonium', async (accounts) => {
             const verificationFee = await testimonium.getRequiredVerificationFee();
 
             const block0 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-            const requestedBlockHash = web3.utils.hexToBytes(block0.hash);
+            const requestedBlockInRlp = createRLPHeader(block0);
             const rlpEncodedReceipt = web3.utils.hexToBytes("0xf901a70183105509b9010000000000000000400000000000000000000000040000000000000000000000000000000000000004000000000000800000000000000000000000000010000000002000000000000000000028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000f89df89b9404cd48c02807a5b2443c6e50e274479642c41232f863a0ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3efa0000000000000000000000000632fca97032e8a83b418a0c04ca8e3e03731a042a000000000000000000000000065e4b61354bb6a01d045f34d2b7884e92474c25ca000000000000000000000000000000000000000000000003635c9adc5dea00000");
             const path = web3.utils.hexToBytes("0x22");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90502b90134f90131a000bd9dc24090a2a10bba1c60136307cce644dae9c3eee486a83b069a7061386fa019e9568ef63a654a2224c44300a9df314311bdf397cde928a5653728f490b554a0b6a85a847c922d53edb65a2a105a47d03abb0b75a23ff49fed988a61dad96787a074fe17d19927fb011255938043bd3cb0b6a55f51707d0efeb4533539f72a55cfa0b3a34f1c86e0826b417e056f2bf37da9d4ba73c17eb137bf9db593d095de6e51a0551ec16d0aaef2d3832a78cf71ba10b4e59cb6d2e7aa19c7edeb8c81b79c718ca04f6bb93bc8d85533fe210554091bf309efcc69feba90dc4f14c6b5ca992b3f81a078404170ba13f0a1e2e544a0936a1a08b79e35d34ab14f961155412658ab7025a088a3cbd4d0017c6d029acb0e82911ca26f3e91e91b2f2f2ab9924871013b003f8080808080808080b90214f90211a02b72e55f6fbe643c329f1fd3d9cb16ff6877c1be6414d8f2ce9d0f6ab8a1c37aa06f918e0eafa2ca9c05e7ec4d92420c7318163d74fd7cb5c933dfae6c1517078aa041043c6dd9446e90e7ae697b1bf75c8b1c2f3fa0d4a2e8461618ee06c84aff98a0d67c9b342106b8e9dc1fd0fc27e8fae5bd1c1900c4a9513d8ed83c7273f2e0dea029409cddec29f8ca665fea4bbbec525d76dca3136a859b8ed86de10913389ac9a09de16391edf6ee4db3aedccd320b31663d000824acc6c62adb85c999cda3ef1da0b56c405b56e572c643a7609498322d4846dbc196c74c930cc7ab084b19c6963aa03fb2fd93be6cbf09b520e86fbd9f32f462eb75ebff922c329986fcee1e751d7ca0426d244c2890858e9fe7bd9d832319bfabb18e886e784ac0267c4f564a296b69a08da0163f9c72e3faecc71f0945c2720eca5ea3824198c7ba593489274710d791a06809bde58a60220b45c7bdf5498f3fac28f4ecc0d03b77350a43d86be7a6d617a05950d12fae5c11848d732804118299e69d61e9d0a7c42aa470733af6624475c2a0d4bd864d57e6e58d438e16e8b56bb95121c60afd6e6a21e446708339712d5045a01329d668d030ebe4f40ceafcacd201275ebe98ef0ae17e1fa5fffff829ea1b98a07fd663123299c7f2cc95e979ce39c765f6c4e47d2954c78eabd062f2af94a77ba020cb97c35dc8183298265aeb4ad5e221c1af357fd38fa9dd0ee5885febea8ef180b901b1f901ae20b901aaf901a70183105509b9010000000000000000400000000000000000000000040000000000000000000000000000000000000004000000000000800000000000000000000000000010000000002000000000000000000028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000f89df89b9404cd48c02807a5b2443c6e50e274479642c41232f863a0ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3efa0000000000000000000000000632fca97032e8a83b418a0c04ca8e3e03731a042a000000000000000000000000065e4b61354bb6a01d045f34d2b7884e92474c25ca000000000000000000000000000000000000000000000003635c9adc5dea00000");
 
-            await expectRevert(testimonium.verifyReceipt(verificationFee.sub(new BN(1)), requestedBlockHash, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
+            await expectRevert(testimonium.verifyReceipt(verificationFee.sub(new BN(1)), requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
                 from: accounts[0],
                 value: verificationFee.sub(new BN(1)),
                 gasPrice: GAS_PRICE_IN_WEI
@@ -2121,7 +1840,7 @@ contract('Testimonium', async (accounts) => {
 
         describe('TestimoniumCore', function () {
 
-            // Test Scenario 1:
+            // Test Scenario 1 (verification of Ethash should fail):
             //
             // (0)---(1)-X-(2)---(3)---(4)
             //
@@ -2171,11 +1890,12 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block3, accounts[1]);
                 await submitBlockHeader(block4, accounts[2]);
 
-                let ret = await testimonium.disputeBlockWithoutPunishment(web3.utils.hexToBytes(block2.hash), dataSetLookupBlock2, witnessForLookupBlock2, {
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
                 expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[1], accounts[1], accounts[2]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(2)});
 
                 // Check
                 const expectedEndpoints = [block1];
@@ -2202,7 +1922,7 @@ contract('Testimonium', async (accounts) => {
                 await withdrawStake(stakeAccount2, accounts[2]);
             });
 
-            // Test Scenario 2:
+            // Test Scenario 2 (verification of Ethash should fail):
             //
             // (0)---(1)-X-(2)---(4)---(5)
             //          \
@@ -2252,11 +1972,12 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block5, accounts[1]);
                 await submitBlockHeader(block6, accounts[0]);
                 const block6LockedUntil = (await time.latest()).add(LOCK_PERIOD);
-                let ret = await testimonium.disputeBlockWithoutPunishment(web3.utils.hexToBytes(block2.hash), dataSetLookupBlock2, witnessForLookupBlock2, {
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
                 expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[1], accounts[1], accounts[1]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(2)});
 
                 // Check
                 const expectedBlocks = [
@@ -2271,18 +1992,18 @@ contract('Testimonium', async (accounts) => {
                     },
                     {
                         block: block3,
-                        forkId: 1,
+                        forkId: 0,
                         iterableIndex: 0,
-                        latestFork: block1.hash,
+                        latestFork: ZERO_HASH,
                         successors: [block6.hash],
                         lockedUntil: block3LockedUntil,
                         submitter: accounts[0]
                     },
                     {
                         block: block6,
-                        forkId: 1,
+                        forkId: 0,
                         iterableIndex: 0,
-                        latestFork: block1.hash,
+                        latestFork: ZERO_HASH,
                         successors: [],
                         lockedUntil: block6LockedUntil,
                         submitter: accounts[0]
@@ -2299,7 +2020,7 @@ contract('Testimonium', async (accounts) => {
                 await withdrawStake(stakeAccount1, accounts[1]);
             });
 
-            // Test Scenario 3:
+            // Test Scenario 3 (verification of Ethash should fail):
             //
             // (0)---(1)---(2)---(4)---(5)
             //          \
@@ -2355,11 +2076,12 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block5, accounts[0]);
                 const block5LockedUntil = (await time.latest()).add(LOCK_PERIOD);
                 await submitBlockHeader(block6, accounts[2]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(web3.utils.hexToBytes(block3.hash), dataSetLookupBlock3, witnessForLookupBlock3, {
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block3), createRLPHeader(block1), dataSetLookupBlock3, witnessForLookupBlock3, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
                 expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[1], accounts[2]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(2)});
 
                 // Check
                 const expectedBlocks = [
@@ -2376,7 +2098,7 @@ contract('Testimonium', async (accounts) => {
                         block: block2,
                         forkId: 0,
                         iterableIndex: 0,
-                        latestFork: block1.hash,
+                        latestFork: ZERO_HASH,
                         successors: [block4.hash],
                         lockedUntil: block2LockedUntil,
                         submitter: accounts[0]
@@ -2385,7 +2107,7 @@ contract('Testimonium', async (accounts) => {
                         block: block4,
                         forkId: 0,
                         iterableIndex: 0,
-                        latestFork: block1.hash,
+                        latestFork: ZERO_HASH,
                         successors: [block5.hash],
                         lockedUntil: block4LockedUntil,
                         submitter: accounts[0]
@@ -2394,7 +2116,7 @@ contract('Testimonium', async (accounts) => {
                         block: block5,
                         forkId: 0,
                         iterableIndex: 0,
-                        latestFork: block1.hash,
+                        latestFork: ZERO_HASH,
                         successors: [],
                         lockedUntil: block5LockedUntil,
                         submitter: accounts[0]
@@ -2412,7 +2134,7 @@ contract('Testimonium', async (accounts) => {
                 await withdrawStake(stakeAccount2, accounts[2]);
             });
 
-            // Test Scenario 4:
+            // Test Scenario 4 (verification of Ethash should fail):
             //
             //            -(2)---(5)
             //          /
@@ -2483,11 +2205,12 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block7, accounts[1]);
                 await submitBlockHeader(block8, accounts[2]);
                 const block8LockedUntil = (await time.latest()).add(LOCK_PERIOD);
-                let ret = await testimonium.disputeBlockWithoutPunishment(web3.utils.hexToBytes(block4.hash), dataSetLookupBlock4, witnessForLookupBlock4, {
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block4), createRLPHeader(block1), dataSetLookupBlock4, witnessForLookupBlock4, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
                 expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[2], accounts[1]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(2)});
 
                 // Check
                 const expectedBlocks = [
@@ -2558,7 +2281,7 @@ contract('Testimonium', async (accounts) => {
                 await withdrawStake(stakeAccount2, accounts[2]);
             });
 
-            // Test Scenario 5:
+            // Test Scenario 5 (verification of Ethash should fail):
             //
             //            -(2)---(5)
             //          /
@@ -2623,11 +2346,12 @@ contract('Testimonium', async (accounts) => {
                 const block5LockedUntil = (await time.latest()).add(LOCK_PERIOD);
                 await submitBlockHeader(block6, accounts[2]);
                 await submitBlockHeader(block7, accounts[1]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(web3.utils.hexToBytes(block3.hash), dataSetLookupBlock3, witnessForLookupBlock3, {
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block3), createRLPHeader(block1), dataSetLookupBlock3, witnessForLookupBlock3, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
                 expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[2], accounts[2], accounts[1]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(2)});
 
                 // Check
                 const expectedBlocks = [
@@ -2680,7 +2404,7 @@ contract('Testimonium', async (accounts) => {
                 await withdrawStake(stakeAccount2, accounts[2]);
             });
 
-            // Test Scenario 6:
+            // Test Scenario 6 (verification of Ethash should fail):
             //
             //           X-(2)---(5)---(7)
             //          /
@@ -2746,11 +2470,12 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block6, accounts[2]);
                 const block6LockedUntil = (await time.latest()).add(LOCK_PERIOD);
                 await submitBlockHeader(block7, accounts[1]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(web3.utils.hexToBytes(block2.hash), dataSetLookupBlock2, witnessForLookupBlock2, {
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
                 expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0], accounts[0], accounts[1]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(2)});
 
                 // Check
                 const expectedBlocks = [
@@ -2803,7 +2528,7 @@ contract('Testimonium', async (accounts) => {
                 await withdrawStake(stakeAccount2, accounts[2]);
             });
 
-            // Test Scenario 7:
+            // Test Scenario 7 (verification of Ethash should be successful):
             //
             // (0)---(1)-X-(2)---(3)---(4)      // try to dispute a valid block -> should not prone any header
             //
@@ -2835,11 +2560,12 @@ contract('Testimonium', async (accounts) => {
 
                 // Submit and dispute blocks
                 await submitBlockHeaders(blocksToSubmit, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(web3.utils.hexToBytes(block2.hash), dataSetLookupBlock2, witnessForLookupBlock2, {
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
                 expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: []});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(0)});
 
                 // Check
                 const expectedEndpoints = [block4];
@@ -2887,11 +2613,314 @@ contract('Testimonium', async (accounts) => {
                 // withdraw stake
                 await withdrawStake(stakeAccount0, accounts[0]);
             });
+
+            it('should eliminate the block since block number is not incremented by one (too high)', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                blockWithWrongBlockNumber.number = GENESIS_BLOCK + 2;
+                blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
+
+                await submitBlockHeader(blockWithWrongBlockNumber, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithWrongBlockNumber), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(4)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
+
+            it('should eliminate block since the block number is not incremented by one (too low)', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                blockWithWrongBlockNumber.number = GENESIS_BLOCK - 1;
+                blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
+
+                await submitBlockHeader(blockWithWrongBlockNumber, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithWrongBlockNumber), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(4)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
+
+            it('should eliminate block since the block number is not incremented by one (equal)', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const blockWithWrongBlockNumber = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                blockWithWrongBlockNumber.number = GENESIS_BLOCK;
+                blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
+
+                await submitBlockHeader(blockWithWrongBlockNumber, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithWrongBlockNumber), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(4)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
+
+            it('should eliminate block since the timestamp of the submitted block is not in the future (equal)', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                blockWithPastTimestamp.timestamp = genesisBlock.timestamp;
+                blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
+
+                await submitBlockHeader(blockWithPastTimestamp, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithPastTimestamp), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(6)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
+
+            it('should eliminate block since the timestamp of the submitted block is not in the future (older)', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                blockWithPastTimestamp.timestamp = genesisBlock.timestamp - 1;
+                blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
+
+                await submitBlockHeader(blockWithPastTimestamp, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithPastTimestamp), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(6)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
+
+            it('should eliminate block since the timestamp of the submitted block is too far in the future', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const blockWithPastTimestamp = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                blockWithPastTimestamp.timestamp = time.latest() + ALLOWED_FUTURE_BLOCK_TIME;
+                blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
+
+                await submitBlockHeader(blockWithPastTimestamp, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithPastTimestamp), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(5)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
+
+            it('should eliminate block since the difficulty of the submitted block is not correct', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const blockWithIllegalDifficulty = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                const newDifficulty = web3.utils.toBN(blockWithIllegalDifficulty.difficulty).add(web3.utils.toBN(1000));
+                blockWithIllegalDifficulty.difficulty = newDifficulty.toString();
+                blockWithIllegalDifficulty.hash = calculateBlockHash(blockWithIllegalDifficulty);
+
+                await submitBlockHeader(blockWithIllegalDifficulty, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalDifficulty), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(7)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
+
+            it('should eliminate block since the gas limit of the submitted block is higher than maximum gas limit', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                blockWithIllegalGasLimit.gasLimit = MAX_GAS_LIMIT.add(new BN(1));
+                blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
+
+                await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(8)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
+
+            it('should eliminate block sincethe gas limit of the submitted block is smaller than the minium gas limit', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                blockWithIllegalGasLimit.gasLimit = MIN_GAS_LIMIT.sub(new BN(1));
+                blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
+
+                await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(9)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
+
+            it('should eliminate block since the gas limit of the submitted block is out of bounds (too high)', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const limit = new BN(genesisBlock.gasLimit).div(GAS_LIMIT_BOUND_DIVISOR);
+                const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                blockWithIllegalGasLimit.gasLimit = new BN(genesisBlock.gasLimit).add(limit).add(new BN(1));
+                blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
+
+                await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(10)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
+
+            it('should eliminate block since the gas limit of the submitted block is out of bounds (too small)', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const limit = new BN(genesisBlock.gasLimit).div(GAS_LIMIT_BOUND_DIVISOR);
+                const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                blockWithIllegalGasLimit.gasLimit = new BN(genesisBlock.gasLimit).sub(limit).sub(new BN(1));
+                blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
+
+                await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(10)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
+
+            it('should eliminate block since the gas used of the submitted block is higher than the gas limit', async () => {
+                // deposit enough stake
+                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                await testimonium.depositStake(requiredStakePerBlock, {
+                    from: accounts[0],
+                    value: requiredStakePerBlock,
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+
+                const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
+                const blockWithIllegalGasUsed = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+                blockWithIllegalGasUsed.gasUsed = new BN(blockWithIllegalGasUsed.gasLimit).add(new BN(1));
+                blockWithIllegalGasUsed.hash = calculateBlockHash(blockWithIllegalGasUsed);
+
+                await submitBlockHeader(blockWithIllegalGasUsed, accounts[0]);
+                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasUsed), createRLPHeader(genesisBlock), [], [], {
+                    from: accounts[0],
+                    gasPrice: GAS_PRICE_IN_WEI
+                });
+                expectEvent.inLogs(ret.logs, 'DisputeBlockWithoutPunishment', {submittersOfIllegalBlocks: [accounts[0]]});
+                expectEvent.inLogs(ret.logs, 'DisputeBlock', {returnCode: new BN(11)});
+
+                await withdrawStake(requiredStakePerBlock, accounts[0]);
+            });
         });
 
         describe('Testimonium', function () {
 
-            // Test Scenario 1:
+            // Test Scenario 1 (verification of Ethash should fail):
             //
             //           X-(2)---(5)---(7)
             //          /
@@ -2965,7 +2994,7 @@ contract('Testimonium', async (accounts) => {
                 const stakeAccount2BeforeDispute = await testimonium.getStake({from: accounts[2]});
                 const stakeAccount3BeforeDispute = await testimonium.getStake({from: accounts[3]});
 
-                await testimonium.disputeBlockHeader(web3.utils.hexToBytes(block2.hash), dataSetLookupBlock2, witnessForLookupBlock2, {
+                await testimonium.disputeBlockHeader(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2987,7 +3016,7 @@ contract('Testimonium', async (accounts) => {
                 await withdrawStake(stakeAccount3, accounts[3]);
             });
 
-            // Test Scenario 2:
+            // Test Scenario 2 (verification of Ethash should be successful):
             //
             // (0)---(1)-X-(2)---(3)---(4)      // try to dispute a valid block -> should not prone any header, stakes should not change
             //
@@ -3025,7 +3054,7 @@ contract('Testimonium', async (accounts) => {
                 const stakeAccount0BeforeDispute = await testimonium.getStake({from: accounts[0]});
                 const stakeAccount1BeforeDispute = await testimonium.getStake({from: accounts[1]});
 
-                await testimonium.disputeBlockHeader(web3.utils.hexToBytes(block2.hash), dataSetLookupBlock2, witnessForLookupBlock2, {
+                await testimonium.disputeBlockHeader(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -3085,7 +3114,7 @@ contract('Testimonium', async (accounts) => {
         await asyncForEach(expectedZeroBlocks, async expectedZero => {
             const removedBlock = await testimonium.getHeader(web3.utils.hexToBytes(expectedZero.hash));
             expect(removedBlock.blockNumber).to.be.bignumber.equal(new BN(0));
-            expect(removedBlock.nonce).to.be.bignumber.equal(new BN(0));
+            expect(removedBlock.totalDifficulty).to.be.bignumber.equal(new BN(0));
         });
     };
 
@@ -3176,17 +3205,9 @@ Block.prototype.toString = function blockToString() {
 };
 
 const assertHeaderEqual = (actual, expected) => {
-    expect(actual.parent).to.equal(expected.parentHash);
-    expect(actual.uncleHash).to.equal(expected.sha3Uncles);
+    expect(actual.hash).to.equal(expected.hash);
     expect(actual.blockNumber).to.be.bignumber.equal(new BN(expected.number));
-    expect(actual.gasLimit).to.be.bignumber.equal(new BN(expected.gasLimit));
     expect(actual.totalDifficulty).to.be.bignumber.equal(expected.totalDifficulty);
-    expect(actual.stateRoot).to.equal(expected.stateRoot);
-    expect(actual.transactionsRoot).to.equal(expected.transactionsRoot);
-    expect(actual.receiptsRoot).to.equal(expected.receiptsRoot);
-    expect(actual.timestamp).to.be.bignumber.equal(web3.utils.toBN(expected.timestamp));
-    expect(actual.nonce).to.be.bignumber.equal(web3.utils.toBN(expected.nonce));
-    expect(actual.rlpHeaderHashWithoutNonce).to.equal(web3.utils.keccak256(createRLPHeaderWithoutNonce(expected)));
 };
 
 const assertMetaEqual = (actual, expected) => {

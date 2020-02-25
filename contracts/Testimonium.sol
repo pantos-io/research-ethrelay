@@ -90,8 +90,8 @@ contract Testimonium is TestimoniumCore {
         emit SubmitBlock(blockHash);
     }
 
-    function disputeBlockHeader(bytes32 blockHash, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
-        address[] memory submittersToPunish = disputeBlock(blockHash, dataSetLookup, witnessForLookup);
+    function disputeBlockHeader(bytes memory rlpHeader, bytes memory rlpParent, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
+        address[] memory submittersToPunish = disputeBlock(rlpHeader, rlpParent, dataSetLookup, witnessForLookup);
 
         // if the PoW validation initiated by the dispute function was successful (i.e., the block is legal),
         // submittersToPunish will be empty and no further action will be carried out.
@@ -105,22 +105,23 @@ contract Testimonium is TestimoniumCore {
         clientStake[msg.sender] += collectedStake;
     }
 
-    function verify(uint8 verificationType, uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedValue,
+    function verify(uint8 verificationType, uint feeInWei, bytes memory rlpHeader, uint8 noOfConfirmations, bytes memory rlpEncodedValue,
         bytes memory path, bytes memory rlpEncodedNodes) private returns (uint8) {
 
         require(feeInWei == msg.value, "transfer amount not equal to function parameter");
         require(feeInWei >= REQUIRED_VERIFICATION_FEE_IN_WEI, "provided fee is less than expected fee");
 
+        bytes32 blockHash = keccak256(rlpHeader);
         uint8 result;
 
         if (verificationType == VERIFICATION_TYPE_TX) {
-            result = verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedValue, path, rlpEncodedNodes, getTransactionsRoot(blockHash));
+            result = verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedValue, path, rlpEncodedNodes, getTxRoot(rlpHeader));
         }
         else if (verificationType == VERIFICATION_TYPE_RECEIPT) {
-            result = verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedValue, path, rlpEncodedNodes, getReceiptsRoot(blockHash));
+            result = verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedValue, path, rlpEncodedNodes, getReceiptsRoot(rlpHeader));
         }
         else if (verificationType == VERIFICATION_TYPE_STATE) {
-            result = verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedValue, path, rlpEncodedNodes, getStateRoot(blockHash));
+            result = verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedValue, path, rlpEncodedNodes, getStateRoot(rlpHeader));
         }
         else {
             revert("Unknown verification type");
@@ -137,16 +138,16 @@ contract Testimonium is TestimoniumCore {
     event VerifyTransaction(uint8 result);
     /// @dev Verifies if a transaction is included in the given block's transactions Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
-    /// @param blockHash the hash of the block that contains the Merkle root hash
+    /// @param rlpHeader the rlp encoded header that contains the Merkle root hash
     /// @param noOfConfirmations the required number of succeeding blocks needed for a block to be considered as confirmed
     /// @param rlpEncodedTx the transaction of the Merkle Patricia trie in RLP format
     /// @param path the path (key) in the trie indicating the way starting at the root node and ending at the transaction
     /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element the transaction
     /// @return 0: verification was successful
     ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
-    function verifyTransaction(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedTx,
+    function verifyTransaction(uint feeInWei, bytes memory rlpHeader, uint8 noOfConfirmations, bytes memory rlpEncodedTx,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
-        uint8 result = verify(VERIFICATION_TYPE_TX, feeInWei, blockHash, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
+        uint8 result = verify(VERIFICATION_TYPE_TX, feeInWei, rlpHeader, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
         emit VerifyTransaction(result);
 
         return result;
@@ -155,16 +156,16 @@ contract Testimonium is TestimoniumCore {
     event VerifyReceipt(uint8 result);
     /// @dev Verifies if a receipt is included in the given block's receipts Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
-    /// @param blockHash the hash of the block that contains the Merkle root hash
+    /// @param rlpHeader the rlp encoded header that contains the Merkle root hash
     /// @param noOfConfirmations the required number of succeeding blocks needed for a block to be considered as confirmed
     /// @param rlpEncodedReceipt the receipt of the Merkle Patricia trie in RLP format
     /// @param path the path (key) in the trie indicating the way starting at the root node and ending at the receipt
     /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element the receipt
     /// @return 0: verification was successful
     ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
-    function verifyReceipt(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedReceipt,
+    function verifyReceipt(uint feeInWei, bytes memory rlpHeader, uint8 noOfConfirmations, bytes memory rlpEncodedReceipt,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
-        uint8 result = verify(VERIFICATION_TYPE_RECEIPT, feeInWei, blockHash, noOfConfirmations, rlpEncodedReceipt, path, rlpEncodedNodes);
+        uint8 result = verify(VERIFICATION_TYPE_RECEIPT, feeInWei, rlpHeader, noOfConfirmations, rlpEncodedReceipt, path, rlpEncodedNodes);
         emit VerifyReceipt(result);
 
         return result;
@@ -173,16 +174,16 @@ contract Testimonium is TestimoniumCore {
     event VerifyState(uint8 result);
     /// @dev   Verifies if a node is included in the given block's state Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
-    /// @param blockHash the hash of the block that contains the Merkle root hash
+    /// @param rlpHeader the rlp encoded header that contains the Merkle root hash
     /// @param noOfConfirmations the required number of succeeding blocks needed for a block to be considered as confirmed
     /// @param rlpEncodedState the node of the Merkle Patricia trie in RLP format
     /// @param path the path (key) in the trie indicating the way starting at the root node and ending at the node
     /// @param rlpEncodedNodes an RLP encoded list of nodes of the Merkle branch, first element is the root node, last element a state node
     /// @return 0: verification was successful
     ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
-    function verifyState(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations, bytes memory rlpEncodedState,
+    function verifyState(uint feeInWei, bytes memory rlpHeader, uint8 noOfConfirmations, bytes memory rlpEncodedState,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
-        uint8 result = verify(VERIFICATION_TYPE_STATE, feeInWei, blockHash, noOfConfirmations, rlpEncodedState, path, rlpEncodedNodes);
+        uint8 result = verify(VERIFICATION_TYPE_STATE, feeInWei, rlpHeader, noOfConfirmations, rlpEncodedState, path, rlpEncodedNodes);
         emit VerifyState(result);
 
         return result;
@@ -211,7 +212,7 @@ contract Testimonium is TestimoniumCore {
 
         for (uint i = 0; i < blocksSubmittedByClient[client].length;) {
             bytes32 blockHash = blocksSubmittedByClient[client][i];
-            if (!isBlock(blockHash) || isUnlocked(blockHash)) {
+            if (!isHeaderStored(blockHash) || isUnlocked(blockHash)) {
                 // block has been removed or is already unlocked (i.e., lock period has elapsed) -> remove hash from array
                 uint lastElemPos = blocksSubmittedByClient[client].length - 1;
                 // copy last element to position i (overwrite current elem)
@@ -234,4 +235,5 @@ contract Testimonium is TestimoniumCore {
         clientStake[receiver] = clientStake[receiver] - amount;
         receiver.transfer(amount);
     }
+
 }

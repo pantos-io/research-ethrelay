@@ -281,6 +281,28 @@ contract TestimoniumCore {
         return 0;
     }
 
+    function isBlockConfirmed(bytes32 blockHash, uint8 noOfConfirmations) internal view returns (bool) {
+
+        if (isHeaderStored(blockHash) == false) {
+            return false;
+        }
+
+        (bool isPartOfLongestPoWCFork, bytes32 confirmationStart) = isBlockPartOfFork(blockHash, longestChainEndpoint);
+        if (isPartOfLongestPoWCFork == false) {
+            return false;
+        }
+
+        if (headers[confirmationStart].blockNumber <= headers[blockHash].blockNumber + noOfConfirmations) {
+            noOfConfirmations = noOfConfirmations - uint8(headers[confirmationStart].blockNumber - headers[blockHash].blockNumber);
+            bool unlockedAndConfirmed = hasEnoughConfirmations(confirmationStart, noOfConfirmations);
+            if (unlockedAndConfirmed == false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     function isBlockPartOfFork(bytes32 blockHash, bytes32 forkEndpoint) private view returns (bool, bytes32) {
         bytes32 current = forkEndpoint;
         uint lastForkId;

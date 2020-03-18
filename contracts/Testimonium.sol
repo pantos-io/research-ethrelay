@@ -189,6 +189,13 @@ contract Testimonium is TestimoniumCore {
         return result;
     }
 
+    function isBlockConfirmed(uint feeInWei, bytes32 blockHash, uint8 noOfConfirmations) public payable returns (bool) {
+        require(feeInWei == msg.value, "transfer amount not equal to function parameter");
+        require(feeInWei >= REQUIRED_VERIFICATION_FEE_IN_WEI, "provided fee is less than expected fee");
+
+        return isBlockConfirmed(blockHash, noOfConfirmations);
+    }
+
     /// @dev Calculates the fraction of the provided stake that is not used by any of the blocks in the client's list of
     ///      submitted block headers (blocksSubmittedByClient). It does not matter whether a block's lock period has already
     ///      been elapsed. As long as the block is referenced in blocksSubmittedByClient, the stake is considered as "used".

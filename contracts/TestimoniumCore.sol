@@ -125,7 +125,7 @@ contract TestimoniumCore {
 
     /// @dev Accepts an RLP encoded header. The provided header is parsed and its hash along with some meta data is stored.
     event SubmitHeader( bytes32 hash );
-    function submitHeader(bytes memory _rlpHeader, address submitter) public returns (bytes32) {
+    function submitHeader(bytes memory _rlpHeader, address submitter) internal returns (bytes32) {
         Header memory newHeader;
 
         // calculate block hash and check that block header does not already exist
@@ -175,7 +175,7 @@ contract TestimoniumCore {
         }
 
         headers[newHeader.hash] = newHeader; // make sure to persist the header only AFTER all property changes
-        emit SubmitHeader(newHeader.hash);
+//        emit SubmitHeader(newHeader.hash);
 
         return newHeader.hash;
     }

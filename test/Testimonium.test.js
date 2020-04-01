@@ -2,6 +2,7 @@ const Web3 = require("web3");
 const {BN, expectRevert, time, balance} = require('openzeppelin-test-helpers');
 const {createRLPHeader, calculateBlockHash, createRLPHeaderWithoutNonce, addToHex} = require('../utils/utils');
 const expectEvent = require('./expectEvent');
+const RLP = require('rlp');
 
 const Testimonium = artifacts.require('./TestimoniumTestContract');
 const Ethash = artifacts.require('./Ethash');
@@ -809,6 +810,121 @@ contract('Testimonium', async (accounts) => {
 
     });
 
+    describe('Testimonium: SubmitHeaderBatch', function () {
+
+        // Test Scenario 8:
+        //
+        //                  -(5)---(7)
+        //                /
+        // (0)---(1)---(2)---(3)---(4)
+        //                      \
+        //                        -(6)
+        //
+        it('should correctly execute test scenario 1', async () => {
+            // deposit enough stake
+            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const stake = requiredStakePerBlock.mul(new BN(7));
+            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
+
+            const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
+            const block3 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block4 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block5 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 3);
+            const block6 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+            const block7 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 4);
+
+            // change data of block 5
+            block5.transactionsRoot = block3.receiptsRoot;
+            block5.stateRoot = block3.transactionsRoot;
+            block5.receiptsRoot = block3.stateRoot;
+            block5.parentHash = block2.hash;
+            block5.hash = calculateBlockHash(block5);  // IMPORTANT: recalculate block hash otherwise asserts fails
+
+            // change data of block 6
+            block6.transactionsRoot = block4.receiptsRoot;
+            block6.stateRoot = block4.transactionsRoot;
+            block6.receiptsRoot = block4.stateRoot;
+            block6.parentHash = block3.hash;
+            block6.hash = calculateBlockHash(block6);  // IMPORTANT: recalculate block hash otherwise asserts fails
+
+            // change data of block 7
+            block7.transactionsRoot = block4.receiptsRoot;
+            block7.stateRoot = block4.transactionsRoot;
+            block7.receiptsRoot = block4.stateRoot;
+            block7.parentHash = block5.hash;
+            block7.hash = calculateBlockHash(block7);  // IMPORTANT: recalculate block hash otherwise asserts fails
+
+            const expectedBlocks = [
+                {
+                    block: block1,
+                    forkId: 0,
+                    iterableIndex: 0,
+                    latestFork: ZERO_HASH,
+                    successors: [block2.hash],
+                    submitter: accounts[0]
+                },
+                {
+                    block: block2,
+                    forkId: 0,
+                    iterableIndex: 0,
+                    latestFork: ZERO_HASH,
+                    successors: [block3.hash, block5.hash],
+                    submitter: accounts[0]
+                },
+                {
+                    block: block3,
+                    forkId: 0,
+                    iterableIndex: 0,
+                    latestFork: block2.hash,
+                    successors: [block4.hash, block6.hash],
+                    submitter: accounts[0]
+                },
+                {
+                    block: block4,
+                    forkId: 0,
+                    iterableIndex: 0,
+                    latestFork: block3.hash,
+                    successors: [],
+                    submitter: accounts[0]
+                },
+                {
+                    block: block5,
+                    forkId: 1,
+                    iterableIndex: 0,
+                    latestFork: block2.hash,
+                    successors: [block7.hash],
+                    submitter: accounts[0]
+                },
+                {
+                    block: block6,
+                    forkId: 2,
+                    iterableIndex: 2,
+                    latestFork: block3.hash,
+                    successors: [],
+                    submitter: accounts[0]
+                },
+                {
+                    block: block7,
+                    forkId: 1,
+                    iterableIndex: 1,
+                    latestFork: block2.hash,
+                    successors: [],
+                    submitter: accounts[0]
+                }
+            ];
+            const expectedEndpoints = [block4, block7, block6];
+            await submitBlockBatch(expectedBlocks, accounts[0]);
+
+            // Perform checks
+            await checkExpectedEndpoints(expectedEndpoints);
+            await checkExpectedBlockHeaders(expectedBlocks);
+
+            await withdrawStake(stake, accounts[0]);
+        });
+
+    });
+
     describe('Testimonium: VerifyTransaction', function () {
 
         // Test Scenario 1:
@@ -873,7 +989,7 @@ contract('Testimonium', async (accounts) => {
                         value: verificationFee,
                         gasPrice: GAS_PRICE_IN_WEI
                     });
-                    expectEvent.inLogs(ret.logs, 'VerifyTransaction', {result: new BN(0)});
+                    // expectEvent.inLogs(ret.logs, 'VerifyTransaction', {result: new BN(0)});
 
                     let balanceSubmitterAfterCall = await balance.current(submitterAddr);
                     let balanceVerifierAfterCall = await balance.current(verifierAddr);
@@ -3096,6 +3212,20 @@ contract('Testimonium', async (accounts) => {
             const submitTime = await time.latest();
             expected.lockedUntil = submitTime.add(LOCK_PERIOD);
         });
+    };
+
+    const submitBlockBatch = async (expectedHeaders, accountAddr) => {
+        const batch = [];
+        for (let i = 0; i < expectedHeaders.length; i++) {
+            batch.push(createRLPHeader(expectedHeaders[i].block));
+        }
+        await testimonium.submitBlockBatch(RLP.encode(batch), { from: accountAddr, gasPrice: GAS_PRICE_IN_WEI });
+
+        const submitTime = await time.latest();
+        const expectedLockedUntil = submitTime.add(LOCK_PERIOD);
+        for (let i = 0; i < expectedHeaders.length; i++) {
+            expectedHeaders[i].lockedUntil = expectedLockedUntil;
+        }
     };
 
     const checkExpectedBlockHeaders = async (expectedHeaders) => {

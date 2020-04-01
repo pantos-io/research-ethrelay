@@ -11,9 +11,9 @@ import "../node_modules/solidity-rlp/contracts/RLPReader.sol";
 /// @dev    This contract uses the TestimoniumCore contract and extends it with an incentive structure.
 contract Testimonium is TestimoniumCore {
 
-    uint constant ETH_IN_WEI = 1000000000000000000;
-    uint constant REQUIRED_STAKE_PER_BLOCK = 1 * ETH_IN_WEI;
-    uint constant REQUIRED_VERIFICATION_FEE_IN_WEI = ETH_IN_WEI / 10;
+    using RLPReader for *;
+    uint constant REQUIRED_STAKE_PER_BLOCK = 1 ether;
+    uint constant REQUIRED_VERIFICATION_FEE_IN_WEI = 0.1 ether;
     uint8 constant VERIFICATION_TYPE_TX = 1;
     uint8 constant VERIFICATION_TYPE_RECEIPT = 2;
     uint8 constant VERIFICATION_TYPE_STATE = 3;
@@ -90,6 +90,15 @@ contract Testimonium is TestimoniumCore {
         emit SubmitBlock(blockHash);
     }
 
+    function submitBlockBatch(bytes memory _rlpHeaders) public {
+        RLPReader.Iterator memory it = _rlpHeaders.toRlpItem().iterator();
+
+        while(it.hasNext()) {
+            bytes memory rlpHeader = it.next().toBytes();
+            submitBlock(rlpHeader);
+        }
+    }
+
     function disputeBlockHeader(bytes memory rlpHeader, bytes memory rlpParent, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
         address[] memory submittersToPunish = disputeBlock(rlpHeader, rlpParent, dataSetLookup, witnessForLookup);
 
@@ -149,7 +158,6 @@ contract Testimonium is TestimoniumCore {
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
         uint8 result = verify(VERIFICATION_TYPE_TX, feeInWei, rlpHeader, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
         emit VerifyTransaction(result);
-
         return result;
     }
 
@@ -167,7 +175,6 @@ contract Testimonium is TestimoniumCore {
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
         uint8 result = verify(VERIFICATION_TYPE_RECEIPT, feeInWei, rlpHeader, noOfConfirmations, rlpEncodedReceipt, path, rlpEncodedNodes);
         emit VerifyReceipt(result);
-
         return result;
     }
 

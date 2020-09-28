@@ -40,8 +40,8 @@ Run the tests with `truffle test`.
 To generate the Go contract files and export them to the [go-ethrelay](https://github.com/pantos-io/go-ethrelay) project run `./export.sh`
 
 For the export script to work correctly,
-you should set the `GOTESTIMONIUM` environment variable to the project root of go-ethrelay on your machine, e.g.,
-`export GOTESTIMONIUM=~/code/.../go-ethrelay/`. By default, it exports to `${GOPATH}/src/github.com/pantos-io/go-ethrelay`.
+you should set the `GOETHRELAY` environment variable to the project root of go-ethrelay on your machine, e.g.,
+`export GOETHRELAY=~/code/.../go-ethrelay/`. By default, it exports to `${GOPATH}/src/github.com/pantos-io/go-ethrelay`.
 
 ## How it works
 Users can query the ETH Relay contract living on the verifying blockchain by sending requests like 
@@ -93,7 +93,7 @@ A more detailed explanation of the inner workings can be found [here](https://ds
 ## Troubleshooting
 #### Wrong Compiler Version:
 ```
-contracts/Testimonium.sol:1:1: Error: Source file requires different compiler version (current compiler is 0.5.9+commit.c68bc34e.Darwin.appleclang - note that nightly builds are considered to be strictly less than the released version
+contracts/EthRelay.sol:1:1: Error: Source file requires different compiler version (current compiler is 0.5.9+commit.c68bc34e.Darwin.appleclang - note that nightly builds are considered to be strictly less than the released version
 pragma solidity ^0.5.10;
 ^----------------------^
 ```
@@ -104,7 +104,7 @@ To update the solidity compiler on Mac, run `brew upgrade`
 When running the tests you might run into the following error: `Returned error: legacy access request rate exceeded`.
 
 To fix, create an account with [Infura](https://infura.io/register) and create a new Infura project. 
-Then in file `test/Testimonium.test.js` change the constant `INFURA_ENDPOINT` to the 
+Then in file `test/EthRelay.test.js` change the constant `INFURA_ENDPOINT` to the 
 mainnet URL from your Infura project.
 
 

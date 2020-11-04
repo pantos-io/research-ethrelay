@@ -31,6 +31,7 @@ const createRLPHeader = (block) => {
         block.nonce,
     ]);
 };
+
 const createRLPHeaderWithoutNonce = (block) => {
     return RLP.encode([
         block.parentHash,
@@ -49,9 +50,24 @@ const createRLPHeaderWithoutNonce = (block) => {
     ]);
 };
 
+const createRLPTransaction = (transaction) => {
+    return RLP.encode([
+        transaction.nonce,
+        Number(transaction.gasPrice),
+        transaction.gas,
+        transaction.to,
+        Number(transaction.value),
+        transaction.input,
+        transaction.v,
+        transaction.r,
+        transaction.s,
+    ]);
+};
+
 module.exports = {
     calculateBlockHash,
     createRLPHeader,
     createRLPHeaderWithoutNonce,
-    addToHex
+    addToHex,
+    createRLPTransaction,
 };

@@ -3,7 +3,6 @@ pragma solidity ^0.5.10;
 import "./TestimoniumCore.sol";
 import "../node_modules/solidity-rlp/contracts/RLPReader.sol";
 
-
 /// @title Testimonium: A contract enabling cross-blockchain verifications (transactions, receipts, states)
 /// @author Marten Sigwart, Philipp Frauenthaler
 /// @notice You can use this contract for submitting new block headers, disputing already submitted block headers, and
@@ -36,6 +35,7 @@ contract Testimonium is TestimoniumCore {
     ///      containing the client's address and the amount of withdrawn stake.
     function withdrawStake(uint amount) public {
         uint withdrawnStake = 0;
+
         if (clientStake[msg.sender] >= amount) {
             if (getUnusedStake(msg.sender) >= amount) {
                 withdraw(msg.sender, amount);
@@ -71,11 +71,13 @@ contract Testimonium is TestimoniumCore {
     }
 
     event SubmitBlock(bytes32 blockHash);
+
     function submitBlock(bytes memory rlpHeader) public {
         // client must have enough stake to be able to submit blocks
         if (getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
             // client has not enough unused stake -> check whether some of the blocks submitted by the client have left the lock period
             cleanSubmitList(msg.sender);
+
             if (getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
                 // not enough unused stake -> abort
                 emit SubmitBlock(0);
@@ -85,6 +87,7 @@ contract Testimonium is TestimoniumCore {
 
         // client has enough stake -> submit header and add its hash to the client's list of submitted block headers
         bytes32 blockHash = submitHeader(rlpHeader, msg.sender);
+
         blocksSubmittedByClient[msg.sender].push(blockHash);
 
         emit SubmitBlock(blockHash);
@@ -105,11 +108,13 @@ contract Testimonium is TestimoniumCore {
         // if the PoW validation initiated by the dispute function was successful (i.e., the block is legal),
         // submittersToPunish will be empty and no further action will be carried out.
         uint collectedStake = 0;
+
         for (uint i = 0; i < submittersToPunish.length; i++) {
             address client = submittersToPunish[i];
             clientStake[client] = clientStake[client] - REQUIRED_STAKE_PER_BLOCK;
             collectedStake += REQUIRED_STAKE_PER_BLOCK;
         }
+
         // client that triggered the dispute receives the collected stake
         clientStake[msg.sender] += collectedStake;
     }
@@ -125,20 +130,19 @@ contract Testimonium is TestimoniumCore {
 
         if (verificationType == VERIFICATION_TYPE_TX) {
             result = verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedValue, path, rlpEncodedNodes, getTxRoot(rlpHeader));
-        }
-        else if (verificationType == VERIFICATION_TYPE_RECEIPT) {
+        } else if (verificationType == VERIFICATION_TYPE_RECEIPT) {
             result = verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedValue, path, rlpEncodedNodes, getReceiptsRoot(rlpHeader));
-        }
-        else if (verificationType == VERIFICATION_TYPE_STATE) {
+        } else if (verificationType == VERIFICATION_TYPE_STATE) {
             result = verifyMerkleProof(blockHash, noOfConfirmations, rlpEncodedValue, path, rlpEncodedNodes, getStateRoot(rlpHeader));
-        }
-        else {
+        } else {
             revert("Unknown verification type");
         }
 
         // send fee to block submitter
         (, , , , , address submitter) = getHeaderMetaInfo(blockHash);
+
         address payable submitterAddr = address(uint160(submitter));
+
         submitterAddr.transfer(feeInWei);
 
         return result;
@@ -156,8 +160,11 @@ contract Testimonium is TestimoniumCore {
     ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
     function verifyTransaction(uint feeInWei, bytes memory rlpHeader, uint8 noOfConfirmations, bytes memory rlpEncodedTx,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
+
         uint8 result = verify(VERIFICATION_TYPE_TX, feeInWei, rlpHeader, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
+
         emit VerifyTransaction(result);
+
         return result;
     }
 
@@ -173,8 +180,11 @@ contract Testimonium is TestimoniumCore {
     ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
     function verifyReceipt(uint feeInWei, bytes memory rlpHeader, uint8 noOfConfirmations, bytes memory rlpEncodedReceipt,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
+
         uint8 result = verify(VERIFICATION_TYPE_RECEIPT, feeInWei, rlpHeader, noOfConfirmations, rlpEncodedReceipt, path, rlpEncodedNodes);
+
         emit VerifyReceipt(result);
+
         return result;
     }
 
@@ -190,7 +200,9 @@ contract Testimonium is TestimoniumCore {
     ///         1: block is confirmed and unlocked, but the Merkle proof was invalid
     function verifyState(uint feeInWei, bytes memory rlpHeader, uint8 noOfConfirmations, bytes memory rlpEncodedState,
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
+
         uint8 result = verify(VERIFICATION_TYPE_STATE, feeInWei, rlpHeader, noOfConfirmations, rlpEncodedState, path, rlpEncodedNodes);
+
         emit VerifyState(result);
 
         return result;
@@ -208,13 +220,13 @@ contract Testimonium is TestimoniumCore {
     ///      been elapsed. As long as the block is referenced in blocksSubmittedByClient, the stake is considered as "used".
     function getUnusedStake(address client) private view returns (uint) {
         uint usedStake = blocksSubmittedByClient[client].length * REQUIRED_STAKE_PER_BLOCK;
+
         if (clientStake[client] < usedStake) {
             // if a client get punished due to a dispute the clientStake[client] can be less than
             // blocksSubmittedByClient[client].length * REQUIRED_STAKE_PER_BLOCK, since clientStake[client] is deducted
             // after the dispute, but blocksSubmittedByClient[client] remains unaffected (i.e., it is not cleared)
             return 0;
-        }
-        else {
+        } else {
             return clientStake[client] - usedStake;
         }
     }
@@ -226,6 +238,7 @@ contract Testimonium is TestimoniumCore {
 
         for (uint i = 0; i < blocksSubmittedByClient[client].length;) {
             bytes32 blockHash = blocksSubmittedByClient[client][i];
+
             if (!isHeaderStored(blockHash) || isUnlocked(blockHash)) {
                 // block has been removed or is already unlocked (i.e., lock period has elapsed) -> remove hash from array
                 uint lastElemPos = blocksSubmittedByClient[client].length - 1;
@@ -235,8 +248,7 @@ contract Testimonium is TestimoniumCore {
                 blocksSubmittedByClient[client].length--;
                 deletedElements += 1;
                 // i is not increased, since we copied the last element to position i (otherwise the copied element would not be checked)
-            }
-            else {
+            } else {
                 // nothing changed -> increase i and check next element
                 i++;
             }
@@ -249,5 +261,4 @@ contract Testimonium is TestimoniumCore {
         clientStake[receiver] = clientStake[receiver] - amount;
         receiver.transfer(amount);
     }
-
 }

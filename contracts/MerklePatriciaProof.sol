@@ -19,29 +19,46 @@ library MerklePatriciaProof {
      */
     function verify(bytes memory value, bytes memory encodedPath, bytes memory rlpParentNodes, bytes32 root) internal pure returns (uint) {
         RLPReader.RLPItem memory item = RLPReader.toRlpItem(rlpParentNodes);
+
+      // list of the rlp encoded proof nodes
+        // [node1, node2, node3...]
         RLPReader.RLPItem[] memory parentNodes = RLPReader.toList(item);
 
         bytes memory currentNode;
         RLPReader.RLPItem[] memory currentNodeList;
 
+        // merkle-root hash - this should be calculated by all the following child-nodes
         bytes32 nodeKey = root;
+
+        // current height-level of the trie
         uint pathPtr = 0;
 
+        // [8, 1, 8, 8]
         bytes memory path = _getNibbleArray(encodedPath);
-        if (path.length == 0) {return (1);}
 
+        // path is empty - this is equal as
+        if (path.length == 0) { return (1); }
+
+        // iterate all the rlp encoded nodes in the proof
         for (uint i = 0; i < parentNodes.length; i++) {
-            if (pathPtr > path.length) {
-                return (2);
-            }
 
+            // the actual path is longer than the given path - key not found
+            if (pathPtr > path.length) { return (2); }
+
+            // next node in the proof is read
             currentNode = RLPReader.toBytes(parentNodes[i]);
-            if (nodeKey != keccak256(currentNode)) {
-                return (3);
-            }
-            currentNodeList = RLPReader.toList(RLPReader.toRlpItem(currentNode));
+
+            // the hash of the current-node does not represent the desired nodeKey, this is especially the case at the
+            // beginning of the proof where the transactionRootHash is verified
+            if (nodeKey != keccak256(currentNode)) { return (3); }
+
+            // the proof-node is transformed into the byte-array containing key/value/branch nodes depending on the type of the proof node
+            currentNodeList = RLPReader.toList(parentNodes[i]);
 
             if (currentNodeList.length == 17) {
+                // branch node
+
+                // we reached at the given level
                 if (pathPtr == path.length) {
                     if (keccak256(RLPReader.toBytes(currentNodeList[16])) == keccak256(value)) {
                         return (0);
@@ -51,13 +68,17 @@ library MerklePatriciaProof {
                 }
 
                 uint8 nextPathNibble = uint8(path[pathPtr]);
+
                 if (nextPathNibble > 16) {
                     return (5);
                 }
 
                 nodeKey = bytes32(RLPReader.toUint(currentNodeList[nextPathNibble]));
+
                 pathPtr += 1;
             } else if (currentNodeList.length == 2) {
+                // extension or leaf node
+
                 pathPtr += _nibblesToTraverse(RLPReader.toBytes(currentNodeList[0]), path, pathPtr);
 
                 if (pathPtr == path.length) {//leaf node
@@ -124,7 +145,10 @@ library MerklePatriciaProof {
         return nibbles;
     }
 
-    // normal byte array, no encoding used
+    // this function creates a bytes array where each element contains the value of 4 bits of a byte
+    // the 1 byte (8-bit) - array is split into a 4-bit array so to say
+    // example: byte-array in hex representation: [81, 88] will be transformed to [8, 1, 8, 8]
+    // normal byte array, no special encoding/decoding used
     function _getNibbleArray(bytes memory b) private pure returns (bytes memory) {
         bytes memory nibbles = new bytes(b.length*2);
         for (uint i = 0; i < nibbles.length; i++) {
@@ -134,7 +158,7 @@ library MerklePatriciaProof {
     }
 
     /*
-     *This function takes in the bytes string (hp encoded) and the value of N, to return Nth Nibble.
+     * this function takes in the bytes string (hp encoded (hex-prefix encoded)) and the value of N, to return the Nth nibble.
      *@param Value of N
      *@param Bytes String
      *@return ByteString[N]

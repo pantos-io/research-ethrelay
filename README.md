@@ -1,11 +1,11 @@
 # ETH Relay
 
-This project contains Ethereum smart contracts that enable the verification of transactions 
-of a "target" blockchain on a different "verifying" blockchain in a trustless and decentralized way. 
+This project contains Ethereum smart contracts that enable the verification of transactions of a "target"
+blockchain on a different "verifying" blockchain in a trustless and decentralized way. 
 
 This means a user can send a request to the verifying chain asking whether or not a certain transaction 
-has been included in the target chain. The verifying chain then provides a reliable and truthful answer 
-without relying on any third party trust.
+has been included in the target chain and is verified. The verifying chain then provides
+a reliable and truthful answer without relying on any third party trust.
 
 The ability to verify transactions "across" different blockchains is vital to enable applications such as 
 [cross-blockchain token transfers](https://dsg.tuwien.ac.at/projects/tast/pub/tast-white-paper-5.pdf).
@@ -13,19 +13,24 @@ The ability to verify transactions "across" different blockchains is vital to en
   It represents ongoing work conducted within the [TAST](https://dsg.tuwien.ac.at/projects/tast/) 
   research project. Use with care._
 
-
 ## Get Started
-ETH Relay is best enjoyed through the accompanying CLI tool, so go check it out [here](https://github.com/pantos-io/go-ethrelay).  
-If you want to deploy the contracts manually, follow the steps below.
+ETH Relay is best enjoyed through the accompanying go-ethrelay CLI tool that can be found
+[here](https://github.com/pantos-io/go-ethrelay).  
+However, if you want to deploy the contracts manually, follow the steps below.
 
 ## Installation
 The following guide will walk you through the deployment of ETH Relay with a local blockchain (Ganache) 
-as the verifying chain and the main Ethereum blockchain as the target blockchain.
+as the verifying chain and the main Ethereum blockchain as the target blockchain. This means blocks from
+the main Ethereum blockchain (source) are forwarded to the ETH Relay contract on the local blockchain (destination).
 
 ### Prerequisites
 You need to have the following tools installed:
-* [Node](https://nodejs.org/en/)
-* [Ganache](https://www.trufflesuite.com/ganache) (>= 2.1.0)
+* [Node](https://nodejs.org/en/) (version >= 10.1)
+* [Ganache](https://www.trufflesuite.com/ganache) (version >= 2.1)
+* [Solidity](https://solidity.readthedocs.io/en/v0.5.17/installing-solidity.html) (0.6 > version >= 0.5)
+
+For simply running the tests it is not necessarily required to use Ganache as truffle provides an integrated
+blockchain that is used for automatic testing.
 
 ### Deployment
 1. Clone the repository: `git clone git@github.com:pantos-io/ethrelay.git`
@@ -37,11 +42,11 @@ You need to have the following tools installed:
 Run the tests with `truffle test`.
 
 ### Export contract
-To generate the Go contract files and export them to the [go-ethrelay](https://github.com/pantos-io/go-ethrelay) project run `./export.sh`
-
 For the export script to work correctly,
 you should set the `GOETHRELAY` environment variable to the project root of go-ethrelay on your machine, e.g.,
 `export GOETHRELAY=~/code/.../go-ethrelay/`. By default, it exports to `${GOPATH}/src/github.com/pantos-io/go-ethrelay`.
+
+To generate the Go contract files and export them to the [go-ethrelay](https://github.com/pantos-io/go-ethrelay) project run `./export.sh`
 
 ## How it works
 Users can query the ETH Relay contract living on the verifying blockchain by sending requests like 
@@ -59,7 +64,7 @@ chain needs to know about the state of the target blockchain.
 For that, clients continuously submit block headers of the target chain to the ETH Relay contract.
 For each block header that the contract receives, it performs a kind of light validation:
    1. Verify that the block's parent already exists within the contract.
-   2. Verify that the block's number is exactly incremented by one.
+   2. Verify that the block's number is exactly one higher than it's parent.
    3. Verify that the block's timestamp is correct.
    4. Verify that the block's gas limit is correct.
    
@@ -100,13 +105,14 @@ pragma solidity ^0.5.10;
 Make sure the solidity compiler is up-to-date with `solc --version`.
 To update the solidity compiler on Mac, run `brew upgrade`
 
+The project was tested with Solidity `0.5.17+commit.d19bba13.Emscripten.clang`.
+As version 0.6.0 of solidity comes with major changes we stick to 0.5 at the moment.
+
 #### Legacy Access Request Rate Exceeded Error
-When running the tests you might run into the following error: `Returned error: legacy access request rate exceeded`.
+When running the tests you might run into the following error: `Returned error: legacy access request rate exceeded` or `Returned error: project ID is required`.
 
 To fix, create an account with [Infura](https://infura.io/register) and create a new Infura project. 
-Then in file `test/EthRelay.test.js` change the constant `INFURA_ENDPOINT` to the 
-mainnet URL from your Infura project.
-
+Then in file `./constants.js` change the constant `INFURA_ENDPOINT` to the mainnet URL from your Infura project (e.g. `https://mainnet.infura.io/v3/ab050ca78686478a9e9b06dfc4b2f069`).
 
 ## How to contribute
 ETH Relay is a research prototype. We welcome anyone to contribute.
@@ -115,8 +121,8 @@ If you want to contribute feel free to submit a pull request.
 
 ## Acknowledgements
 * The development of this prototype was funded by [Pantos](https://pantos.io/) within the [TAST](https://dsg.tuwien.ac.at/projects/tast/) research project.
-* The original code for the Ethash contract comes from the [smartpool project](https://github.com/smartpool).
-* The code for the RLPReader contract comes from [Hamdi Allam](https://github.com/hamdiallam/Solidity-RLP) with parts 
+* The original code for the Ethash contract that is partly used in this project comes from the [smartpool project](https://github.com/smartpool).
+* The code for the RLPReader contract that is partly used in this project comes from [Hamdi Allam](https://github.com/hamdiallam/Solidity-RLP) with parts 
 of it taken from [Andreas Olofsson](https://github.com/androlo/standard-contracts/blob/master/contracts/src/codec/RLP.sol).
 
 ## Licence

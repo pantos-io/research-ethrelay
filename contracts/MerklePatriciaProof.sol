@@ -53,7 +53,7 @@ library MerklePatriciaProof {
             if (nodeKey != keccak256(currentNode)) { return (3); }
 
             // the proof-node is transformed into the byte-array containing key/value/branch nodes depending on the type of the proof node
-            currentNodeList = RLPReader.toList(parentNodes[i]);
+            currentNodeList = RLPReader.toList(RLPReader.toRlpItem(currentNode));
 
             if (currentNodeList.length == 17) {
                 // branch node

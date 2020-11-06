@@ -41,9 +41,10 @@ contract TestimoniumCore {
     // on data in the FullHeader, one has to go back to the submit-transaction of this block and search for the event
     // why: the FullHeader space consumption is high and emitting it once is cheaper than save it in the state
     struct Header {
-        bytes32 hash;
+        // uint24 first and uint232 second to pack variables in 1 uint256 variable
         uint24 blockNumber;
         uint232 totalDifficulty;
+        bytes32 hash;
         MetaInfo meta;
     }
 
@@ -54,10 +55,10 @@ contract TestimoniumCore {
         bytes32 stateRoot;
         bytes32 transactionsRoot;
         bytes32 receiptsRoot;
-        bytes32 rlpHeaderHashWithoutNonce;   // sha3 hash of the header without nonce and mix fields
         uint blockNumber;
         uint gasLimit;
         uint gasUsed;
+        bytes32 rlpHeaderHashWithoutNonce;   // sha3 hash of the header without nonce and mix fields, placed here because of pointer-position in byte-arrays
         uint timestamp;                      // block timestamp is needed for difficulty calculation
         uint nonce;                          // blockNumber, rlpHeaderHashWithoutNonce and nonce are needed for verifying PoW
         uint difficulty;
@@ -131,7 +132,7 @@ contract TestimoniumCore {
 
     // TODO: if we index the hash event-parameter, we can query it's value much faster later, but it's more expensive, evaluation is necessary
     // example: event SubmitHeader(bytes32 indexed hash);
-    event SubmitHeader(bytes32 hash);
+    event SubmitHeader(bytes32 blockHash);
 
     /// @dev Accepts an RLP encoded header. The provided header is parsed and its hash along with some meta data is stored.
     function submitHeader(bytes memory _rlpHeader, address submitter) internal returns (bytes32) {
@@ -214,6 +215,49 @@ contract TestimoniumCore {
         // Currently, once the dispute period is over and the block is unlocked we accept it as valid.
         // In that case, no validation is carried out anymore.
 
+        // outsourcing verifying of validity and PoW because solidity encountered a stack too deep exception before
+        uint returnCode = verifyValidityAndPoW(rlpHeader, rlpParent, dataSetLookup, witnessForLookup);
+
+        address[] memory submittersToPunish = new address[](0);
+
+        if (returnCode != 0) {
+            submittersToPunish = removeBranch(keccak256(rlpHeader), headers[keccak256(rlpParent)]);
+        }
+
+        emit DisputeBlock(returnCode);
+
+        return submittersToPunish;
+    }
+
+    // helper function to not get a stack to deep exception
+    function verifyValidityAndPoW(bytes memory rlpHeader, bytes memory rlpParent, uint[] memory dataSetLookup, uint[] memory witnessForLookup) private returns (uint) {
+        uint returnCode;
+        uint24 blockNumber;
+        uint nonce;
+        uint difficulty;
+
+        // verify validity of header and parent
+        (returnCode, blockNumber, nonce, difficulty) = verifyValidity(rlpHeader, rlpParent);
+
+        // if return code is 0, the block and it's parent seem to be valid
+        // next check the ethash PoW algorithm
+        if (returnCode == 0) {
+            // header validation without checking Ethash was successful -> verify Ethash
+            uint errorInfo;
+
+            (returnCode, errorInfo) = ethashContract.verifyPoW(blockNumber, getRlpHeaderHashWithoutNonce(rlpHeader),
+                nonce, difficulty, dataSetLookup, witnessForLookup);
+
+            emit PoWValidationResult(returnCode, errorInfo);
+        }
+
+        return returnCode;
+    }
+
+    // initially this logic was part of the disputeBlock method, but as the solidity compiler failed for
+    // such big logic blocks, so the logic was split in 2 sub methods to save stack space
+    // TODO: maybe this necessary call can be enhanced to use a little less gas integrating in the upper method while preserving the logic, e.g. the storedParent is read read from storage 2 times, maybe pass as argument if cheaper, should not cause too much cost increase
+    function verifyValidity(bytes memory rlpHeader, bytes memory rlpParent) private view returns (uint, uint24, uint, uint) {
         bytes32 headerHash = keccak256(rlpHeader);
         bytes32 parentHash = keccak256(rlpParent);
 
@@ -231,27 +275,7 @@ contract TestimoniumCore {
 
         require(providedHeader.parent == parentHash, "provided header's parent does not match with provided parent' hash");
 
-        uint returnCode = checkHeaderValidity(providedHeader, providedParent);
-
-        if (returnCode == 0) {
-            // header validation without checking Ethash was successful -> verify Ethash
-            uint errorInfo;
-
-            (returnCode, errorInfo) = ethashContract.verifyPoW(storedHeader.blockNumber, getRlpHeaderHashWithoutNonce(rlpHeader),
-                providedHeader.nonce, providedHeader.difficulty, dataSetLookup, witnessForLookup);
-
-            emit PoWValidationResult(returnCode, errorInfo);
-        }
-
-        address[] memory submitters = new address[](0);
-
-        if (returnCode != 0) {
-            submitters = removeBranch(headerHash, storedParent);
-        }
-
-        emit DisputeBlock(returnCode);
-
-        return submitters;
+        return (checkHeaderValidity(providedHeader, providedParent), storedHeader.blockNumber, providedHeader.nonce, providedHeader.difficulty);
     }
 
     function isHeaderSuccessorOfParent(Header memory header, Header memory parent) private pure returns (bool) {
@@ -372,7 +396,6 @@ contract TestimoniumCore {
         }
 
         return (true, confirmationStartHeader);
-
     }
 
     function isUnlocked(bytes32 blockHash) internal view returns (bool) {

@@ -40,8 +40,7 @@ contract Testimonium is TestimoniumCore {
             if (getUnusedStake(msg.sender) >= amount) {
                 withdraw(msg.sender, amount);
                 withdrawnStake = amount;
-            }
-            else {
+            } else {
                 // no enough free stake -> try to clean up array (search for stakes used by blocks that have already passed the lock period)
                 cleanSubmitList(msg.sender);
                 if (getUnusedStake(msg.sender) >= amount) {
@@ -70,27 +69,19 @@ contract Testimonium is TestimoniumCore {
         return blocksSubmittedByClient[msg.sender];
     }
 
-    event SubmitBlock(bytes32 blockHash);
-
     function submitBlock(bytes memory rlpHeader) public {
         // client must have enough stake to be able to submit blocks
         if (getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
             // client has not enough unused stake -> check whether some of the blocks submitted by the client have left the lock period
             cleanSubmitList(msg.sender);
 
-            if (getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
-                // not enough unused stake -> abort
-                emit SubmitBlock(0);
-                return;
-            }
+            require(getUnusedStake(msg.sender) >= REQUIRED_STAKE_PER_BLOCK, "not enough free stake available");
         }
 
         // client has enough stake -> submit header and add its hash to the client's list of submitted block headers
         bytes32 blockHash = submitHeader(rlpHeader, msg.sender);
 
         blocksSubmittedByClient[msg.sender].push(blockHash);
-
-        emit SubmitBlock(blockHash);
     }
 
     function submitBlockBatch(bytes memory _rlpHeaders) public {

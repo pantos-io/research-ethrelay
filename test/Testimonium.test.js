@@ -4,6 +4,8 @@ const {createRLPHeader, calculateBlockHash, createRLPHeaderWithoutNonce, addToHe
 const expectEvent = require('./expectEvent');
 const RLP = require('rlp');
 
+const { INFURA_ENDPOINT } = require("../constants");
+
 const Testimonium = artifacts.require('./TestimoniumTestContract');
 const Ethash = artifacts.require('./Ethash');
 const {expect} = require('chai');
@@ -17,8 +19,6 @@ const MAX_GAS_LIMIT             = new BN(2).pow(new BN(63)).sub(new BN(1));
 const MIN_GAS_LIMIT             = new BN(5000);
 const GAS_LIMIT_BOUND_DIVISOR   = new BN(1024);
 const GAS_PRICE_IN_WEI          = new BN(0);
-const INFURA_ENDPOINT           = "https://mainnet.infura.io/v3/ab050ca98686478e9e9b06dfc3b2f069";
-
 
 contract('Testimonium', async (accounts) => {
 
@@ -779,14 +779,8 @@ contract('Testimonium', async (accounts) => {
         it("should not accept block since client has not provided any stake", async () => {
             // submit header
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-            const ret = await submitBlockHeader(block1, accounts[0]);
-            expectEvent.inLogs(ret.logs, 'SubmitBlock', {blockHash: ZERO_HASH});
 
-            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
-            expect(submittedHeaders.length).to.equal(0);
-
-            const header = await testimonium.getHeader(block1.hash);
-            expect(header.hash).to.equal(ZERO_HASH);  // check whether block does not exist in the contract
+            await expectRevert(submitBlockHeader(block1, accounts[0]), "revert not enough free stake available");
         });
 
         it("should accept block due to enough unused stake", async () => {
@@ -796,7 +790,7 @@ contract('Testimonium', async (accounts) => {
             // submit header
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const ret = await submitBlockHeader(block1, accounts[0]);
-            expectEvent.inLogs(ret.logs, 'SubmitBlock', {blockHash: block1.hash});
+            expectEvent.inLogs(ret.logs, 'SubmitHeader', {blockHash: block1.hash});
 
             const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(1);
@@ -973,10 +967,6 @@ contract('Testimonium', async (accounts) => {
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
-            expectedBlocks.forEach((block, index) => {
-                console.log(`block ${index+1}: ${block.lockedUntil}`)
-            });
-
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
                 console.log((await time.latest()).toString());
                 for (let j = 0; j < i; j++) {
@@ -989,7 +979,8 @@ contract('Testimonium', async (accounts) => {
                         value: verificationFee,
                         gasPrice: GAS_PRICE_IN_WEI
                     });
-                    // expectEvent.inLogs(ret.logs, 'VerifyTransaction', {result: new BN(0)});
+
+                    expectEvent.inLogs(ret.logs, 'VerifyTransaction', {result: new BN(0)});
 
                     let balanceSubmitterAfterCall = await balance.current(submitterAddr);
                     let balanceVerifierAfterCall = await balance.current(verifierAddr);
@@ -998,6 +989,7 @@ contract('Testimonium', async (accounts) => {
                     expect(balanceSubmitterBeforeCall).to.be.bignumber.equal(balanceSubmitterAfterCall.sub(verificationFee));
                     expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
                 }
+
                 for (let j = i; j < expectedBlocks.length; j++) {
                     await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                         from: verifierAddr,

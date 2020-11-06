@@ -1,3 +1,5 @@
+import { INFURA_ENDPOINT } from "../constants";
+
 const Testimonium = artifacts.require("Testimonium");
 const Ethash = artifacts.require("Ethash");
 
@@ -5,7 +7,7 @@ const Web3 = require('web3');
 const { createRLPHeader } = require('../utils/utils');
 
 module.exports = async function(deployer) {
-  const targetWeb3 = new Web3("https://mainnet.infura.io/v3/ab050ca98686478e9e9b06dfc3b2f069");
+  const targetWeb3 = new Web3(INFURA_ENDPOINT);
   const GENESIS_BLOCK = 8084509;
 
   // deploy Ethash

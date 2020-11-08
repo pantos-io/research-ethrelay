@@ -66,7 +66,7 @@ contract TestimoniumCore {
     }
 
     uint64 maxForkId = 0;                           // current fork-id, is incrementing
-    bytes32 public longestChainEndpoint;            // saves the hash of the block with the highest blockNr. (most PoW work)
+    bytes32 longestChainEndpoint;                   // saves the hash of the block with the highest blockNr. (most PoW work)
     mapping (bytes32 => Header) private headers;    // holds all block in a hashmap, key=blockhash, value=reduced block headers with metadata
     bytes32[] iterableEndpoints;                    // holds endpoints of all forks of the PoW-tree to speed up submission, deletion etc.
 
@@ -87,6 +87,10 @@ contract TestimoniumCore {
         longestChainEndpoint = newBlockHash;    // the first block is also the longest chain/fork at the moment
 
         ethashContract = EthashInterface(_ethashContractAddr);
+    }
+
+    function getLongestChainEndpoint() public view returns (bytes32 hash) {
+        return longestChainEndpoint;
     }
 
     function getHeader(bytes32 blockHash) public view returns (bytes32 hash, uint blockNumber, uint totalDifficulty) {

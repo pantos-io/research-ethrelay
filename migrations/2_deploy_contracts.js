@@ -1,4 +1,4 @@
-import { INFURA_ENDPOINT } from "../constants";
+const { INFURA_ENDPOINT } = require("../constants");
 
 const Testimonium = artifacts.require("Testimonium");
 const Ethash = artifacts.require("Ethash");

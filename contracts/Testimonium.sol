@@ -4,7 +4,7 @@ import "./TestimoniumCore.sol";
 import "../node_modules/solidity-rlp/contracts/RLPReader.sol";
 
 /// @title Testimonium: A contract enabling cross-blockchain verifications (transactions, receipts, states)
-/// @author Marten Sigwart, Philipp Frauenthaler
+/// @author Marten Sigwart, Philipp Frauenthaler, edited by Leonhard Esterbauer
 /// @notice You can use this contract for submitting new block headers, disputing already submitted block headers, and
 ///         for verifying Merkle Patricia proofs (transactions, receipts, states).
 /// @dev    This contract uses the TestimoniumCore contract and extends it with an incentive structure.
@@ -34,23 +34,28 @@ contract Testimonium is TestimoniumCore {
     /// @dev Withdraws the stake of a client. The stake is reduced by the specified amount. Emits an event WithdrawStake
     ///      containing the client's address and the amount of withdrawn stake.
     function withdrawStake(uint amount) public {
-        uint withdrawnStake = 0;
+        // if participant has not emitted amount stake we can for sure revert
+        require(clientStake[msg.sender] >= amount, "amount higher than deposited stake");
 
-        if (clientStake[msg.sender] >= amount) {
-            if (getUnusedStake(msg.sender) >= amount) {
-                withdraw(msg.sender, amount);
-                withdrawnStake = amount;
-            } else {
-                // no enough free stake -> try to clean up array (search for stakes used by blocks that have already passed the lock period)
-                cleanSubmitList(msg.sender);
-                if (getUnusedStake(msg.sender) >= amount) {
-                    withdraw(msg.sender, amount);
-                    withdrawnStake = amount;
-                }
-            }
+        // else we check the unlocked stake and if enough stake is available we simply withdraw amount
+        if (getUnusedStake(msg.sender) >= amount) {
+            withdraw(msg.sender, amount);
+            emit WithdrawStake(msg.sender, amount);
+            return;
         }
 
-        emit WithdrawStake(msg.sender, withdrawnStake);
+        // no enough free stake -> try to clean up array (search for stakes used by blocks that have already passed the lock period)
+        cleanSubmitList(msg.sender);
+
+        // if less than amount is available, we simply withdraw 0, so the client can distinguish
+        // between the case a participant doesn't event hold amount stake or it is simply locked
+        if (getUnusedStake(msg.sender) >= amount) {
+            withdraw(msg.sender, amount);
+            emit WithdrawStake(msg.sender, amount);
+            return;
+        }
+
+        emit WithdrawStake(msg.sender, 0);
     }
 
     function getStake() public view returns (uint) {
@@ -69,21 +74,45 @@ contract Testimonium is TestimoniumCore {
         return blocksSubmittedByClient[msg.sender];
     }
 
+    // here, the consideration was to use indexes as these are much faster for searching in the blockchain
+    // the counterpart is the higher gas, a index log costs (very cheap), but as the content of the submit
+    // block is only important to participants in the time of the lock period like disputers, we can simply
+    // do a linear backwards search and find the event in the last e.g. 10mins, this is a reasonable amount
+    // of time of block search a client can handle easily and fast
+    // originally, this event was located in TestimoniumCore, but for the 0x00 submit if the stake is too low
+    // we decided to put the event here to save a few gas costs if one calls submitBlock twice with not enough
+    // free stake
+    event SubmitBlock(bytes32 blockHash);
+
     function submitBlock(bytes memory rlpHeader) public {
         // client must have enough stake to be able to submit blocks
         if (getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
             // client has not enough unused stake -> check whether some of the blocks submitted by the client have left the lock period
             cleanSubmitList(msg.sender);
-
-            require(getUnusedStake(msg.sender) >= REQUIRED_STAKE_PER_BLOCK, "not enough free stake available");
+            // emit the 0x00 hash - what if this hash is really calculated? it is very very unlikely, but it is not safe
+            // another way is to create a special error event and emmit an specific error code after cleanSubmitList that indicates the error
+            // additionally, one could replace this with a require, but require reverts the state and participants have to pay fees for
+            // cleanSubmitList every time#
+            if (getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
+                // not enough unused stake -> abort
+                emit SubmitBlock(0);
+                return;
+            }
         }
 
         // client has enough stake -> submit header and add its hash to the client's list of submitted block headers
         bytes32 blockHash = submitHeader(rlpHeader, msg.sender);
 
         blocksSubmittedByClient[msg.sender].push(blockHash);
+
+        // submit hash - indicate that the block with this hash was submitted, helpful for searching the blockchain
+        // for infos like rlp header needed for disputing a block
+        emit SubmitBlock(blockHash);
     }
 
+    // here, the same parallel problems like with single submitBlock in TestimoniumCore occur: if there are two participants submitting
+    // at the same time, only one is being accepted and the other one is rejected resulting in high gas costs especially
+    // if the bytes memory _rlpHeaders param is quite big
     function submitBlockBatch(bytes memory _rlpHeaders) public {
         RLPReader.Iterator memory it = _rlpHeaders.toRlpItem().iterator();
 

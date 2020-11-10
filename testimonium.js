@@ -6,8 +6,7 @@ const account = web3.eth.accounts.wallet.add('0x1ab7e4534afb18687b9f68872e0f3d6c
 readTestimoniumEvents(web3);
 
 function readTestimoniumEvents(web3) {
-    const contractInstance = new web3.eth.Contract(abiTestimonium, "0xBcA729959391a8d64cF8d08C71b26f3d0e25E83F",{
-    });
+    const contractInstance = new web3.eth.Contract(abiTestimonium, "0xBcA729959391a8d64cF8d08C71b26f3d0e25E83F",{});
 
     contractInstance.events.allEvents({
         fromBlock: 0

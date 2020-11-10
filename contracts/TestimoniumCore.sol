@@ -9,13 +9,16 @@ contract EthashInterface {
 
 /// @title TestimoniumCore: A contract enabling cross-blockchain verifications of transactions,
 ///        receipts and states on a destination blockchain of a source blockchain
-/// @author Marten Sigwart, Philipp Frauenthaler
+/// @author Marten Sigwart, Philipp Frauenthaler, edited by Leonhard Esterbauer
 /// @notice You can use this contract for submitting new block headers, disputing already submitted block headers and
 ///         for verifying Merkle Patricia proofs of transactions, receipts and states
 contract TestimoniumCore {
 
     using RLPReader for *;
 
+    // the verification- and dispute-process takes a long time, so it may not be possible to verify and additionally
+    // dispute the block within 5mins if a disputer don't have a generated DAG on the hard disk. to solve this
+    // quickly, make the process faster or increase the lock period to get enough time for clients to dispute
     uint16 constant LOCK_PERIOD_IN_MIN = 5 minutes;
     uint8 constant ALLOWED_FUTURE_BLOCK_TIME = 15 seconds;
     uint8 constant MAX_EXTRA_DATA_SIZE = 32;
@@ -67,6 +70,9 @@ contract TestimoniumCore {
 
     uint64 maxForkId = 0;                           // current fork-id, is incrementing
     bytes32 longestChainEndpoint;                   // saves the hash of the block with the highest blockNr. (most PoW work)
+    bytes32 genesisBlockHash;                       // saves the hash of the genesis block the contract was deployed with
+                                                    // maybe the saving of the genesis block could also be achieved with events in the
+                                                    // constructor that gives very small savings
     mapping (bytes32 => Header) private headers;    // holds all block in a hashmap, key=blockhash, value=reduced block headers with metadata
     bytes32[] iterableEndpoints;                    // holds endpoints of all forks of the PoW-tree to speed up submission, deletion etc.
 
@@ -75,22 +81,32 @@ contract TestimoniumCore {
     // values represent a valid block of the tracked blockchain
     constructor (bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) internal {
         bytes32 newBlockHash = keccak256(_rlpHeader);
+
         FullHeader memory parsedHeader = parseRlpEncodedHeader(_rlpHeader);
         Header memory newHeader;
+
         newHeader.hash = newBlockHash;
         newHeader.blockNumber = uint24(parsedHeader.blockNumber);
         newHeader.totalDifficulty = uint232(totalDifficulty);
         newHeader.meta.forkId = maxForkId;  // the first block is no fork (forkId = 0)
         newHeader.meta.iterableIndex = uint64(iterableEndpoints.push(newBlockHash) - 1);    // the first block is also an endpoint
         newHeader.meta.lockedUntil = uint64(now);   // the first block does not need a confirmation period
+
         headers[newBlockHash] = newHeader;
+
         longestChainEndpoint = newBlockHash;    // the first block is also the longest chain/fork at the moment
 
         ethashContract = EthashInterface(_ethashContractAddr);
+
+        genesisBlockHash = newBlockHash;
     }
 
     function getLongestChainEndpoint() public view returns (bytes32 hash) {
         return longestChainEndpoint;
+    }
+
+    function getGenesisBlockHash() public view returns (bytes32 hash) {
+        return genesisBlockHash;
     }
 
     function getHeader(bytes32 blockHash) public view returns (bytes32 hash, uint blockNumber, uint totalDifficulty) {
@@ -134,9 +150,22 @@ contract TestimoniumCore {
         return headers[hash].blockNumber != 0;
     }
 
-    // TODO: if we index the hash event-parameter, we can query it's value much faster later, but it's more expensive, evaluation is necessary
-    // example: event SubmitHeader(bytes32 indexed hash);
-    event SubmitHeader(bytes32 blockHash);
+    // there is one problem here that is necessary to tell the participants: if multiple participants are
+    // submitting the same block, they all have to pay the fees for the transaction, but only one block is
+    // accepted and the other submit-actions from other participants are simply wasted, this is a risk for
+    // the users to pay and pay the fees for transactions, but get never back some reward as they are not
+    // able to submit new blocks if they e.g. have a high latency to the next node (anyways, this should
+    // be distributed around the world if you don't know where the next block is being mined, so everyone
+    // may has at least equally chances)
+    // a possible solution to this problem is to create another timespan in that all the submits are
+    // counted and after that timespan all the submitters get a fraction ot the reward, this is like the
+    // uncle-reward in the ethereum approach
+
+    // another problem with submitHeader is the submission of very new blocks from the source blockchain
+    // that are not very likely to stay in the longest chain, here also the participants have to choose
+    // if they are waiting for "solid" blocks and other may submit the header before, or submit all new
+    // blocks immediately to get the rewards more likely but accept the risk of submitting fork-blocks
+    // that only cost some transaction fee on the destination blockchain
 
     /// @dev Accepts an RLP encoded header. The provided header is parsed and its hash along with some meta data is stored.
     function submitHeader(bytes memory _rlpHeader, address submitter) internal returns (bytes32) {
@@ -198,12 +227,18 @@ contract TestimoniumCore {
         // save header, important: make sure to persist the header only AFTER all property changes
         headers[newHeader.hash] = newHeader;
 
-        // submit hash - indicate that the block with this hash was submitted, helpful for searching the blockchain
-        // for infos like rlp header needed for disputing a block
-        emit SubmitHeader(newHeader.hash);
-
         return newHeader.hash;
     }
+
+    // the worst case is to fire an expensive dispute event on a valid block, this is indeed possible if a "attacker"
+    // is able to relay a valid block not existing on the source blockchain and participants only check for existence on
+    // the source blockchain, but that case is very unlikely because it means the attacker is able to produce blocks
+    // in a faster way than the source blockchain produces new blocks, workaround: get the rlpHeader from the submit
+    // -transaction of new blocks and check the header locally on the client before executing a public dispute
+
+    // another case is the parallelism of the dispute call: this is similar to the special case when two participants
+    // are submitting the same block, only one gets the dispute-reward, but both pay for the expensive dispute and
+    // validation process
 
     event DisputeBlock(uint returnCode);
     event PoWValidationResult(uint returnCode, uint errorInfo);
@@ -259,8 +294,10 @@ contract TestimoniumCore {
     }
 
     // initially this logic was part of the disputeBlock method, but as the solidity compiler failed for
-    // such big logic blocks, so the logic was split in 2 sub methods to save stack space
-    // TODO: maybe this necessary call can be enhanced to use a little less gas integrating in the upper method while preserving the logic, e.g. the storedParent is read read from storage 2 times, maybe pass as argument if cheaper, should not cause too much cost increase
+    // such big logic blocks the logic was split in 2 sub methods to save stack space
+    // so maybe this necessary call can be enhanced to use a little less gas integrating in the upper method while
+    // preserving the logic, e.g. the storedParent is read read from storage 2 times, maybe pass as argument if cheaper,
+    // this should not cause too much cost increase
     function verifyValidity(bytes memory rlpHeader, bytes memory rlpParent) private view returns (uint, uint24, uint, uint) {
         bytes32 headerHash = keccak256(rlpHeader);
         bytes32 parentHash = keccak256(rlpParent);
@@ -696,29 +733,34 @@ contract TestimoniumCore {
     // The validation largely follows the header validation of the geth implementation:
     // https://github.com/ethereum/go-ethereum/blob/aa6005b469fdd1aa7a95f501ce87908011f43159/consensus/ethash/consensus.go#L241
     function checkHeaderValidity(FullHeader memory header, FullHeader memory parent) private view returns (uint) {
-        if (iterableEndpoints.length == 0) {
-            // we do not check header validity for the genesis block
-            // since the genesis block is submitted at contract creation.
-            return 0;
-        }
-
+        // check extraData size
         if (header.extraData.length > MAX_EXTRA_DATA_SIZE) return 3;
 
-        // check block number
-        if (parent.blockNumber + 1 != header.blockNumber) return 4;
-
-        // check timestamp
+        // check timestamp not in the future
         if (header.timestamp > now + ALLOWED_FUTURE_BLOCK_TIME) return 5;
-        if (parent.timestamp >= header.timestamp) return 6;
-
-        // check difficulty
-        uint expectedDifficulty = calculateDifficulty(parent, header.timestamp);
-        if (expectedDifficulty != header.difficulty) return 7;
 
         // validate gas limit
         if (header.gasLimit > MAX_GAS_LIMIT) return 8; // verify that the gas limit is <= 2^63-1
         if (header.gasLimit < MIN_GAS_LIMIT) return 9; // verify that the gas limit is >= 5000
-        if (!gasLimitWithinBounds(int64(header.gasLimit), int64(parent.gasLimit))) return 10;
+
+        // if there are already endpoints available, perform additional checks
+        // else it is the genesis block and has no parent blocks we can check
+        if (iterableEndpoints.length != 0) {
+            // check chronological blockNumber order
+            if (parent.blockNumber + 1 != header.blockNumber) return 4;
+
+            // check chronological timestamp order
+            if (parent.timestamp >= header.timestamp) return 6;
+
+            // check difficulty
+            uint expectedDifficulty = calculateDifficulty(parent, header.timestamp);
+            if (expectedDifficulty != header.difficulty) return 7;
+
+            // validate gas limit with parent
+            if (!gasLimitWithinBounds(int64(header.gasLimit), int64(parent.gasLimit))) return 10;
+        }
+
+        // validate gas limit
         if (header.gasUsed > header.gasLimit) return 11;
 
         return 0;

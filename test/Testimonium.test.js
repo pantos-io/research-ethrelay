@@ -91,19 +91,10 @@ contract('Testimonium', async (accounts) => {
             let gasUsed = new BN(0);
             const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
 
-            const ret = await testimonium.withdrawStake(stakeToWithdraw, {
+            await expectRevert(testimonium.withdrawStake(stakeToWithdraw, {
                 from: accounts[0],
                 gasPrice: GAS_PRICE_IN_WEI
-            });
-            expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: new BN(0)});
-            gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
-
-            const stakeAfterTest = await testimonium.getStake({from: accounts[0]});
-            expect(stakeAfterTest).to.be.bignumber.equal(stakeBeforeTest);
-
-            const accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
-            const feesInWei = gasUsed.mul(GAS_PRICE_IN_WEI);
-            expect(accountBalanceAfterTestinEth).to.be.bignumber.equal(accountBalanceBeforeTestInWei.sub(feesInWei));
+            }), 'amount higher than deposited stake');
         });
 
         // Test Scenario 2:
@@ -256,7 +247,7 @@ contract('Testimonium', async (accounts) => {
         });
     });
 
-    describe('Testimonium: SubmitHeader', function () {
+    describe('Testimonium: SubmitBlock', function () {
 
         // Test Scenario 1:
         //
@@ -779,8 +770,15 @@ contract('Testimonium', async (accounts) => {
         it("should not accept block since client has not provided any stake", async () => {
             // submit header
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
+            const ret = await submitBlockHeader(block1, accounts[0]);
 
-            await expectRevert(submitBlockHeader(block1, accounts[0]), "revert not enough free stake available");
+            expectEvent.inLogs(ret.logs, 'SubmitBlock', {blockHash: ZERO_HASH});
+
+            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
+            expect(submittedHeaders.length).to.equal(0);
+
+            const header = await testimonium.getHeader(block1.hash);
+            expect(header.hash).to.equal(ZERO_HASH);  // check whether block does not exist in the contract
         });
 
         it("should accept block due to enough unused stake", async () => {
@@ -790,7 +788,7 @@ contract('Testimonium', async (accounts) => {
             // submit header
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const ret = await submitBlockHeader(block1, accounts[0]);
-            expectEvent.inLogs(ret.logs, 'SubmitHeader', {blockHash: block1.hash});
+            expectEvent.inLogs(ret.logs, 'SubmitBlock', {blockHash: block1.hash});
 
             const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(1);
@@ -804,7 +802,7 @@ contract('Testimonium', async (accounts) => {
 
     });
 
-    describe('Testimonium: SubmitHeaderBatch', function () {
+    describe('Testimonium: SubmitBlockBatch', function () {
 
         // Test Scenario 8:
         //
@@ -968,7 +966,7 @@ contract('Testimonium', async (accounts) => {
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
-                console.log((await time.latest()).toString());
+                // console.log((await time.latest()).toString());
                 for (let j = 0; j < i; j++) {
                     // console.log(`i: ${i}, j: ${j}`);
                     let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
@@ -1055,13 +1053,9 @@ contract('Testimonium', async (accounts) => {
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
-            expectedBlocks.forEach((block, index) => {
-                console.log(`block ${index}: ${block.lockedUntil}`)
-            });
-
             // it is expected that always false is returned since the requested block is not part of the longest PoW chain
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
-                console.log((await time.latest()).toString());
+                // console.log((await time.latest()).toString());
                 for (let j = 0; j < expectedBlocks.length; j++) {
                     await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                         from: verifierAddr,
@@ -1177,13 +1171,9 @@ contract('Testimonium', async (accounts) => {
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
-            expectedBlocks.forEach((block, index) => {
-                console.log(`Block ${index + 1} lockedUntil: ${block.lockedUntil}`)
-            });
-
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
-                console.log(`Current time: ${await time.latest()}`);
-                console.log(`Unlocked block: ${i}`);
+                // console.log(`Current time: ${await time.latest()}`);
+                // console.log(`Unlocked block: ${i}`);
 
                 for (let j = 0; j < expectedVerificationResults[i].length; j++) {
                     if (expectedVerificationResults[i][j] === 0) {
@@ -1325,13 +1315,9 @@ contract('Testimonium', async (accounts) => {
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
-            expectedBlocks.forEach((block, index) => {
-                console.log(`Block ${index + 1} lockedUntil: ${block.lockedUntil}`)
-            });
-
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
-                console.log(`Current time: ${await time.latest()}`);
-                console.log(`Unlocked block: ${i}`);
+                // console.log(`Current time: ${await time.latest()}`);
+                // console.log(`Unlocked block: ${i}`);
 
                 for (let j = 0; j < expectedVerificationResults[i].length; j++) {
                     if (expectedVerificationResults[i][j] === 0) {
@@ -1512,10 +1498,6 @@ contract('Testimonium', async (accounts) => {
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
-            expectedBlocks.forEach((block, index) => {
-                console.log(`block ${index}: ${block.lockedUntil}`)
-            });
-
             await time.increaseTo(expectedBlocks[0].lockedUntil);
             await time.increase(time.duration.seconds(1));
 
@@ -1584,10 +1566,6 @@ contract('Testimonium', async (accounts) => {
             ];
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
-
-            expectedBlocks.forEach((block, index) => {
-                console.log(`block ${index}: ${block.lockedUntil}`)
-            });
 
             await time.increaseTo(expectedBlocks[0].lockedUntil);
             await time.increase(time.duration.seconds(1));
@@ -1658,10 +1636,6 @@ contract('Testimonium', async (accounts) => {
             ];
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
-
-            expectedBlocks.forEach((block, index) => {
-                console.log(`block ${index}: ${block.lockedUntil}`)
-            });
 
             await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
@@ -1753,10 +1727,6 @@ contract('Testimonium', async (accounts) => {
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
-            expectedBlocks.forEach((block, index) => {
-                console.log(`block ${index}: ${block.lockedUntil}`)
-            });
-
             await time.increaseTo(expectedBlocks[0].lockedUntil);
             await time.increase(time.duration.seconds(1));
 
@@ -1824,10 +1794,6 @@ contract('Testimonium', async (accounts) => {
             ];
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
-
-            expectedBlocks.forEach((block, index) => {
-                console.log(`block ${index}: ${block.lockedUntil}`)
-            });
 
             await time.increaseTo(expectedBlocks[0].lockedUntil);
             await time.increase(time.duration.seconds(1));
@@ -1897,10 +1863,6 @@ contract('Testimonium', async (accounts) => {
             ];
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
-
-            expectedBlocks.forEach((block, index) => {
-                console.log(`block ${index}: ${block.lockedUntil}`)
-            });
 
             await expectRevert(testimonium.verifyReceipt(verificationFee, requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
@@ -3118,10 +3080,10 @@ contract('Testimonium', async (accounts) => {
                 expect(stakeAccount3AfterDispute).to.be.bignumber.equal(stakeAccount3BeforeDispute);
 
                 // withdraw stake
-                await withdrawStake(stakeAccount0, accounts[0]);
-                await withdrawStake(stakeAccount1, accounts[1]);
-                await withdrawStake(stakeAccount2, accounts[2]);
-                await withdrawStake(stakeAccount3, accounts[3]);
+                await withdrawStake(stakeAccount0AfterDispute, accounts[0]);
+                await withdrawStake(stakeAccount1AfterDispute, accounts[1]);
+                await withdrawStake(stakeAccount2AfterDispute, accounts[2]);
+                await withdrawStake(stakeAccount3AfterDispute, accounts[3]);
             });
 
             // Test Scenario 2 (verification of Ethash should be successful):
@@ -3252,8 +3214,7 @@ contract('Testimonium', async (accounts) => {
             }
         });
 
-        expect(await testimonium.longestChainEndpoint()).to.equal(expectedLongestChainEndpoint.hash);
-
+        expect(await testimonium.getLongestChainEndpoint()).to.equal(expectedLongestChainEndpoint.hash);
     };
 
     const getAccountBalanceInWei = async (accountAddress) => {

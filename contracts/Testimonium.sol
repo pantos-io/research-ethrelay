@@ -90,6 +90,7 @@ contract Testimonium is TestimoniumCore {
             // client has not enough unused stake -> check whether some of the blocks submitted by the client have left the lock period
             cleanSubmitList(msg.sender);
             // emit the 0x00 hash - what if this hash is really calculated? it is very very unlikely, but it is not safe
+            // - should be rather safe as the mapping for headers has 0 for not present and if we don't assume this, the whole contract would be unnecessary
             // another way is to create a special error event and emmit an specific error code after cleanSubmitList that indicates the error
             // additionally, one could replace this with a require, but require reverts the state and participants have to pay fees for
             // cleanSubmitList every time#
@@ -250,6 +251,12 @@ contract Testimonium is TestimoniumCore {
             return clientStake[client] - usedStake;
         }
     }
+
+    // take care of cleanSubmitList, maybe more gas than estimated is needed: e.g. if the time from estimating the gas costs
+    // on the local machine to running the code on a node takes so long that a new block is unlocked in this time and can be
+    // freed by this procedure, then gas-estimation from before is too less and an out of gas exception occur, this can easily
+    // be the case if two blocks are directly relayed and submitted by the same person having less time between the submits
+    // as the time from estimation to running the code lasts
 
     /// @dev Checks for each block referenced in blocksSubmittedByClient whether it is unlocked. In case a referenced
     ///      block's lock perdiod has expired, its reference is removed from the list blocksSubmittedByClient.

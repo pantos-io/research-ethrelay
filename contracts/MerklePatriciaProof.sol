@@ -20,7 +20,7 @@ library MerklePatriciaProof {
     function verify(bytes memory value, bytes memory encodedPath, bytes memory rlpParentNodes, bytes32 root) internal pure returns (uint) {
         RLPReader.RLPItem memory item = RLPReader.toRlpItem(rlpParentNodes);
 
-      // list of the rlp encoded proof nodes
+        // list of the rlp encoded proof nodes
         // [node1, node2, node3...]
         RLPReader.RLPItem[] memory parentNodes = RLPReader.toList(item);
 

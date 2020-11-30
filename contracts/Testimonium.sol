@@ -259,10 +259,38 @@ contract Testimonium is TestimoniumCore {
     // as the time from estimation to running the code lasts
 
     /// @dev Checks for each block referenced in blocksSubmittedByClient whether it is unlocked. In case a referenced
-    ///      block's lock perdiod has expired, its reference is removed from the list blocksSubmittedByClient.
+    ///      block's lock period has expired, its reference is removed from the list blocksSubmittedByClient.
     function cleanSubmitList(address client) private returns (uint) {
         uint deletedElements = 0;
 
+        // this is very unpredictable as we relay on the "now" value in isUnlocked
+        // and "now" relies on the timestamp a block is being mined
+        // so imagine one submits blocks all the time and we don't know exactly when
+        // we execute cleanSubmitList, if one is creating the contract from a genesis
+        // block in the past, the contract has to catch up all the blocks until now
+        // for this, one has to submit all the blocks either in batchMode so all blocks
+        // are submitted at the exact same timestamp, which may run out of gas submitting
+        // many blocks, so one may submit the blocks one by one or in batches, if we do this
+        // we get some blocks with different lockedTimes laying directly side by side in the
+        // blocksSubmittedByClient-list, in this case it can happen, that a client tries to
+        // submit a block, the client estimates the gas at timestamp t where x blocks are locked,
+        // the client uses f gas, after submitting the transaction, it is not guaranteed when
+        // the transaction is included, it can happen, that at timestamp t + 1  where x + 1
+        // blocks are unlocked, the gas consumption is much higher as we clear 1 additional block
+        // and the transaction run out of gas
+        // one possible workaround is to pass the time-parameter directly with the actions
+        // using cleanSubmitList like withdrawStake and submitBlock, after the contract
+        // checks if the date is in the past, the contract can free exactly as many blocks
+        // as the client requires
+        // another is to pass much more gas to the client, which as actually the simplest solution
+        // additionally, we may re-implement this with a queue containing only uint16 values that
+        // save the timestamps and unlock the blocks one by one to not run through the whole array
+        // but that may only be a small improvement if any
+        // for the default usage this is very unlikely, but can happen for sure if the client submits
+        // a block, has too less stake deposited, estimates the gas and exactly at this point in time,
+        // an old block is unlocked and at the estimation timestamp the client assumed there will be
+        // less blocks too free if not even an exception and a rollback that does cost less than the
+        // two described cases
         for (uint i = 0; i < blocksSubmittedByClient[client].length;) {
             bytes32 blockHash = blocksSubmittedByClient[client][i];
 

@@ -119,6 +119,10 @@ ETH Relay is a research prototype. We welcome anyone to contribute.
 File a bug report or submit feature requests through the [issue tracker](https://github.com/pantos-io/ethrelay/issues). 
 If you want to contribute feel free to submit a pull request.
 
+## Useful resources
+* https://etherscan.io
+* https://solidity.readthedocs.io/en/v0.5.7
+
 ## Acknowledgements
 * The development of this prototype was funded by [Pantos](https://pantos.io/) within the [TAST](https://dsg.tuwien.ac.at/projects/tast/) research project.
 * The original code for the Ethash contract that is partly used in this project comes from the [smartpool project](https://github.com/smartpool).

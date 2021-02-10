@@ -2,7 +2,8 @@
 
 if [[ -z "${GOTESTIMONIUM}" ]]; then
   echo "Warning: environment variable GOTESTIMONIUM not set."
-  echo "    e.g., 'export GOTESTIMONIUM=~/code/../go-testimonium/'"
+  echo "    e.g., 'export GOTESTIMONIUM=~/code/../go-testimonium'"
+  exit 0
 fi
 
 EXPORT_PATH=${GOTESTIMONIUM:-${GOPATH}/src/github.com/pantos-io/go-testimonium}

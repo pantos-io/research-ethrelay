@@ -64,7 +64,7 @@ chain needs to know about the state of the target blockchain.
 For that, clients continuously submit block headers of the target chain to the ETH Relay contract.
 For each block header that the contract receives, it performs a kind of light validation:
    1. Verify that the block's parent already exists within the contract.
-   2. Verify that the block's number is exactly one higher than it's parent.
+   2. Verify that the block's number is exactly one higher than its parent.
    3. Verify that the block's timestamp is correct.
    4. Verify that the block's gas limit is correct.
    

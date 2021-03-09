@@ -25,7 +25,7 @@ the main Ethereum blockchain (source) are forwarded to the ETH Relay contract on
 
 ### Prerequisites
 You need to have the following tools installed:
-* [Node](https://nodejs.org/en/) (version >= 10.1)
+* [Node](https://nodejs.org/en/) (version >= 10.1, recommended Truffle version: v5.1.29)
 * [Ganache](https://www.trufflesuite.com/ganache) (version >= 2.1)
 * [Solidity](https://solidity.readthedocs.io/en/v0.5.17/installing-solidity.html) (0.6 > version >= 0.5)
 
@@ -43,7 +43,7 @@ Run the tests with `truffle test`.
 
 ### Export contract
 For the export script to work correctly,
-you should set the `GOETHRELAY` environment variable to the project root of go-ethrelay on your machine, e.g.,
+you should set the `GOETHRELAY` environment variable to the project root of [go-ethrelay](https://github.com/pantos-io/go-ethrelay) on your machine, e.g.,
 `export GOETHRELAY=~/code/.../go-ethrelay/`. By default, it exports to `${GOPATH}/src/github.com/pantos-io/go-ethrelay`.
 
 To generate the Go contract files and export them to the [go-ethrelay](https://github.com/pantos-io/go-ethrelay) project run `./export.sh`
@@ -96,13 +96,13 @@ _tx_ is not part of _b_.
 A more detailed explanation of the inner workings can be found [here](https://dsg.tuwien.ac.at/projects/tast/pub/tast-white-paper-6.pdf). 
 
 ## Troubleshooting
-#### Wrong Compiler Version:
+#### Wrong Compiler Version
 ```
 contracts/EthRelay.sol:1:1: Error: Source file requires different compiler version (current compiler is 0.5.9+commit.c68bc34e.Darwin.appleclang - note that nightly builds are considered to be strictly less than the released version
 pragma solidity ^0.5.10;
 ^----------------------^
 ```
-Make sure the solidity compiler is up-to-date with `solc --version`.
+Make sure the recommended solidity compiler version (0.6 > version >= 0.5) is used with `solc --version`. 
 To update the solidity compiler on Mac, run `brew upgrade`
 
 The project was tested with Solidity `0.5.17+commit.d19bba13.Emscripten.clang`.
@@ -111,8 +111,13 @@ As version 0.6.0 of solidity comes with major changes we stick to 0.5 at the mom
 #### Legacy Access Request Rate Exceeded Error
 When running the tests you might run into the following error: `Returned error: legacy access request rate exceeded` or `Returned error: project ID is required`.
 
-To fix, create an account with [Infura](https://infura.io/register) and create a new Infura project. 
+To fix this error, create an account with [Infura](https://infura.io/register) and create a new Infura project. 
 Then in file `./constants.js` change the constant `INFURA_ENDPOINT` to the mainnet URL from your Infura project (e.g. `https://mainnet.infura.io/v3/ab050ca78686478a9e9b06dfc4b2f069`).
+
+#### Wrong Truffle Version
+When running the tests you might run into the following error: `TypeError: param.substring is not a function`.
+
+To fix this error, make sure the recommended Truffle version is used, i.e. v5.1.29.
 
 ## How to contribute
 ETH Relay is a research prototype. We welcome anyone to contribute.

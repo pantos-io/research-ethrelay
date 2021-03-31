@@ -273,9 +273,12 @@ blockchain/geth/**
 blockchain/keystore/**
 blockchain/history
 
-#truffle
+# truffle
 .tern-port
 yarn.lock
 package-lock.json
+
+# vim
+*.swp
 
 # End of https://www.gitignore.io/api/node,macos,intellij,solidity,soliditytruffle

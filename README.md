@@ -27,9 +27,9 @@ the main Ethereum blockchain (source) are forwarded to the ETH Relay contract on
 You need to have the following tools installed:
 * [Node](https://nodejs.org/en/) (version >= 10.1, recommended Truffle version: v5.1.29)
 * [Ganache](https://www.trufflesuite.com/ganache) (version >= 2.1)
-* [Solidity](https://solidity.readthedocs.io/en/v0.5.17/installing-solidity.html) (0.6 > version >= 0.5)
+* [Solidity](https://docs.soliditylang.org/en/latest/installing-solidity.html) (0.9 > version >= 0.7)
 
-For simply running the tests it is not necessarily required to use Ganache as truffle provides an integrated
+For simply running the tests, it is not necessarily required to use Ganache as truffle provides an integrated
 blockchain that is used for automatic testing.
 
 ### Deployment
@@ -98,15 +98,13 @@ A more detailed explanation of the inner workings can be found [here](https://ds
 ## Troubleshooting
 #### Wrong Compiler Version
 ```
-contracts/EthRelay.sol:1:1: Error: Source file requires different compiler version (current compiler is 0.5.9+commit.c68bc34e.Darwin.appleclang - note that nightly builds are considered to be strictly less than the released version
-pragma solidity ^0.5.10;
-^----------------------^
+Error: Source file requires different compiler version (current compiler is 0.6.12+commit.27d51765.Linux.g++) - note that nightly builds are considered to be strictly less than the released version
+ --> contracts/Testimonium.sol:2:1:
+  |
+2 | pragma solidity >=0.7.0 <0.9.0;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
-Make sure the recommended solidity compiler version (0.6 > version >= 0.5) is used with `solc --version`. 
-To update the solidity compiler on Mac, run `brew upgrade`
-
-The project was tested with Solidity `0.5.17+commit.d19bba13.Emscripten.clang`.
-As version 0.6.0 of solidity comes with major changes we stick to 0.5 at the moment.
+Make sure the recommended Solidity compiler version (0.9 > version >= 0.7) is used with `solc --version`.
 
 #### Legacy Access Request Rate Exceeded Error
 When running the tests you might run into the following error: `Returned error: legacy access request rate exceeded` or `Returned error: project ID is required`.

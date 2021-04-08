@@ -1,15 +1,16 @@
-pragma solidity ^0.5.10;
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.7.0 <0.9.0;
 
 import "./MerklePatriciaProof.sol";
 
-contract EthashInterface {
+abstract contract EthashInterface {
     function verifyPoW(uint blockNumber, bytes32 rlpHeaderHashWithoutNonce, uint nonce, uint difficulty,
-        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view returns (uint, uint);
+        uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view virtual returns (uint, uint);
 }
 
 /// @title TestimoniumCore: A contract enabling cross-blockchain verifications of transactions,
 ///        receipts and states on a destination blockchain of a source blockchain
-/// @author Marten Sigwart, Philipp Frauenthaler, edited by Leonhard Esterbauer
+/// @author Marten Sigwart, Philipp Frauenthaler, Leonhard Esterbauer, Markus Levonyak
 /// @notice You can use this contract for submitting new block headers, disputing already submitted block headers and
 ///         for verifying Merkle Patricia proofs of transactions, receipts and states
 contract TestimoniumCore {
@@ -79,7 +80,7 @@ contract TestimoniumCore {
     // initialize the contract with a rlpHeader of the wanted genesis block, the actual totalDifficulty at this block and
     // the deployed ethhashContractAddress to verify PoW of this header, the contract creator needs to make sure that these
     // values represent a valid block of the tracked blockchain
-    constructor (bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) internal {
+    constructor (bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) {
         bytes32 newBlockHash = keccak256(_rlpHeader);
 
         FullHeader memory parsedHeader = parseRlpEncodedHeader(_rlpHeader);
@@ -89,8 +90,9 @@ contract TestimoniumCore {
         newHeader.blockNumber = uint24(parsedHeader.blockNumber);
         newHeader.totalDifficulty = uint232(totalDifficulty);
         newHeader.meta.forkId = maxForkId;  // the first block is no fork (forkId = 0)
-        newHeader.meta.iterableIndex = uint64(iterableEndpoints.push(newBlockHash) - 1);    // the first block is also an endpoint
-        newHeader.meta.lockedUntil = uint64(now);   // the first block does not need a confirmation period
+        iterableEndpoints.push(newBlockHash);
+        newHeader.meta.iterableIndex = uint64(iterableEndpoints.length - 1);    // the first block is also an endpoint
+        newHeader.meta.lockedUntil = uint64(block.timestamp);   // the first block does not need a confirmation period
 
         headers[newBlockHash] = newHeader;
 
@@ -193,7 +195,7 @@ contract TestimoniumCore {
         newHeader.hash = blockHash;
         newHeader.blockNumber = uint24(decodedBlockNumber);
         newHeader.totalDifficulty = uint232(parentHeader.totalDifficulty + decodedDifficulty);
-        newHeader.meta.lockedUntil = uint64(now + LOCK_PERIOD_IN_MIN);
+        newHeader.meta.lockedUntil = uint64(block.timestamp + LOCK_PERIOD_IN_MIN);
         newHeader.meta.submitter = submitter;
 
         // check if parent is an endpoint
@@ -208,7 +210,8 @@ contract TestimoniumCore {
             // parentHeader is forked
             maxForkId += 1;
             newHeader.meta.forkId = maxForkId;
-            newHeader.meta.iterableIndex = uint64(iterableEndpoints.push(newHeader.hash) - 1);
+            iterableEndpoints.push(newHeader.hash);
+            newHeader.meta.iterableIndex = uint64(iterableEndpoints.length - 1);
             newHeader.meta.latestFork = decodedParent;
 
             if (parentHeader.meta.successors.length == 2) {
@@ -440,7 +443,7 @@ contract TestimoniumCore {
     }
 
     function isUnlocked(bytes32 blockHash) internal view returns (bool) {
-        return headers[blockHash].meta.lockedUntil < now;
+        return headers[blockHash].meta.lockedUntil < block.timestamp;
     }
 
     function getSuccessorByForkId(bytes32 blockHash, uint forkId) private view returns (bytes32) {
@@ -511,7 +514,8 @@ contract TestimoniumCore {
 
         if (parentHeader.meta.successors.length == 1) {
             // parentHeader has only one successor --> parentHeader will be an endpoint after pruning
-            parentHeader.meta.iterableIndex = uint64(iterableEndpoints.push(parentHeader.hash) - 1);
+            iterableEndpoints.push(parentHeader.hash);
+            parentHeader.meta.iterableIndex = uint64(iterableEndpoints.length - 1);
         }
 
         // remove root (which will be pruned) from the parent's successor list
@@ -520,7 +524,7 @@ contract TestimoniumCore {
 
                 // overwrite root with last successor and delete last successor
                 parentHeader.meta.successors[i] = parentHeader.meta.successors[parentHeader.meta.successors.length - 1];
-                parentHeader.meta.successors.length--;
+                parentHeader.meta.successors.pop();
 
                 // we remove at most one element, if this is done we can break to save gas
                 break;
@@ -573,7 +577,7 @@ contract TestimoniumCore {
             bytes32 lastIterableElement = iterableEndpoints[iterableEndpoints.length - 1];
 
             iterableEndpoints[rootHeader.meta.iterableIndex] = lastIterableElement;
-            iterableEndpoints.length--;
+            iterableEndpoints.pop();
 
             headers[lastIterableElement].meta.iterableIndex = rootHeader.meta.iterableIndex;
 
@@ -737,7 +741,7 @@ contract TestimoniumCore {
         if (header.extraData.length > MAX_EXTRA_DATA_SIZE) return 3;
 
         // check timestamp not in the future
-        if (header.timestamp > now + ALLOWED_FUTURE_BLOCK_TIME) return 5;
+        if (header.timestamp > block.timestamp + ALLOWED_FUTURE_BLOCK_TIME) return 5;
 
         // validate gas limit
         if (header.gasLimit > MAX_GAS_LIMIT) return 8; // verify that the gas limit is <= 2^63-1
@@ -757,7 +761,7 @@ contract TestimoniumCore {
             if (expectedDifficulty != header.difficulty) return 7;
 
             // validate gas limit with parent
-            if (!gasLimitWithinBounds(int64(header.gasLimit), int64(parent.gasLimit))) return 10;
+            if (!gasLimitWithinBounds(int64(uint64(header.gasLimit)), int64(uint64(parent.gasLimit)))) return 10;
         }
 
         // validate gas limit

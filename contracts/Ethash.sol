@@ -1,9 +1,9 @@
-pragma solidity ^0.5.10;
+pragma solidity >=0.7.0 <0.9.0;
 
 /// @dev These contracts are used to verify Proof of Work within a smart contract.
 ///      The algorithms have been extracted from the implementation of smart pool (https://github.com/smartpool)
 contract SHA3_512 {
-    constructor() public {}
+    constructor() {}
 
     function keccak_f(uint[25] memory A) pure private returns(uint[25] memory) {
         uint[25] memory B;
@@ -188,7 +188,7 @@ contract Ethash is SHA3_512 {
 
     uint constant EPOCH_LENGTH = 30000;   // blocks per epoch
 
-    constructor() public {
+    constructor() {
     }
 
     function fnv( uint v1, uint v2 ) pure internal returns(uint) {
@@ -391,7 +391,7 @@ contract Ethash is SHA3_512 {
     }
 
     function getMerkleLeave( uint epochIndex, uint p ) view internal returns(uint) {
-        uint rootIndex = p >> epochData[epochIndex].branchDepth;
+        uint rootIndex = uint(p >> epochData[epochIndex].branchDepth);
         uint expectedRoot = epochData[epochIndex].merkleNodes[(rootIndex/2)];
         if( (rootIndex % 2) == 0 ) expectedRoot = expectedRoot & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
         else expectedRoot = expectedRoot / (2**128);

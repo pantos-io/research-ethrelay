@@ -1,12 +1,13 @@
+// SPDX-License-Identifier: Apache-2.0
 /*
  * @title MerklePatriciaVerifier
  * @author Sam Mayo (sammayo888@gmail.com)
- *         Changes: Philipp Frauenthaler, Marten Sigwart
+ *         Changes: Philipp Frauenthaler, Marten Sigwart, Markus Levonyak
  *
  * @dev Library for verifing merkle patricia proofs.
  */
-pragma solidity ^0.5.10;
-import "../node_modules/solidity-rlp/contracts/RLPReader.sol";
+pragma solidity >=0.5.10 <0.9.0;
+import "./RLPReader.sol";
 
 library MerklePatriciaProof {
     /*
@@ -17,7 +18,7 @@ library MerklePatriciaProof {
      * @param root The root hash of the trie.
      * @return return code indicating result. Return code 0 indicates a positive verification
      */
-    function verify(bytes memory value, bytes memory encodedPath, bytes memory rlpParentNodes, bytes32 root) internal pure returns (uint) {
+    function verify(bytes memory value, bytes memory encodedPath, bytes memory rlpParentNodes, bytes32 root) internal pure returns (uint code) {
         RLPReader.RLPItem memory item = RLPReader.toRlpItem(rlpParentNodes);
 
         // list of the rlp encoded proof nodes
@@ -110,7 +111,7 @@ library MerklePatriciaProof {
         // pathPtr counts nibbles in path
         // partialPath.length is a number of nibbles
         for (uint i=pathPtr; i<pathPtr+partialPath.length; i++) {
-            byte pathNibble = path[i];
+            bytes1 pathNibble = path[i];
             slicedPath[i-pathPtr] = pathNibble;
         }
 
@@ -130,7 +131,7 @@ library MerklePatriciaProof {
             uint8 hpNibble = uint8(_getNthNibbleOfBytes(0,b));
             if (hpNibble == 1 || hpNibble == 3) {
                 nibbles = new bytes(b.length*2-1);
-                byte oddNibble = _getNthNibbleOfBytes(1,b);
+                bytes1 oddNibble = _getNthNibbleOfBytes(1,b);
                 nibbles[0] = oddNibble;
                 offset = 1;
             } else {
@@ -163,8 +164,8 @@ library MerklePatriciaProof {
      *@param Bytes String
      *@return ByteString[N]
      */
-    function _getNthNibbleOfBytes(uint n, bytes memory str) private pure returns (byte) {
-        return byte(n%2==0 ? uint8(str[n/2])/0x10 : uint8(str[n/2])%0x10);
+    function _getNthNibbleOfBytes(uint n, bytes memory str) private pure returns (bytes1) {
+        return bytes1(n%2==0 ? uint8(str[n/2])/0x10 : uint8(str[n/2])%0x10);
     }
 
 }

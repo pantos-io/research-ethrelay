@@ -1,10 +1,11 @@
-pragma solidity ^0.5.10;
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.7.0 <0.9.0;
 
 import "./TestimoniumCore.sol";
-import "../node_modules/solidity-rlp/contracts/RLPReader.sol";
+import "./RLPReader.sol";
 
 /// @title Testimonium: A contract enabling cross-blockchain verifications (transactions, receipts, states)
-/// @author Marten Sigwart, Philipp Frauenthaler, edited by Leonhard Esterbauer
+/// @author Marten Sigwart, Philipp Frauenthaler, Leonhard Esterbauer, Markus Levonyak
 /// @notice You can use this contract for submitting new block headers, disputing already submitted block headers, and
 ///         for verifying Merkle Patricia proofs (transactions, receipts, states).
 /// @dev    This contract uses the TestimoniumCore contract and extends it with an incentive structure.
@@ -22,7 +23,7 @@ contract Testimonium is TestimoniumCore {
 
     // The contract is initialized with block 8084509 and the total difficulty of that same block.
     // The contract creator needs to make sure that these values represent a valid block of the tracked blockchain.
-    constructor(bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) TestimoniumCore(_rlpHeader, totalDifficulty, _ethashContractAddr) public {}
+    constructor(bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) TestimoniumCore(_rlpHeader, totalDifficulty, _ethashContractAddr) {}
 
     /// @dev Deposits stake for a client allowing the client to submit block headers.
     function depositStake(uint amount) payable public {
@@ -39,7 +40,7 @@ contract Testimonium is TestimoniumCore {
 
         // else we check the unlocked stake and if enough stake is available we simply withdraw amount
         if (getUnusedStake(msg.sender) >= amount) {
-            withdraw(msg.sender, amount);
+            withdraw(payable(msg.sender), amount);
             emit WithdrawStake(msg.sender, amount);
             return;
         }
@@ -50,7 +51,7 @@ contract Testimonium is TestimoniumCore {
         // if less than amount is available, we simply withdraw 0, so the client can distinguish
         // between the case a participant doesn't event hold amount stake or it is simply locked
         if (getUnusedStake(msg.sender) >= amount) {
-            withdraw(msg.sender, amount);
+            withdraw(payable(msg.sender), amount);
             emit WithdrawStake(msg.sender, amount);
             return;
         }
@@ -162,7 +163,7 @@ contract Testimonium is TestimoniumCore {
         // send fee to block submitter
         (, , , , , address submitter) = getHeaderMetaInfo(blockHash);
 
-        address payable submitterAddr = address(uint160(submitter));
+        address payable submitterAddr = payable(address(uint160(submitter)));
 
         submitterAddr.transfer(feeInWei);
 
@@ -300,7 +301,7 @@ contract Testimonium is TestimoniumCore {
                 // copy last element to position i (overwrite current elem)
                 blocksSubmittedByClient[client][i] = blocksSubmittedByClient[client][lastElemPos];
                 // remove last element
-                blocksSubmittedByClient[client].length--;
+                blocksSubmittedByClient[client].pop();
                 deletedElements += 1;
                 // i is not increased, since we copied the last element to position i (otherwise the copied element would not be checked)
             } else {

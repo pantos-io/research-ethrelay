@@ -20,7 +20,6 @@
     "openzeppelin-solidity": "^2.3.0",
     "rlp": "^2.2.3",
     "solidity-rlp": "^2.0.1",
-    "truffle": "^5.1.29",
     "web3": "1.2.1"
   },
   "bugs": {

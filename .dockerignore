@@ -1,0 +1,13 @@
+abi/
+bin/
+build/
+.git/
+node_modules/
+
+Dockerfile
+.dockerignore
+.gitignore
+package-lock.json
+README.md
+
+*.swp

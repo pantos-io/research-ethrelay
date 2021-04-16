@@ -4,6 +4,7 @@ build/
 .git/
 node_modules/
 
+docker-compose.yml
 Dockerfile
 .dockerignore
 .gitignore

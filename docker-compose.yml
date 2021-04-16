@@ -1,0 +1,14 @@
+version: "3.7"
+services:
+  ethrelay:
+    build: .
+    image: pantos-io/ethrelay
+    network_mode: "host"
+    entrypoint: /ethrelay/wait-for-it.sh
+    command: ["127.0.0.1:7545", "--", "truffle", "migrate", "--reset"]
+    depends_on:
+      - "ganache"
+  ganache:
+    image: trufflesuite/ganache-cli
+    network_mode: "host"
+    command: ["-p", "7545"]

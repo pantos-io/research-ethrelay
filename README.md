@@ -23,23 +23,55 @@ The following guide will walk you through the deployment of ETH Relay with a loc
 as the verifying chain and the main Ethereum blockchain as the target blockchain. This means blocks from
 the main Ethereum blockchain (source) are forwarded to the ETH Relay contract on the local blockchain (destination).
 
-### Prerequisites
+### Direct installation
+In this section, we describe how to install ETH Relay directly based on Node.js
+and Truffle.
+You can find an alternative installation guide based on Docker below.
+
+#### Direct installation: prerequisites
 You need to have the following tools installed:
-* [Node](https://nodejs.org/en/) (version >= 10.1, recommended Truffle version: v5.1.29)
+* [Node.js](https://nodejs.org/) (version >= 10.1)
+* [Truffle](https://www.trufflesuite.com/truffle) (version 5.1.29)
 * [Ganache](https://www.trufflesuite.com/ganache) (version >= 2.1)
 * [Solidity](https://docs.soliditylang.org/en/latest/installing-solidity.html) (0.9 > version >= 0.7)
 
-For simply running the tests, it is not necessarily required to use Ganache as truffle provides an integrated
-blockchain that is used for automatic testing.
+For simply running the tests, it is not necessarily required to use Ganache as
+Truffle provides an integrated blockchain that is used for automatic testing.
 
-### Deployment
+#### Direct installation: deployment
 1. Clone the repository: `git clone git@github.com:pantos-io/ethrelay.git`
 2. Change into the project directory: `cd ethrelay/`
 3. Install all dependencies: `npm install`
 4. Deploy contracts: `truffle migrate --reset`
 
-### Testing
+#### Direct installation: testing
 Run the tests with `truffle test`.
+
+### Docker installation
+As an alternative to the direct installation method described above, you can
+install ETH Relay with Docker.
+
+#### Docker installation: prerequisites
+You need to have
+* [Docker](https://www.docker.com/) (version >= 19)
+
+installed.
+
+#### Docker installation: deployment
+There are two different ways how to deploy ETH Relay with Docker.
+First alternative:
+1. Run Ganache: `docker run --network=host trufflesuite/ganache-cli -p 7545`
+   (alternatively, you can also run the GUI variant of Ganache without Docker)
+2. Deploy contracts:
+   `docker run --network=host pantosio/ethrelay migrate --reset`
+
+Second alternative:
+1. Clone the repository: `git clone git@github.com:pantos-io/ethrelay.git`
+2. Change into the project directory: `cd ethrelay/`
+3. Run Ganache and deploy contracts: `docker-compose up`
+
+#### Docker installation: testing
+Run the tests with `docker run --network=host pantosio/ethrelay test`.
 
 ### Export contract
 For the export script to work correctly,

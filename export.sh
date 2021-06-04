@@ -10,10 +10,10 @@ EXPORT_PATH=${GOETHRELAY:-${GOPATH}/src/github.com/pantos-io/go-ethrelay}
 echo "Exporting into ${EXPORT_PATH}..."
 
 # Create ABI file
-solc --abi contracts/Ethash.sol --overwrite -o ./abi --allow-paths *,
-solc --bin contracts/Ethash.sol --overwrite -o ./bin --allow-paths *,
-solc --abi contracts/Testimonium.sol --overwrite -o ./abi --allow-paths *,
-solc --bin contracts/Testimonium.sol --overwrite -o ./bin --allow-paths *,
+solc --optimize --abi contracts/Ethash.sol --overwrite -o ./abi --allow-paths *,
+solc --optimize --bin contracts/Ethash.sol --overwrite -o ./bin --allow-paths *,
+solc --optimize --abi contracts/Testimonium.sol --overwrite -o ./abi --allow-paths *,
+solc --optimize --bin contracts/Testimonium.sol --overwrite -o ./bin --allow-paths *,
 
 # Generate Go file and export to go-ethrelay project
 abigen --bin=bin/Ethash.bin --abi=abi/Ethash.abi --pkg=ethash --out=${EXPORT_PATH}/ethereum/ethash/EthashContract.go

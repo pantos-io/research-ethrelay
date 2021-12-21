@@ -807,7 +807,10 @@ contract TestimoniumCore {
         }
 
         uint bombDelayFromParent = 5000000 - 1;
-        if (parent.blockNumber + 1 >= 9200000) {
+        if (parent.blockNumber + 1 >= 13773000) {
+            // https://eips.ethereum.org/EIPS/eip-4345
+            bombDelayFromParent = 10700000 - 1;
+        } else if (parent.blockNumber + 1 >= 9200000) {
             // https://eips.ethereum.org/EIPS/eip-2384
             bombDelayFromParent = 9000000 - 1;
         }

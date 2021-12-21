@@ -417,11 +417,6 @@ contract Ethash is SHA3_512 {
 
         if( ! isEpochDataSet( epochIndex ) ) return 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE;
 
-        if( depthAndFullSize[1] == 0 ) {
-            return 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-        }
-
-
         s = computeS(uint(header), nonceLe);
         for( i = 0 ; i < 16 ; i++ ) {
             assembly {

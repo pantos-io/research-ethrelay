@@ -16,6 +16,6 @@ solc --optimize --abi contracts/Testimonium.sol --overwrite -o ./abi --allow-pat
 solc --optimize --bin contracts/Testimonium.sol --overwrite -o ./bin --allow-paths *,
 
 # Generate Go file and export to go-ethrelay project
-abigen --bin=bin/Ethash.bin --abi=abi/Ethash.abi --pkg=ethash --out=${EXPORT_PATH}/ethereum/ethash/EthashContract.go
+abigen --bin=bin/Ethash.bin --abi=abi/Ethash.abi --pkg=ethashsol --out=${EXPORT_PATH}/ethereum/ethashsol/EthashContract.go
 abigen --bin=bin/Testimonium.bin --abi=abi/Testimonium.abi --pkg=testimonium --out=${EXPORT_PATH}/testimonium/TestimoniumContract.go
 

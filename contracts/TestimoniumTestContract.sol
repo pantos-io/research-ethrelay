@@ -30,9 +30,9 @@ contract TestimoniumTestContract is Testimonium {
     }
 
     event DisputeBlockWithoutPunishment(address[] submittersOfIllegalBlocks);
-    function disputeBlockWithoutPunishment(bytes memory rlpHeader, bytes memory rlpParent, uint[] memory dataSetLookup,
+    function disputeBlockWithoutPunishment(bytes memory rlpHeader, bytes32 rlpHeaderHashWithoutNonce, bytes memory rlpParent, uint[] memory dataSetLookup,
             uint[] memory witnessForLookup) public returns (address[] memory) {
-        address[] memory submittersToPunish = disputeBlock(rlpHeader, rlpParent, dataSetLookup, witnessForLookup);
+        address[] memory submittersToPunish = disputeBlock(rlpHeader, rlpHeaderHashWithoutNonce, rlpParent, dataSetLookup, witnessForLookup);
         emit DisputeBlockWithoutPunishment(submittersToPunish);
     }
 

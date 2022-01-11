@@ -77,6 +77,13 @@ contract TestimoniumCore {
     mapping (bytes32 => Header) private headers;    // holds all block in a hashmap, key=blockhash, value=reduced block headers with metadata
     bytes32[] iterableEndpoints;                    // holds endpoints of all forks of the PoW-tree to speed up submission, deletion etc.
 
+    // here, the consideration was to use indexes as these are much faster for searching in the blockchain
+    // the counterpart is the higher gas, a index log costs (very cheap), but as the content of the submit
+    // block is only important to participants in the time of the lock period like disputers, we can simply
+    // do a linear backwards search and find the event in the last e.g. 10mins, this is a reasonable amount
+    // of time of block search a client can handle easily and fast
+    event NewBlock(bytes32 blockHash);
+
     // initialize the contract with a rlpHeader of the wanted genesis block, the actual totalDifficulty at this block and
     // the deployed ethhashContractAddress to verify PoW of this header, the contract creator needs to make sure that these
     // values represent a valid block of the tracked blockchain
@@ -101,6 +108,8 @@ contract TestimoniumCore {
         ethashContract = EthashInterface(_ethashContractAddr);
 
         genesisBlockHash = newBlockHash;
+
+        emit NewBlock(newBlockHash);
     }
 
     function getLongestChainEndpoint() public view returns (bytes32 hash) {

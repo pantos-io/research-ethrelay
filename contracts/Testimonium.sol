@@ -75,16 +75,6 @@ contract Testimonium is TestimoniumCore {
         return blocksSubmittedByClient[msg.sender];
     }
 
-    // here, the consideration was to use indexes as these are much faster for searching in the blockchain
-    // the counterpart is the higher gas, a index log costs (very cheap), but as the content of the submit
-    // block is only important to participants in the time of the lock period like disputers, we can simply
-    // do a linear backwards search and find the event in the last e.g. 10mins, this is a reasonable amount
-    // of time of block search a client can handle easily and fast
-    // originally, this event was located in TestimoniumCore, but for the 0x00 submit if the stake is too low
-    // we decided to put the event here to save a few gas costs if one calls submitBlock twice with not enough
-    // free stake
-    event SubmitBlock(bytes32 blockHash);
-
     function submitBlock(bytes memory rlpHeader) public {
         // client must have enough stake to be able to submit blocks
         if (getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
@@ -97,7 +87,7 @@ contract Testimonium is TestimoniumCore {
             // cleanSubmitList every time#
             if (getUnusedStake(msg.sender) < REQUIRED_STAKE_PER_BLOCK) {
                 // not enough unused stake -> abort
-                emit SubmitBlock(0);
+                emit NewBlock(0);
                 return;
             }
         }
@@ -109,7 +99,7 @@ contract Testimonium is TestimoniumCore {
 
         // submit hash - indicate that the block with this hash was submitted, helpful for searching the blockchain
         // for infos like rlp header needed for disputing a block
-        emit SubmitBlock(blockHash);
+        emit NewBlock(blockHash);
     }
 
     // here, the same parallel problems like with single submitBlock in TestimoniumCore occur: if there are two participants submitting

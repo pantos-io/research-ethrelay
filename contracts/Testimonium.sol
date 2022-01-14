@@ -114,8 +114,8 @@ contract Testimonium is TestimoniumCore {
         }
     }
 
-    function disputeBlockHeader(bytes memory rlpHeader, bytes32 rlpHeaderHashWithoutNonce, bytes memory rlpParent, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
-        address[] memory submittersToPunish = disputeBlock(rlpHeader, rlpHeaderHashWithoutNonce, rlpParent, dataSetLookup, witnessForLookup);
+    function disputeBlockHeader(bytes calldata rlpHeader, bytes memory rlpParent, uint[] memory dataSetLookup, uint[] memory witnessForLookup) public {
+        address[] memory submittersToPunish = disputeBlock(rlpHeader, rlpParent, dataSetLookup, witnessForLookup);
 
         // if the PoW validation initiated by the dispute function was successful (i.e., the block is legal),
         // submittersToPunish will be empty and no further action will be carried out.

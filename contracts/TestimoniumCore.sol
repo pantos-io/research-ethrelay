@@ -257,18 +257,17 @@ contract TestimoniumCore {
     /// @dev If a client is convinced that a certain block header is invalid, it can call this function which validates
     ///      whether enough PoW has been carried out.
     /// @param rlpHeader the encoded version of the block header to dispute
-    /// @param rlpHeaderHashWithoutNonce the hash of the encoded version of the block header to dispute, without the nonce and mixHash fields
     /// @param rlpParent the encoded version of the block header's parent
     /// @param dataSetLookup contains elements of the DAG needed for the PoW verification
     /// @param witnessForLookup needed for verifying the dataSetLookup
     /// @return A list of addresses belonging to the submitters of illegal blocks
-    function disputeBlock(bytes memory rlpHeader, bytes32 rlpHeaderHashWithoutNonce, bytes memory rlpParent, uint[] memory dataSetLookup,
+    function disputeBlock(bytes calldata rlpHeader, bytes memory rlpParent, uint[] memory dataSetLookup,
                           uint[] memory witnessForLookup) internal returns (address[] memory) {
         // Currently, once the dispute period is over and the block is unlocked we accept it as valid.
         // In that case, no validation is carried out anymore.
 
         // outsourcing verifying of validity and PoW because solidity encountered a stack too deep exception before
-        uint returnCode = verifyValidityAndPoW(rlpHeader, rlpHeaderHashWithoutNonce, rlpParent, dataSetLookup, witnessForLookup);
+        uint returnCode = verifyValidityAndPoW(rlpHeader, rlpParent, dataSetLookup, witnessForLookup);
 
         address[] memory submittersToPunish = new address[](0);
 
@@ -282,7 +281,7 @@ contract TestimoniumCore {
     }
 
     // helper function to not get a stack to deep exception
-    function verifyValidityAndPoW(bytes memory rlpHeader, bytes32 rlpHeaderHashWithoutNonce, bytes memory rlpParent, uint[] memory dataSetLookup, uint[] memory witnessForLookup) private returns (uint) {
+    function verifyValidityAndPoW(bytes calldata rlpHeader, bytes memory rlpParent, uint[] memory dataSetLookup, uint[] memory witnessForLookup) private returns (uint) {
         uint returnCode;
         uint24 blockNumber;
         uint nonce;
@@ -297,7 +296,7 @@ contract TestimoniumCore {
             // header validation without checking Ethash was successful -> verify Ethash
             uint errorInfo;
 
-            (returnCode, errorInfo) = ethashContract.verifyPoW(blockNumber, rlpHeaderHashWithoutNonce,
+            (returnCode, errorInfo) = ethashContract.verifyPoW(blockNumber, getRlpHeaderHashWithoutNonce(rlpHeader),
                 nonce, difficulty, dataSetLookup, witnessForLookup);
 
             emit PoWValidationResult(returnCode, errorInfo);
@@ -656,6 +655,46 @@ contract TestimoniumCore {
         }
 
         return header;
+    }
+
+    function getRlpHeaderHashWithoutNonce(bytes calldata rlpHeader) private pure returns (bytes32) {
+
+        RLPReader.Iterator memory it = rlpHeader.toRlpItem().iterator();
+        uint byteIdx = 3;  // RLP list starts with list prefix and the length of the payload
+        uint elementIdx;
+        uint startCut;
+        uint endCut;
+
+        while(it.hasNext()) {
+            if (elementIdx == 13) {
+                startCut = byteIdx;
+            }
+
+            RLPReader.RLPItem memory cur = it.next();
+            byteIdx += cur.len;
+
+            if (elementIdx == 14) {
+                endCut = byteIdx;
+                break;
+            }
+
+            elementIdx++;
+        }
+
+        bytes memory truncatedRlpHeader = bytes.concat(rlpHeader[:startCut], rlpHeader[endCut:]);
+        uint16 rlpHeaderWithoutNonceLength = uint16(
+            rlpHeader.length        // Length of original RLP header
+            - 3                     // RLP List prefix bytes (0xf9 + two bytes for payload length)
+            - (endCut - startCut)   // Length of MixDigest and Nonce fields
+        );
+
+        bytes2 headerLengthBytes = bytes2(rlpHeaderWithoutNonceLength);
+
+        // Update payload length
+        truncatedRlpHeader[1] = headerLengthBytes[0];
+        truncatedRlpHeader[2] = headerLengthBytes[1];
+
+        return keccak256(truncatedRlpHeader);
     }
 
     function getTxRoot(bytes memory rlpHeader) internal pure returns (bytes32) {

@@ -1,5 +1,5 @@
 {
-  "name": "testimonium",
+  "name": "ethrelay",
   "version": "1.0.0",
   "description": "",
   "main": "truffle-config.js",
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pf92/testimonium.git"
+    "url": "git+https://github.com/pantos-io/ethrelay.git"
   },
   "author": "",
   "license": "MIT",
@@ -23,9 +23,9 @@
     "web3": "1.2.1"
   },
   "bugs": {
-    "url": "https://github.com/pf92/testimonium/issues"
+    "url": "https://github.com/pantos-io/ethrelay/issues"
   },
-  "homepage": "https://github.com/pf92/testimonium#readme",
+  "homepage": "https://github.com/pantos-io/ethrelay#readme",
   "devDependencies": {
     "chai": "^4.2.0",
     "openzeppelin-test-helpers": "^0.4.0"

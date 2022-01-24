@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.7.0 <0.9.0;
 
-import "./Testimonium.sol";
+import "./Ethrelay.sol";
 
-contract TestimoniumTestContract is Testimonium {
-    constructor(bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) Testimonium(_rlpHeader, totalDifficulty, _ethashContractAddr) {}
+contract EthrelayTestContract is Ethrelay {
+    constructor(bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) Ethrelay(_rlpHeader, totalDifficulty, _ethashContractAddr) {}
 
     function getBlockMetaInfo(bytes32 blockHash) public view returns (
         bytes32[] memory successors, uint forkId, uint iterableIndex, bytes32 latestFork, uint lockedUntil,

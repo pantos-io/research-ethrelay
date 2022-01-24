@@ -131,7 +131,7 @@ A more detailed explanation of the inner workings can be found [here](https://ds
 #### Wrong Compiler Version
 ```
 Error: Source file requires different compiler version (current compiler is 0.6.12+commit.27d51765.Linux.g++) - note that nightly builds are considered to be strictly less than the released version
- --> contracts/Testimonium.sol:2:1:
+ --> contracts/Ethrelay.sol:2:1:
   |
 2 | pragma solidity >=0.7.0 <0.9.0;
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

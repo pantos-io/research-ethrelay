@@ -8,12 +8,12 @@ abstract contract EthashInterface {
         uint[] calldata dataSetLookup, uint[] calldata witnessForLookup) external view virtual returns (uint, uint);
 }
 
-/// @title TestimoniumCore: A contract enabling cross-blockchain verifications of transactions,
+/// @title EthrelayCore: A contract enabling cross-blockchain verifications of transactions,
 ///        receipts and states on a destination blockchain of a source blockchain
 /// @author Marten Sigwart, Philipp Frauenthaler, Leonhard Esterbauer, Markus Levonyak
 /// @notice You can use this contract for submitting new block headers, disputing already submitted block headers and
 ///         for verifying Merkle Patricia proofs of transactions, receipts and states
-contract TestimoniumCore {
+contract EthrelayCore {
 
     using RLPReader for *;
 
@@ -321,7 +321,7 @@ contract TestimoniumCore {
         Header storage storedHeader = headers[headerHash];
         Header storage storedParent = headers[parentHash];
 
-        require(isHeaderSuccessorOfParent(storedHeader, storedParent), "stored parent is not a predecessor of stored header within Testimonium");
+        require(isHeaderSuccessorOfParent(storedHeader, storedParent), "stored parent is not a predecessor of stored header within Ethrelay");
 
         FullHeader memory providedHeader = parseRlpEncodedHeader(rlpHeader);
         FullHeader memory providedParent = parseRlpEncodedHeader(rlpParent);

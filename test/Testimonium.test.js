@@ -6,7 +6,7 @@ const RLP = require('rlp');
 
 const { INFURA_ENDPOINT } = require("../constants");
 
-const Testimonium = artifacts.require('./TestimoniumTestContract');
+const Ethrelay = artifacts.require('./EthrelayTestContract');
 const Ethash = artifacts.require('./Ethash');
 const {expect} = require('chai');
 
@@ -20,9 +20,9 @@ const MIN_GAS_LIMIT             = new BN(5000);
 const GAS_LIMIT_BOUND_DIVISOR   = new BN(1024);
 const GAS_PRICE_IN_WEI          = new BN(0);
 
-contract('Testimonium', async (accounts) => {
+contract('Ethrelay', async (accounts) => {
 
-    let testimonium;
+    let ethrelay;
     let ethash;
     let sourceWeb3;
 
@@ -45,20 +45,20 @@ contract('Testimonium', async (accounts) => {
     beforeEach(async () => {
         const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
         const genesisRlpHeader = createRLPHeader(genesisBlock);
-        testimonium = await Testimonium.new(genesisRlpHeader, genesisBlock.totalDifficulty, ethash.address, {
+        ethrelay = await Ethrelay.new(genesisRlpHeader, genesisBlock.totalDifficulty, ethash.address, {
             from: accounts[0],
             gasPrice: GAS_PRICE_IN_WEI
         });
     });
 
 
-    describe('Testimonium: DepositStake', function () {
+    describe('Ethrelay: DepositStake', function () {
 
         // Test Scenario 1:
         it("should throw error: transfer amount not equal to function parameter", async () => {
             const stake = new BN(1);
             await expectRevert(
-                testimonium.depositStake(stake, {
+                ethrelay.depositStake(stake, {
                     from: accounts[0],
                     value: stake.add(new BN(1)),
                     gasPrice: GAS_PRICE_IN_WEI
@@ -69,10 +69,10 @@ contract('Testimonium', async (accounts) => {
         // Test Scenario 2:
         it("should correctly add the provided stake to the client's balance", async () => {
             const stake = new BN(15);
-            const balanceBeforeCall = await testimonium.getStake({from: accounts[0]});
+            const balanceBeforeCall = await ethrelay.getStake({from: accounts[0]});
 
-            await testimonium.depositStake(stake, {from: accounts[0], value: stake});
-            const balanceAfterCall = await testimonium.getStake({from: accounts[0]});
+            await ethrelay.depositStake(stake, {from: accounts[0], value: stake});
+            const balanceAfterCall = await ethrelay.getStake({from: accounts[0]});
 
             expect(balanceAfterCall).to.be.bignumber.equal(balanceBeforeCall.add(stake));
 
@@ -82,16 +82,16 @@ contract('Testimonium', async (accounts) => {
 
     });
 
-    describe('Testimonium: WithdrawStake', function () {
+    describe('Ethrelay: WithdrawStake', function () {
 
         // Test Scenario 1:
         it("should throw error: withdraw should be denied due to insufficient amount of overall stake", async () => {
-            const stakeBeforeTest = await testimonium.getStake({from: accounts[0]});
+            const stakeBeforeTest = await ethrelay.getStake({from: accounts[0]});
             const stakeToWithdraw = stakeBeforeTest.add(new BN(1));
             let gasUsed = new BN(0);
             const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
 
-            await expectRevert(testimonium.withdrawStake(stakeToWithdraw, {
+            await expectRevert(ethrelay.withdrawStake(stakeToWithdraw, {
                 from: accounts[0],
                 gasPrice: GAS_PRICE_IN_WEI
             }), 'amount higher than deposited stake');
@@ -99,10 +99,10 @@ contract('Testimonium', async (accounts) => {
 
         // Test Scenario 2:
         it("should throw error: withdraw should be denied due to insufficient amount of unlocked stake", async () => {
-            const stake = await testimonium.getRequiredStakePerBlock();
+            const stake = await ethrelay.getRequiredStakePerBlock();
             let gasUsed = new BN(0);
             const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
-            let ret = await testimonium.depositStake(stake, {
+            let ret = await ethrelay.depositStake(stake, {
                 from: accounts[0],
                 value: stake,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -115,14 +115,14 @@ contract('Testimonium', async (accounts) => {
             await submitBlockHeader(block1, accounts[0]);
             const submitTime = await time.latest();
 
-            ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            ret = await ethrelay.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
             expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: new BN(0)});
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
-            const stakeAfterTest = await testimonium.getStake({from: accounts[0]});
+            const stakeAfterTest = await ethrelay.getStake({from: accounts[0]});
             expect(stakeAfterTest).to.be.bignumber.equal(stake);
 
-            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
+            const submittedHeaders = await ethrelay.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(1);
             expect(submittedHeaders[0]).to.equal(block1.hash);
 
@@ -133,7 +133,7 @@ contract('Testimonium', async (accounts) => {
             // withdraw after lock period has elapsed
             const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
             await time.increaseTo(increasedTime);
-            ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            ret = await ethrelay.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
             expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: stake});
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
@@ -144,10 +144,10 @@ contract('Testimonium', async (accounts) => {
 
         // Test Scenario 3:
         it("should throw error: withdraw should be denied due to insufficient amount of unlocked stake (2)", async () => {
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
             const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
-            let ret = await testimonium.depositStake(stake, {
+            let ret = await ethrelay.depositStake(stake, {
                 from: accounts[0],
                 value: stake,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -167,14 +167,14 @@ contract('Testimonium', async (accounts) => {
             ret = await submitBlockHeader(block2, accounts[0]);
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
-            ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            ret = await ethrelay.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
             expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: new BN(0)});
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
-            const stakeAfterTest = await testimonium.getStake({from: accounts[0]});
+            const stakeAfterTest = await ethrelay.getStake({from: accounts[0]});
             expect(stakeAfterTest).to.be.bignumber.equal(stake);
 
-            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
+            const submittedHeaders = await ethrelay.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(1);
             expect(submittedHeaders[0]).to.equal(block2.hash);
 
@@ -185,7 +185,7 @@ contract('Testimonium', async (accounts) => {
             // withdraw after lock period has elapsed
             increasedTime = (await time.latest()).add(LOCK_PERIOD).add(time.duration.seconds(1));
             await time.increaseTo(increasedTime);
-            ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            ret = await ethrelay.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
             expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: stake});
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
@@ -196,24 +196,24 @@ contract('Testimonium', async (accounts) => {
 
         // Test Scenario 4:
         it("should withdraw the correct amount since no stake has ever been locked", async () => {
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
-            const stakeBeforeTest = await testimonium.getStake({from: accounts[0]});
+            const stakeBeforeTest = await ethrelay.getStake({from: accounts[0]});
             let gasUsed = new BN(0);
             const accountBalanceBeforeTestInWei = await getAccountBalanceInWei(accounts[0]);
 
-            let ret = await testimonium.depositStake(stake, {
+            let ret = await ethrelay.depositStake(stake, {
                 from: accounts[0],
                 value: stake,
                 gasPrice: GAS_PRICE_IN_WEI
             });
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
-            ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            ret = await ethrelay.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
             expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: stake});
             gasUsed = gasUsed.add(new BN(ret.receipt.gasUsed));
 
-            const stakeAfterTest = await testimonium.getStake({from: accounts[0]});
+            const stakeAfterTest = await ethrelay.getStake({from: accounts[0]});
             expect(stakeAfterTest).to.be.bignumber.equal(stakeBeforeTest);
 
             const accountBalanceAfterTestinEth = await getAccountBalanceInWei(accounts[0]);
@@ -223,10 +223,10 @@ contract('Testimonium', async (accounts) => {
 
         // Test Scenario 5:
         it("should withdraw the correct amount since lock period has elapsed", async () => {
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
-            const stakeBeforeTest = await testimonium.getStake({from: accounts[0]});
-            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const stakeBeforeTest = await ethrelay.getStake({from: accounts[0]});
+            await ethrelay.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             // submit header in order to lock the deposited stake
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -236,18 +236,18 @@ contract('Testimonium', async (accounts) => {
             const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
             await time.increaseTo(increasedTime);
 
-            const ret = await testimonium.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
+            const ret = await ethrelay.withdrawStake(stake, {from: accounts[0], gasPrice: GAS_PRICE_IN_WEI});
             expectEvent.inLogs(ret.logs, 'WithdrawStake', {client: accounts[0], withdrawnStake: stake});
 
-            const stakeAfterTest = await testimonium.getStake({from: accounts[0]});
+            const stakeAfterTest = await ethrelay.getStake({from: accounts[0]});
             expect(stakeAfterTest).to.be.bignumber.equal(stakeBeforeTest);
 
-            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
+            const submittedHeaders = await ethrelay.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(0);
         });
     });
 
-    describe('Testimonium: SubmitBlock', function () {
+    describe('Ethrelay: SubmitBlock', function () {
 
         // Test Scenario 1:
         //
@@ -280,9 +280,9 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 2', async () => {
             // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock;
-            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            await ethrelay.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const expectedBlocks = [
@@ -311,9 +311,9 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 3', async () => {
             // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
-            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            await ethrelay.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -357,9 +357,9 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 4', async () => {
             // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(2));
-            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            await ethrelay.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -408,9 +408,9 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 5', async () => {
             // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(3));
-            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            await ethrelay.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -468,9 +468,9 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 6', async () => {
             // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(3));
-            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            await ethrelay.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -535,9 +535,9 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 7', async () => {
             // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            await ethrelay.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -613,9 +613,9 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 8', async () => {
             // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(7));
-            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            await ethrelay.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -716,8 +716,8 @@ contract('Testimonium', async (accounts) => {
 
         it('should revert when the parent of a submitted block header does not exist', async () => {
             // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+            await ethrelay.depositStake(requiredStakePerBlock, {
                 from: accounts[0],
                 value: requiredStakePerBlock,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -725,7 +725,7 @@ contract('Testimonium', async (accounts) => {
 
             const blockWithNonExistentParent = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
             const rlpHeader = createRLPHeader(blockWithNonExistentParent);
-            await expectRevert(testimonium.submitBlock(rlpHeader, {
+            await expectRevert(ethrelay.submitBlock(rlpHeader, {
                 from: accounts[0],
                 gasPrice: GAS_PRICE_IN_WEI
             }), 'parent does not exist');
@@ -739,8 +739,8 @@ contract('Testimonium', async (accounts) => {
         //
         it('should unlock a block at the correct time', async () => {
             // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(requiredStakePerBlock, {
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+            await ethrelay.depositStake(requiredStakePerBlock, {
                 from: accounts[0],
                 value: requiredStakePerBlock,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -758,11 +758,11 @@ contract('Testimonium', async (accounts) => {
                 }
             ];
             await submitBlockHeaders(expectedBlocks, accounts[0]);
-            expect(await testimonium.isBlockUnlocked(block1.hash)).to.equal(false);  // block is locked right after submission
+            expect(await ethrelay.isBlockUnlocked(block1.hash)).to.equal(false);  // block is locked right after submission
             await time.increaseTo(expectedBlocks[0].lockedUntil - 1);
-            expect(await testimonium.isBlockUnlocked(block1.hash)).to.equal(false);  // block is locked for duration of lock period
+            expect(await ethrelay.isBlockUnlocked(block1.hash)).to.equal(false);  // block is locked for duration of lock period
             await time.increase(time.duration.seconds(2));
-            expect(await testimonium.isBlockUnlocked(block1.hash)).to.equal(true);   // block is unlocked right after lock period has passed
+            expect(await ethrelay.isBlockUnlocked(block1.hash)).to.equal(true);   // block is unlocked right after lock period has passed
 
             await withdrawStake(requiredStakePerBlock, accounts[0]);
         });
@@ -774,27 +774,27 @@ contract('Testimonium', async (accounts) => {
 
             expectEvent.inLogs(ret.logs, 'SubmitBlock', {blockHash: ZERO_HASH});
 
-            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
+            const submittedHeaders = await ethrelay.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(0);
 
-            const header = await testimonium.getHeader(block1.hash);
+            const header = await ethrelay.getHeader(block1.hash);
             expect(header.hash).to.equal(ZERO_HASH);  // check whether block does not exist in the contract
         });
 
         it("should accept block due to enough unused stake", async () => {
-            const stake = await testimonium.getRequiredStakePerBlock();
-            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const stake = await ethrelay.getRequiredStakePerBlock();
+            await ethrelay.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             // submit header
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const ret = await submitBlockHeader(block1, accounts[0]);
             expectEvent.inLogs(ret.logs, 'SubmitBlock', {blockHash: block1.hash});
 
-            const submittedHeaders = await testimonium.getBlockHashesSubmittedByClient({from: accounts[0]});
+            const submittedHeaders = await ethrelay.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(1);
             expect(submittedHeaders[0]).to.equal(block1.hash);
 
-            const header = await testimonium.getHeader(block1.hash);
+            const header = await ethrelay.getHeader(block1.hash);
             expect(header.hash).to.equal(block1.hash);
 
             await withdrawStake(stake, accounts[0]);
@@ -802,7 +802,7 @@ contract('Testimonium', async (accounts) => {
 
     });
 
-    describe('Testimonium: SubmitBlockBatch', function () {
+    describe('Ethrelay: SubmitBlockBatch', function () {
 
         // Test Scenario 8:
         //
@@ -814,9 +814,9 @@ contract('Testimonium', async (accounts) => {
         //
         it('should correctly execute test scenario 1', async () => {
             // deposit enough stake
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(7));
-            await testimonium.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            await ethrelay.depositStake(stake, {from: accounts[0], value: stake, gasPrice: GAS_PRICE_IN_WEI});
 
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const block2 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 2);
@@ -917,7 +917,7 @@ contract('Testimonium', async (accounts) => {
 
     });
 
-    describe('Testimonium: VerifyTransaction', function () {
+    describe('Ethrelay: VerifyTransaction', function () {
 
         // Test Scenario 1:
         //
@@ -930,10 +930,10 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const submitterAddr = accounts[0];
             const verifierAddr = accounts[1];
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            await ethrelay.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -972,7 +972,7 @@ contract('Testimonium', async (accounts) => {
                     let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
                     let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-                    let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                    let ret = await ethrelay.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                         from: verifierAddr,
                         value: verificationFee,
                         gasPrice: GAS_PRICE_IN_WEI
@@ -989,7 +989,7 @@ contract('Testimonium', async (accounts) => {
                 }
 
                 for (let j = i; j < expectedBlocks.length; j++) {
-                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                    await expectRevert(ethrelay.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                         from: verifierAddr,
                         value: verificationFee,
                         gasPrice: GAS_PRICE_IN_WEI
@@ -1018,10 +1018,10 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const submitterAddr = accounts[0];
             const verifierAddr = accounts[1];
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(4));
-            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            await ethrelay.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -1057,7 +1057,7 @@ contract('Testimonium', async (accounts) => {
             for (let i = 0; i < expectedBlocks.length + 1; i++) {
                 // console.log((await time.latest()).toString());
                 for (let j = 0; j < expectedBlocks.length; j++) {
-                    await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                    await expectRevert(ethrelay.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                         from: verifierAddr,
                         value: verificationFee,
                         gasPrice: GAS_PRICE_IN_WEI
@@ -1086,10 +1086,10 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const submitterAddr = accounts[0];
             const verifierAddr = accounts[1];
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(12));
-            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            await ethrelay.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -1180,7 +1180,7 @@ contract('Testimonium', async (accounts) => {
                         let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
                         let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-                        let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                        let ret = await ethrelay.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                             from: verifierAddr,
                             value: verificationFee,
                             gasPrice: GAS_PRICE_IN_WEI
@@ -1195,7 +1195,7 @@ contract('Testimonium', async (accounts) => {
                         expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
                     }
                     if (expectedVerificationResults[i][j] === -1) {
-                        await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                        await expectRevert(ethrelay.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                             from: verifierAddr,
                             value: verificationFee,
                             gasPrice: GAS_PRICE_IN_WEI
@@ -1224,10 +1224,10 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const submitterAddr = accounts[0];
             const verifierAddr = accounts[1];
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(12));
-            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            await ethrelay.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -1324,7 +1324,7 @@ contract('Testimonium', async (accounts) => {
                         let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
                         let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-                        let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                        let ret = await ethrelay.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                             from: verifierAddr,
                             value: verificationFee,
                             gasPrice: GAS_PRICE_IN_WEI
@@ -1339,7 +1339,7 @@ contract('Testimonium', async (accounts) => {
                         expect(balanceVerifierBeforeCall).to.be.bignumber.equal(balanceVerifierAfterCall.add(verificationFee).add(txCost));
                     }
                     if (expectedVerificationResults[i][j] === -1) {
-                        await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
+                        await expectRevert(ethrelay.verifyTransaction(verificationFee, requestedBlockInRlp, j, rlpEncodedTx, path, rlpEncodedProofNodes, {
                             from: verifierAddr,
                             value: verificationFee,
                             gasPrice: GAS_PRICE_IN_WEI
@@ -1369,10 +1369,10 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const submitterAddr = accounts[0];
             const verifierAddr = accounts[1];
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(12));
-            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            await ethrelay.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -1443,7 +1443,7 @@ contract('Testimonium', async (accounts) => {
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
-            await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            await expectRevert(ethrelay.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1463,10 +1463,10 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const submitterAddr = accounts[0];
             const verifierAddr = accounts[1];
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            await ethrelay.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -1504,7 +1504,7 @@ contract('Testimonium', async (accounts) => {
             let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
             let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            let ret = await ethrelay.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1532,10 +1532,10 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const submitterAddr = accounts[0];
             const verifierAddr = accounts[1];
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            await ethrelay.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -1573,7 +1573,7 @@ contract('Testimonium', async (accounts) => {
             let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
             let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-            let ret = await testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            let ret = await ethrelay.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1601,10 +1601,10 @@ contract('Testimonium', async (accounts) => {
             // deposit enough stake
             const submitterAddr = accounts[0];
             const verifierAddr = accounts[1];
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            await ethrelay.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -1637,7 +1637,7 @@ contract('Testimonium', async (accounts) => {
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
-            await expectRevert(testimonium.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            await expectRevert(ethrelay.verifyTransaction(verificationFee, requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1647,7 +1647,7 @@ contract('Testimonium', async (accounts) => {
         });
 
         it('should revert since msg.value not equal to function parameter', async () => {
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             const block0 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
             const requestedBlockInRlp = createRLPHeader(block0);
@@ -1655,7 +1655,7 @@ contract('Testimonium', async (accounts) => {
             const path = web3.utils.hexToBytes("0x80");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90203b90134f90131a046a11582bfd9da02a0a857f572bbe08d0467502cb212d02048e9303986dabdfba0d7d90c16309409eca72d959ff2419b5f2feac4ba76acda1b3de8651db65b4c91a0b0a8904b11ada7fe8ada7c51c01a13deb2833b47f82a964d66d0b9ec9bd160baa061a791ece33a5cba8eb27345a4a58ab911d7b4684731b0ae8aa97ffc992b9bc8a0b135e0c562a97ca9bdab66f0187ac044dfbf7a3567d21acbe1363bf76a6b8768a07467253e2430335ac71e8ff93cbd8f71d7b501efdc9a9b5c40c042c6144df9f2a077a192fccfb384092b022e8c8fc5e629e1048d62c538401d15fd5bfdfa969bf1a0f905208d3cd9fd002508dc447a0f85fcf3271f07dc39fc1fc62f75704018e6a3a099341a1ae2fc30a64d825f7107c42167b3247f0f6fbbb4193a89b528a877b7a78080808080808080b853f851a0bab73d23919188d2dd5dba08a5bc0a09b49b1726a0f7452193d91f552f814051a062ca89fba3f46973e6198f9c01b58fc481d7e4cfab721fe9c84878760d7b63cd808080808080808080808080808080b875f87320b870f86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
 
-            await expectRevert(testimonium.verifyTransaction(verificationFee.add(new BN(1)), requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            await expectRevert(ethrelay.verifyTransaction(verificationFee.add(new BN(1)), requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: accounts[0],
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1663,7 +1663,7 @@ contract('Testimonium', async (accounts) => {
         });
 
         it('should revert since provided fee is too small', async () => {
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             const block0 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
             const requestedBlockInRlp = createRLPHeader(block0);
@@ -1671,7 +1671,7 @@ contract('Testimonium', async (accounts) => {
             const path = web3.utils.hexToBytes("0x80");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90203b90134f90131a046a11582bfd9da02a0a857f572bbe08d0467502cb212d02048e9303986dabdfba0d7d90c16309409eca72d959ff2419b5f2feac4ba76acda1b3de8651db65b4c91a0b0a8904b11ada7fe8ada7c51c01a13deb2833b47f82a964d66d0b9ec9bd160baa061a791ece33a5cba8eb27345a4a58ab911d7b4684731b0ae8aa97ffc992b9bc8a0b135e0c562a97ca9bdab66f0187ac044dfbf7a3567d21acbe1363bf76a6b8768a07467253e2430335ac71e8ff93cbd8f71d7b501efdc9a9b5c40c042c6144df9f2a077a192fccfb384092b022e8c8fc5e629e1048d62c538401d15fd5bfdfa969bf1a0f905208d3cd9fd002508dc447a0f85fcf3271f07dc39fc1fc62f75704018e6a3a099341a1ae2fc30a64d825f7107c42167b3247f0f6fbbb4193a89b528a877b7a78080808080808080b853f851a0bab73d23919188d2dd5dba08a5bc0a09b49b1726a0f7452193d91f552f814051a062ca89fba3f46973e6198f9c01b58fc481d7e4cfab721fe9c84878760d7b63cd808080808080808080808080808080b875f87320b870f86e8342d4eb843b9aca0082c350942a825badbf7139eb0d95e2a110be2eb1b1aef8f88803a6c163300f88008025a0a2189c8ac8fc3cb0f7fae6164eeee72be612e017c44c4efce2a4fef229972d19a07ebe334212e6be28f932a91fc2560374915aeb17c94fec6f122dd5d56879f07f");
 
-            await expectRevert(testimonium.verifyTransaction(verificationFee.sub(new BN(1)), requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
+            await expectRevert(ethrelay.verifyTransaction(verificationFee.sub(new BN(1)), requestedBlockInRlp, 0, rlpEncodedTx, path, rlpEncodedProofNodes, {
                 from: accounts[0],
                 value: verificationFee.sub(new BN(1)),
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1680,7 +1680,7 @@ contract('Testimonium', async (accounts) => {
 
     });
 
-    describe('Testimonium: VerifyReceipt', function () {
+    describe('Ethrelay: VerifyReceipt', function () {
 
         // Test Scenario 1: submit valid Merkle Patricia proof
         //
@@ -1692,10 +1692,10 @@ contract('Testimonium', async (accounts) => {
         it('should correctly execute test scenario 1', async () => {
             const submitterAddr = accounts[0];
             const verifierAddr = accounts[1];
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            await ethrelay.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -1733,7 +1733,7 @@ contract('Testimonium', async (accounts) => {
             let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
             let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-            let ret = await testimonium.verifyReceipt(verificationFee, requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
+            let ret = await ethrelay.verifyReceipt(verificationFee, requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1760,10 +1760,10 @@ contract('Testimonium', async (accounts) => {
         it('should correctly execute test scenario 2', async () => {
             const submitterAddr = accounts[0];
             const verifierAddr = accounts[1];
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            await ethrelay.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -1801,7 +1801,7 @@ contract('Testimonium', async (accounts) => {
             let balanceSubmitterBeforeCall = await balance.current(submitterAddr);
             let balanceVerifierBeforeCall = await balance.current(verifierAddr);
 
-            let ret = await testimonium.verifyReceipt(verificationFee, requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
+            let ret = await ethrelay.verifyReceipt(verificationFee, requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1828,10 +1828,10 @@ contract('Testimonium', async (accounts) => {
         it('should correctly execute test scenario 3', async () => {
             const submitterAddr = accounts[0];
             const verifierAddr = accounts[1];
-            const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+            const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
             const stake = requiredStakePerBlock.mul(new BN(5));
-            await testimonium.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            await ethrelay.depositStake(stake, {from: submitterAddr, value: stake, gasPrice: GAS_PRICE_IN_WEI});
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             // Create expected chain
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
@@ -1864,7 +1864,7 @@ contract('Testimonium', async (accounts) => {
 
             await submitBlockHeaders(expectedBlocks, submitterAddr);
 
-            await expectRevert(testimonium.verifyReceipt(verificationFee, requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
+            await expectRevert(ethrelay.verifyReceipt(verificationFee, requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
                 from: verifierAddr,
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1874,7 +1874,7 @@ contract('Testimonium', async (accounts) => {
         });
 
         it('should revert since msg.value not equal to function parameter', async () => {
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             const block0 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
             const requestedBlockInRlp = createRLPHeader(block0);
@@ -1882,7 +1882,7 @@ contract('Testimonium', async (accounts) => {
             const path = web3.utils.hexToBytes("0x22");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90502b90134f90131a000bd9dc24090a2a10bba1c60136307cce644dae9c3eee486a83b069a7061386fa019e9568ef63a654a2224c44300a9df314311bdf397cde928a5653728f490b554a0b6a85a847c922d53edb65a2a105a47d03abb0b75a23ff49fed988a61dad96787a074fe17d19927fb011255938043bd3cb0b6a55f51707d0efeb4533539f72a55cfa0b3a34f1c86e0826b417e056f2bf37da9d4ba73c17eb137bf9db593d095de6e51a0551ec16d0aaef2d3832a78cf71ba10b4e59cb6d2e7aa19c7edeb8c81b79c718ca04f6bb93bc8d85533fe210554091bf309efcc69feba90dc4f14c6b5ca992b3f81a078404170ba13f0a1e2e544a0936a1a08b79e35d34ab14f961155412658ab7025a088a3cbd4d0017c6d029acb0e82911ca26f3e91e91b2f2f2ab9924871013b003f8080808080808080b90214f90211a02b72e55f6fbe643c329f1fd3d9cb16ff6877c1be6414d8f2ce9d0f6ab8a1c37aa06f918e0eafa2ca9c05e7ec4d92420c7318163d74fd7cb5c933dfae6c1517078aa041043c6dd9446e90e7ae697b1bf75c8b1c2f3fa0d4a2e8461618ee06c84aff98a0d67c9b342106b8e9dc1fd0fc27e8fae5bd1c1900c4a9513d8ed83c7273f2e0dea029409cddec29f8ca665fea4bbbec525d76dca3136a859b8ed86de10913389ac9a09de16391edf6ee4db3aedccd320b31663d000824acc6c62adb85c999cda3ef1da0b56c405b56e572c643a7609498322d4846dbc196c74c930cc7ab084b19c6963aa03fb2fd93be6cbf09b520e86fbd9f32f462eb75ebff922c329986fcee1e751d7ca0426d244c2890858e9fe7bd9d832319bfabb18e886e784ac0267c4f564a296b69a08da0163f9c72e3faecc71f0945c2720eca5ea3824198c7ba593489274710d791a06809bde58a60220b45c7bdf5498f3fac28f4ecc0d03b77350a43d86be7a6d617a05950d12fae5c11848d732804118299e69d61e9d0a7c42aa470733af6624475c2a0d4bd864d57e6e58d438e16e8b56bb95121c60afd6e6a21e446708339712d5045a01329d668d030ebe4f40ceafcacd201275ebe98ef0ae17e1fa5fffff829ea1b98a07fd663123299c7f2cc95e979ce39c765f6c4e47d2954c78eabd062f2af94a77ba020cb97c35dc8183298265aeb4ad5e221c1af357fd38fa9dd0ee5885febea8ef180b901b1f901ae20b901aaf901a70183105509b9010000000000000000400000000000000000000000040000000000000000000000000000000000000004000000000000800000000000000000000000000010000000002000000000000000000028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000f89df89b9404cd48c02807a5b2443c6e50e274479642c41232f863a0ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3efa0000000000000000000000000632fca97032e8a83b418a0c04ca8e3e03731a042a000000000000000000000000065e4b61354bb6a01d045f34d2b7884e92474c25ca000000000000000000000000000000000000000000000003635c9adc5dea00000");
 
-            await expectRevert(testimonium.verifyReceipt(verificationFee.add(new BN(1)), requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
+            await expectRevert(ethrelay.verifyReceipt(verificationFee.add(new BN(1)), requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
                 from: accounts[0],
                 value: verificationFee,
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1890,7 +1890,7 @@ contract('Testimonium', async (accounts) => {
         });
 
         it('should revert since provided fee is too small', async () => {
-            const verificationFee = await testimonium.getRequiredVerificationFee();
+            const verificationFee = await ethrelay.getRequiredVerificationFee();
 
             const block0 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
             const requestedBlockInRlp = createRLPHeader(block0);
@@ -1898,7 +1898,7 @@ contract('Testimonium', async (accounts) => {
             const path = web3.utils.hexToBytes("0x22");
             const rlpEncodedProofNodes = web3.utils.hexToBytes("0xf90502b90134f90131a000bd9dc24090a2a10bba1c60136307cce644dae9c3eee486a83b069a7061386fa019e9568ef63a654a2224c44300a9df314311bdf397cde928a5653728f490b554a0b6a85a847c922d53edb65a2a105a47d03abb0b75a23ff49fed988a61dad96787a074fe17d19927fb011255938043bd3cb0b6a55f51707d0efeb4533539f72a55cfa0b3a34f1c86e0826b417e056f2bf37da9d4ba73c17eb137bf9db593d095de6e51a0551ec16d0aaef2d3832a78cf71ba10b4e59cb6d2e7aa19c7edeb8c81b79c718ca04f6bb93bc8d85533fe210554091bf309efcc69feba90dc4f14c6b5ca992b3f81a078404170ba13f0a1e2e544a0936a1a08b79e35d34ab14f961155412658ab7025a088a3cbd4d0017c6d029acb0e82911ca26f3e91e91b2f2f2ab9924871013b003f8080808080808080b90214f90211a02b72e55f6fbe643c329f1fd3d9cb16ff6877c1be6414d8f2ce9d0f6ab8a1c37aa06f918e0eafa2ca9c05e7ec4d92420c7318163d74fd7cb5c933dfae6c1517078aa041043c6dd9446e90e7ae697b1bf75c8b1c2f3fa0d4a2e8461618ee06c84aff98a0d67c9b342106b8e9dc1fd0fc27e8fae5bd1c1900c4a9513d8ed83c7273f2e0dea029409cddec29f8ca665fea4bbbec525d76dca3136a859b8ed86de10913389ac9a09de16391edf6ee4db3aedccd320b31663d000824acc6c62adb85c999cda3ef1da0b56c405b56e572c643a7609498322d4846dbc196c74c930cc7ab084b19c6963aa03fb2fd93be6cbf09b520e86fbd9f32f462eb75ebff922c329986fcee1e751d7ca0426d244c2890858e9fe7bd9d832319bfabb18e886e784ac0267c4f564a296b69a08da0163f9c72e3faecc71f0945c2720eca5ea3824198c7ba593489274710d791a06809bde58a60220b45c7bdf5498f3fac28f4ecc0d03b77350a43d86be7a6d617a05950d12fae5c11848d732804118299e69d61e9d0a7c42aa470733af6624475c2a0d4bd864d57e6e58d438e16e8b56bb95121c60afd6e6a21e446708339712d5045a01329d668d030ebe4f40ceafcacd201275ebe98ef0ae17e1fa5fffff829ea1b98a07fd663123299c7f2cc95e979ce39c765f6c4e47d2954c78eabd062f2af94a77ba020cb97c35dc8183298265aeb4ad5e221c1af357fd38fa9dd0ee5885febea8ef180b901b1f901ae20b901aaf901a70183105509b9010000000000000000400000000000000000000000040000000000000000000000000000000000000004000000000000800000000000000000000000000010000000002000000000000000000028000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000f89df89b9404cd48c02807a5b2443c6e50e274479642c41232f863a0ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3efa0000000000000000000000000632fca97032e8a83b418a0c04ca8e3e03731a042a000000000000000000000000065e4b61354bb6a01d045f34d2b7884e92474c25ca000000000000000000000000000000000000000000000003635c9adc5dea00000");
 
-            await expectRevert(testimonium.verifyReceipt(verificationFee.sub(new BN(1)), requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
+            await expectRevert(ethrelay.verifyReceipt(verificationFee.sub(new BN(1)), requestedBlockInRlp, 0, rlpEncodedReceipt, path, rlpEncodedProofNodes, {
                 from: accounts[0],
                 value: verificationFee.sub(new BN(1)),
                 gasPrice: GAS_PRICE_IN_WEI
@@ -1908,7 +1908,7 @@ contract('Testimonium', async (accounts) => {
 
     describe('DisputeBlock', function () {
 
-        describe('TestimoniumCore', function () {
+        describe('EthrelayCore', function () {
 
             // Test Scenario 1 (verification of Ethash should fail):
             //
@@ -1916,21 +1916,21 @@ contract('Testimonium', async (accounts) => {
             //
             //
             it('should correctly execute test scenario 1', async () => {
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(2));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(2));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(1));
-                await testimonium.depositStake(stakeAccount0, {
+                await ethrelay.depositStake(stakeAccount0, {
                     from: accounts[0],
                     value: stakeAccount0,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits block 1
-                await testimonium.depositStake(stakeAccount1, {
+                await ethrelay.depositStake(stakeAccount1, {
                     from: accounts[1],
                     value: stakeAccount1,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 2,3
-                await testimonium.depositStake(stakeAccount2, {
+                await ethrelay.depositStake(stakeAccount2, {
                     from: accounts[2],
                     value: stakeAccount2,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -1960,7 +1960,7 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block3, accounts[1]);
                 await submitBlockHeader(block4, accounts[2]);
 
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -1999,15 +1999,15 @@ contract('Testimonium', async (accounts) => {
             //            -(3)---(6)
             //
             it('should correctly execute test scenario 2', async () => {
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(3));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(3));
-                await testimonium.depositStake(stakeAccount0, {
+                await ethrelay.depositStake(stakeAccount0, {
                     from: accounts[0],
                     value: stakeAccount0,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits block 1,3,6
-                await testimonium.depositStake(stakeAccount1, {
+                await ethrelay.depositStake(stakeAccount1, {
                     from: accounts[1],
                     value: stakeAccount1,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2042,7 +2042,7 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block5, accounts[1]);
                 await submitBlockHeader(block6, accounts[0]);
                 const block6LockedUntil = (await time.latest()).add(LOCK_PERIOD);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2097,21 +2097,21 @@ contract('Testimonium', async (accounts) => {
             //           X-(3)---(6)
             //
             it('should correctly execute test scenario 3', async () => {
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(4));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(1));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(1));
-                await testimonium.depositStake(stakeAccount0, {
+                await ethrelay.depositStake(stakeAccount0, {
                     from: accounts[0],
                     value: stakeAccount0,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 1,2,4,5
-                await testimonium.depositStake(stakeAccount1, {
+                await ethrelay.depositStake(stakeAccount1, {
                     from: accounts[1],
                     value: stakeAccount1,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits block 3
-                await testimonium.depositStake(stakeAccount1, {
+                await ethrelay.depositStake(stakeAccount1, {
                     from: accounts[2],
                     value: stakeAccount2,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2146,7 +2146,7 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block5, accounts[0]);
                 const block5LockedUntil = (await time.latest()).add(LOCK_PERIOD);
                 await submitBlockHeader(block6, accounts[2]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block3), createRLPHeader(block1), dataSetLookupBlock3, witnessForLookupBlock3, {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(block3), createRLPHeader(block1), dataSetLookupBlock3, witnessForLookupBlock3, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2213,21 +2213,21 @@ contract('Testimonium', async (accounts) => {
             //           X-(4)---(7)
             //
             it('should correctly execute test scenario 4', async () => {
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(3));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(1));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(4));
-                await testimonium.depositStake(stakeAccount0, {
+                await ethrelay.depositStake(stakeAccount0, {
                     from: accounts[0],
                     value: stakeAccount0,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 1,2,5
-                await testimonium.depositStake(stakeAccount1, {
+                await ethrelay.depositStake(stakeAccount1, {
                     from: accounts[1],
                     value: stakeAccount1,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 7
-                await testimonium.depositStake(stakeAccount2, {
+                await ethrelay.depositStake(stakeAccount2, {
                     from: accounts[2],
                     value: stakeAccount2,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2275,7 +2275,7 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block7, accounts[1]);
                 await submitBlockHeader(block8, accounts[2]);
                 const block8LockedUntil = (await time.latest()).add(LOCK_PERIOD);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block4), createRLPHeader(block1), dataSetLookupBlock4, witnessForLookupBlock4, {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(block4), createRLPHeader(block1), dataSetLookupBlock4, witnessForLookupBlock4, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2360,21 +2360,21 @@ contract('Testimonium', async (accounts) => {
             //            -(4)
             //
             it('should correctly execute test scenario 5', async () => {
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(3));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(1));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(3));
-                await testimonium.depositStake(stakeAccount0, {
+                await ethrelay.depositStake(stakeAccount0, {
                     from: accounts[0],
                     value: stakeAccount0,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 1,2,5
-                await testimonium.depositStake(stakeAccount1, {
+                await ethrelay.depositStake(stakeAccount1, {
                     from: accounts[1],
                     value: stakeAccount1,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 7
-                await testimonium.depositStake(stakeAccount2, {
+                await ethrelay.depositStake(stakeAccount2, {
                     from: accounts[2],
                     value: stakeAccount2,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2416,7 +2416,7 @@ contract('Testimonium', async (accounts) => {
                 const block5LockedUntil = (await time.latest()).add(LOCK_PERIOD);
                 await submitBlockHeader(block6, accounts[2]);
                 await submitBlockHeader(block7, accounts[1]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block3), createRLPHeader(block1), dataSetLookupBlock3, witnessForLookupBlock3, {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(block3), createRLPHeader(block1), dataSetLookupBlock3, witnessForLookupBlock3, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2483,21 +2483,21 @@ contract('Testimonium', async (accounts) => {
             //            -(4)
             //
             it('should correctly execute test scenario 6', async () => {
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(3));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(1));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(3));
-                await testimonium.depositStake(stakeAccount0, {
+                await ethrelay.depositStake(stakeAccount0, {
                     from: accounts[0],
                     value: stakeAccount0,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 1,2,5
-                await testimonium.depositStake(stakeAccount1, {
+                await ethrelay.depositStake(stakeAccount1, {
                     from: accounts[1],
                     value: stakeAccount1,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 7
-                await testimonium.depositStake(stakeAccount2, {
+                await ethrelay.depositStake(stakeAccount2, {
                     from: accounts[2],
                     value: stakeAccount2,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2540,7 +2540,7 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block6, accounts[2]);
                 const block6LockedUntil = (await time.latest()).add(LOCK_PERIOD);
                 await submitBlockHeader(block7, accounts[1]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2604,9 +2604,9 @@ contract('Testimonium', async (accounts) => {
             //
             //
             it('should correctly execute test scenario 7', async () => {
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(4));
-                await testimonium.depositStake(stakeAccount0, {
+                await ethrelay.depositStake(stakeAccount0, {
                     from: accounts[0],
                     value: stakeAccount0,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2630,7 +2630,7 @@ contract('Testimonium', async (accounts) => {
 
                 // Submit and dispute blocks
                 await submitBlockHeaders(blocksToSubmit, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2686,8 +2686,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate the block since block number is not incremented by one (too high)', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2699,7 +2699,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
 
                 await submitBlockHeader(blockWithWrongBlockNumber, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithWrongBlockNumber), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithWrongBlockNumber), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2711,8 +2711,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate block since the block number is not incremented by one (too low)', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2724,7 +2724,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
 
                 await submitBlockHeader(blockWithWrongBlockNumber, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithWrongBlockNumber), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithWrongBlockNumber), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2736,8 +2736,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate block since the block number is not incremented by one (equal)', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2749,7 +2749,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithWrongBlockNumber.hash = calculateBlockHash(blockWithWrongBlockNumber);
 
                 await submitBlockHeader(blockWithWrongBlockNumber, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithWrongBlockNumber), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithWrongBlockNumber), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2761,8 +2761,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate block since the timestamp of the submitted block is not in the future (equal)', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2774,7 +2774,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
 
                 await submitBlockHeader(blockWithPastTimestamp, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithPastTimestamp), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithPastTimestamp), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2786,8 +2786,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate block since the timestamp of the submitted block is not in the future (older)', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2799,7 +2799,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
 
                 await submitBlockHeader(blockWithPastTimestamp, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithPastTimestamp), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithPastTimestamp), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2811,8 +2811,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate block since the timestamp of the submitted block is too far in the future', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2824,7 +2824,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithPastTimestamp.hash = calculateBlockHash(blockWithPastTimestamp);
 
                 await submitBlockHeader(blockWithPastTimestamp, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithPastTimestamp), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithPastTimestamp), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2836,8 +2836,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate block since the difficulty of the submitted block is not correct', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2850,7 +2850,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithIllegalDifficulty.hash = calculateBlockHash(blockWithIllegalDifficulty);
 
                 await submitBlockHeader(blockWithIllegalDifficulty, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalDifficulty), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalDifficulty), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2862,8 +2862,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate block since the gas limit of the submitted block is higher than maximum gas limit', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2875,7 +2875,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
 
                 await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2887,8 +2887,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate block sincethe gas limit of the submitted block is smaller than the minium gas limit', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2900,7 +2900,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
 
                 await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2912,8 +2912,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate block since the gas limit of the submitted block is out of bounds (too high)', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2926,7 +2926,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
 
                 await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2938,8 +2938,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate block since the gas limit of the submitted block is out of bounds (too small)', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2952,7 +2952,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
 
                 await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasLimit), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2964,8 +2964,8 @@ contract('Testimonium', async (accounts) => {
 
             it('should eliminate block since the gas used of the submitted block is higher than the gas limit', async () => {
                 // deposit enough stake
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
-                await testimonium.depositStake(requiredStakePerBlock, {
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
+                await ethrelay.depositStake(requiredStakePerBlock, {
                     from: accounts[0],
                     value: requiredStakePerBlock,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -2977,7 +2977,7 @@ contract('Testimonium', async (accounts) => {
                 blockWithIllegalGasUsed.hash = calculateBlockHash(blockWithIllegalGasUsed);
 
                 await submitBlockHeader(blockWithIllegalGasUsed, accounts[0]);
-                let ret = await testimonium.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasUsed), createRLPHeader(genesisBlock), [], [], {
+                let ret = await ethrelay.disputeBlockWithoutPunishment(createRLPHeader(blockWithIllegalGasUsed), createRLPHeader(genesisBlock), [], [], {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
@@ -2988,7 +2988,7 @@ contract('Testimonium', async (accounts) => {
             });
         });
 
-        describe('Testimonium', function () {
+        describe('Ethrelay', function () {
 
             // Test Scenario 1 (verification of Ethash should fail):
             //
@@ -2999,27 +2999,27 @@ contract('Testimonium', async (accounts) => {
             //            -(4)
             //
             it('should correctly execute test scenario 1', async () => {
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(3));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(1));
                 const stakeAccount2 = requiredStakePerBlock.mul(new BN(2));
                 const stakeAccount3 = requiredStakePerBlock.mul(new BN(1));
-                await testimonium.depositStake(stakeAccount0, {
+                await ethrelay.depositStake(stakeAccount0, {
                     from: accounts[0],
                     value: stakeAccount0,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 1,3,6
-                await testimonium.depositStake(stakeAccount1, {
+                await ethrelay.depositStake(stakeAccount1, {
                     from: accounts[1],
                     value: stakeAccount1,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 7
-                await testimonium.depositStake(stakeAccount2, {
+                await ethrelay.depositStake(stakeAccount2, {
                     from: accounts[2],
                     value: stakeAccount2,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 2,5
-                await testimonium.depositStake(stakeAccount3, {
+                await ethrelay.depositStake(stakeAccount3, {
                     from: accounts[3],
                     value: stakeAccount3,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -3059,20 +3059,20 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block6, accounts[0]);
                 await submitBlockHeader(block7, accounts[1]);
 
-                const stakeAccount0BeforeDispute = await testimonium.getStake({from: accounts[0]});
-                const stakeAccount1BeforeDispute = await testimonium.getStake({from: accounts[1]});
-                const stakeAccount2BeforeDispute = await testimonium.getStake({from: accounts[2]});
-                const stakeAccount3BeforeDispute = await testimonium.getStake({from: accounts[3]});
+                const stakeAccount0BeforeDispute = await ethrelay.getStake({from: accounts[0]});
+                const stakeAccount1BeforeDispute = await ethrelay.getStake({from: accounts[1]});
+                const stakeAccount2BeforeDispute = await ethrelay.getStake({from: accounts[2]});
+                const stakeAccount3BeforeDispute = await ethrelay.getStake({from: accounts[3]});
 
-                await testimonium.disputeBlockHeader(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
+                await ethrelay.disputeBlockHeader(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
 
-                const stakeAccount0AfterDispute = await testimonium.getStake({from: accounts[0]});
-                const stakeAccount1AfterDispute = await testimonium.getStake({from: accounts[1]});
-                const stakeAccount2AfterDispute = await testimonium.getStake({from: accounts[2]});
-                const stakeAccount3AfterDispute = await testimonium.getStake({from: accounts[3]});
+                const stakeAccount0AfterDispute = await ethrelay.getStake({from: accounts[0]});
+                const stakeAccount1AfterDispute = await ethrelay.getStake({from: accounts[1]});
+                const stakeAccount2AfterDispute = await ethrelay.getStake({from: accounts[2]});
+                const stakeAccount3AfterDispute = await ethrelay.getStake({from: accounts[3]});
 
                 expect(stakeAccount0AfterDispute).to.be.bignumber.equal(stakeAccount0BeforeDispute.add(requiredStakePerBlock.mul(new BN(3))));
                 expect(stakeAccount1AfterDispute).to.be.bignumber.equal(stakeAccount1BeforeDispute.sub(requiredStakePerBlock));
@@ -3092,15 +3092,15 @@ contract('Testimonium', async (accounts) => {
             //
             //
             it('should correctly execute test scenario 2', async () => {
-                const requiredStakePerBlock = await testimonium.getRequiredStakePerBlock();
+                const requiredStakePerBlock = await ethrelay.getRequiredStakePerBlock();
                 const stakeAccount0 = requiredStakePerBlock.mul(new BN(2));
                 const stakeAccount1 = requiredStakePerBlock.mul(new BN(2));
-                await testimonium.depositStake(stakeAccount0, {
+                await ethrelay.depositStake(stakeAccount0, {
                     from: accounts[0],
                     value: stakeAccount0,
                     gasPrice: GAS_PRICE_IN_WEI
                 });  // submits blocks 1,2
-                await testimonium.depositStake(stakeAccount1, {
+                await ethrelay.depositStake(stakeAccount1, {
                     from: accounts[1],
                     value: stakeAccount1,
                     gasPrice: GAS_PRICE_IN_WEI
@@ -3121,16 +3121,16 @@ contract('Testimonium', async (accounts) => {
                 await submitBlockHeader(block3, accounts[1]);
                 await submitBlockHeader(block4, accounts[1]);
 
-                const stakeAccount0BeforeDispute = await testimonium.getStake({from: accounts[0]});
-                const stakeAccount1BeforeDispute = await testimonium.getStake({from: accounts[1]});
+                const stakeAccount0BeforeDispute = await ethrelay.getStake({from: accounts[0]});
+                const stakeAccount1BeforeDispute = await ethrelay.getStake({from: accounts[1]});
 
-                await testimonium.disputeBlockHeader(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
+                await ethrelay.disputeBlockHeader(createRLPHeader(block2), createRLPHeader(block1), dataSetLookupBlock2, witnessForLookupBlock2, {
                     from: accounts[0],
                     gasPrice: GAS_PRICE_IN_WEI
                 });
 
-                const stakeAccount0AfterDispute = await testimonium.getStake({from: accounts[0]});
-                const stakeAccount1AfterDispute = await testimonium.getStake({from: accounts[1]});
+                const stakeAccount0AfterDispute = await ethrelay.getStake({from: accounts[0]});
+                const stakeAccount1AfterDispute = await ethrelay.getStake({from: accounts[1]});
 
                 // tried to dispute a legal block -> nothing should have been changed
                 expect(stakeAccount0AfterDispute).to.be.bignumber.equal(stakeAccount0BeforeDispute);
@@ -3155,14 +3155,14 @@ contract('Testimonium', async (accounts) => {
 
     const submitBlockHeader = async (header, accountAddr) => {
         const rlpHeader = createRLPHeader(header);
-        return await testimonium.submitBlock(rlpHeader, {from: accountAddr, gasPrice: GAS_PRICE_IN_WEI});
+        return await ethrelay.submitBlock(rlpHeader, {from: accountAddr, gasPrice: GAS_PRICE_IN_WEI});
     };
 
     const submitBlockHeaders = async (expectedHeaders, accountAddr) => {
         await asyncForEach(expectedHeaders, async expected => {
             const rlpHeader = createRLPHeader(expected.block);
             await time.increase(time.duration.seconds(15));
-            await testimonium.submitBlock(rlpHeader, {from: accountAddr, gasPrice: GAS_PRICE_IN_WEI});
+            await ethrelay.submitBlock(rlpHeader, {from: accountAddr, gasPrice: GAS_PRICE_IN_WEI});
             const submitTime = await time.latest();
             expected.lockedUntil = submitTime.add(LOCK_PERIOD);
         });
@@ -3173,7 +3173,7 @@ contract('Testimonium', async (accounts) => {
         for (let i = 0; i < expectedHeaders.length; i++) {
             batch.push(createRLPHeader(expectedHeaders[i].block));
         }
-        await testimonium.submitBlockBatch(RLP.encode(batch), { from: accountAddr, gasPrice: GAS_PRICE_IN_WEI });
+        await ethrelay.submitBlockBatch(RLP.encode(batch), { from: accountAddr, gasPrice: GAS_PRICE_IN_WEI });
 
         const submitTime = await time.latest();
         const expectedLockedUntil = submitTime.add(LOCK_PERIOD);
@@ -3185,18 +3185,18 @@ contract('Testimonium', async (accounts) => {
     const checkExpectedBlockHeaders = async (expectedHeaders) => {
         await asyncForEach(expectedHeaders, async expected => {
             // check header data
-            const actualHeader = await testimonium.getHeader(web3.utils.hexToBytes(expected.block.hash));
+            const actualHeader = await ethrelay.getHeader(web3.utils.hexToBytes(expected.block.hash));
             assertHeaderEqual(actualHeader, expected.block);
 
             // check header meta data
-            const actualMeta = await testimonium.getBlockMetaInfo(web3.utils.hexToBytes(expected.block.hash));
+            const actualMeta = await ethrelay.getBlockMetaInfo(web3.utils.hexToBytes(expected.block.hash));
             assertMetaEqual(actualMeta, expected);
         });
     };
 
     const checkExpectedZeroBlocks = async (expectedZeroBlocks) => {
         await asyncForEach(expectedZeroBlocks, async expectedZero => {
-            const removedBlock = await testimonium.getHeader(web3.utils.hexToBytes(expectedZero.hash));
+            const removedBlock = await ethrelay.getHeader(web3.utils.hexToBytes(expectedZero.hash));
             expect(removedBlock.blockNumber).to.be.bignumber.equal(new BN(0));
             expect(removedBlock.totalDifficulty).to.be.bignumber.equal(new BN(0));
         });
@@ -3204,17 +3204,17 @@ contract('Testimonium', async (accounts) => {
 
     // checks if expectedEndpoints array is correct and if longestChainEndpoints contains hash of block with highest difficulty
     const checkExpectedEndpoints = async (expectedEndpoints) => {
-        expect(await testimonium.getNumberOfForks()).to.be.bignumber.equal(new BN(expectedEndpoints.length));
+        expect(await ethrelay.getNumberOfForks()).to.be.bignumber.equal(new BN(expectedEndpoints.length));
 
         let expectedLongestChainEndpoint = expectedEndpoints[0];
         await asyncForEach(expectedEndpoints, async (expected, index) => {
-            expect(await testimonium.getEndpoint(index)).to.equal(expected.hash);
+            expect(await ethrelay.getEndpoint(index)).to.equal(expected.hash);
             if (expectedLongestChainEndpoint.totalDifficulty < expected.totalDifficulty) {
                 expectedLongestChainEndpoint = expected;
             }
         });
 
-        expect(await testimonium.getLongestChainEndpoint()).to.equal(expectedLongestChainEndpoint.hash);
+        expect(await ethrelay.getLongestChainEndpoint()).to.equal(expectedLongestChainEndpoint.hash);
     };
 
     const getAccountBalanceInWei = async (accountAddress) => {
@@ -3225,7 +3225,7 @@ contract('Testimonium', async (accounts) => {
         const submitTime = await time.latest();
         const increasedTime = submitTime.add(LOCK_PERIOD).add(time.duration.seconds(1));
         await time.increaseTo(increasedTime);  // unlock all blocks
-        await testimonium.withdrawStake(stake, {from: accountAddr, gasPrice: GAS_PRICE_IN_WEI});
+        await ethrelay.withdrawStake(stake, {from: accountAddr, gasPrice: GAS_PRICE_IN_WEI});
     };
 
     const submitEpochData = async (ethashContractInstance, epoch, fullSizeIn128Resolution, branchDepth, merkleNodes) => {

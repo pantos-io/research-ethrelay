@@ -1,11 +1,11 @@
 const Web3 = require('web3');
-const abiTestimonium = require('./build/contracts/Testimonium.json').abi;
+const abiEthrelay = require('./build/contracts/Ethrelay.json').abi;
 const web3 = new Web3(new Web3.providers.WebsocketProvider('http://127.0.0.1:7545'));
 
-readTestimoniumEvents(web3);
+readEthrelayEvents(web3);
 
-function readTestimoniumEvents(web3) {
-    const contractInstance = new web3.eth.Contract(abiTestimonium, process.argv[2],{});
+function readEthrelayEvents(web3) {
+    const contractInstance = new web3.eth.Contract(abiEthrelay, process.argv[2],{});
 
     contractInstance.events.allEvents({
         fromBlock: 0

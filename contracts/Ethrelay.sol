@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.7.0 <0.9.0;
 
-import "./TestimoniumCore.sol";
+import "./EthrelayCore.sol";
 import "./RLPReader.sol";
 
-/// @title Testimonium: A contract enabling cross-blockchain verifications (transactions, receipts, states)
+/// @title Ethrelay: A contract enabling cross-blockchain verifications (transactions, receipts, states)
 /// @author Marten Sigwart, Philipp Frauenthaler, Leonhard Esterbauer, Markus Levonyak
 /// @notice You can use this contract for submitting new block headers, disputing already submitted block headers, and
 ///         for verifying Merkle Patricia proofs (transactions, receipts, states).
-/// @dev    This contract uses the TestimoniumCore contract and extends it with an incentive structure.
-contract Testimonium is TestimoniumCore {
+/// @dev    This contract uses the EthrelayCore contract and extends it with an incentive structure.
+contract Ethrelay is EthrelayCore {
 
     using RLPReader for *;
     uint constant REQUIRED_STAKE_PER_BLOCK = 1 ether;
@@ -23,7 +23,7 @@ contract Testimonium is TestimoniumCore {
 
     // The contract is initialized with block 8084509 and the total difficulty of that same block.
     // The contract creator needs to make sure that these values represent a valid block of the tracked blockchain.
-    constructor(bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) TestimoniumCore(_rlpHeader, totalDifficulty, _ethashContractAddr) {}
+    constructor(bytes memory _rlpHeader, uint totalDifficulty, address _ethashContractAddr) EthrelayCore(_rlpHeader, totalDifficulty, _ethashContractAddr) {}
 
     /// @dev Deposits stake for a client allowing the client to submit block headers.
     function depositStake(uint amount) payable public {
@@ -102,7 +102,7 @@ contract Testimonium is TestimoniumCore {
         emit NewBlock(blockHash);
     }
 
-    // here, the same parallel problems like with single submitBlock in TestimoniumCore occur: if there are two participants submitting
+    // here, the same parallel problems like with single submitBlock in EthrelayCore occur: if there are two participants submitting
     // at the same time, only one is being accepted and the other one is rejected resulting in high gas costs especially
     // if the bytes memory _rlpHeaders param is quite big
     function submitBlockBatch(bytes memory _rlpHeaders) public {

@@ -29,6 +29,7 @@ const createRLPHeader = (block) => {
         block.extraData,
         block.mixHash,
         block.nonce,
+        block.baseFeePerGas,
     ]);
 };
 
@@ -47,6 +48,7 @@ const createRLPHeaderWithoutNonce = (block) => {
         block.gasUsed,
         block.timestamp,
         block.extraData,
+        block.baseFeePerGas,
     ]);
 };
 

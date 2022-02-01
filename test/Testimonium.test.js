@@ -10,7 +10,11 @@ const Ethrelay = artifacts.require('./EthrelayTestContract');
 const Ethash = artifacts.require('./Ethash');
 const {expect} = require('chai');
 
-const GENESIS_BLOCK             = 8084509;  // --> change with care, since the ethash contract has to be loaded with the corresponding epoch data
+const EPOCH         = 470;
+const GENESIS_BLOCK = 14119813;
+
+expect(Math.floor(GENESIS_BLOCK / 30000), "genesis block not in epoch").to.equal(EPOCH);
+
 const ZERO_HASH                 = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const ZERO_ADDRESS              = '0x0000000000000000000000000000000000000000';
 const LOCK_PERIOD               = time.duration.minutes(5);

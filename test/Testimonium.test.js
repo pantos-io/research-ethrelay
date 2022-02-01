@@ -776,7 +776,7 @@ contract('Ethrelay', async (accounts) => {
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const ret = await submitBlockHeader(block1, accounts[0]);
 
-            expectEvent.inLogs(ret.logs, 'SubmitBlock', {blockHash: ZERO_HASH});
+            expectEvent.inLogs(ret.logs, 'NewBlock', {blockHash: ZERO_HASH});
 
             const submittedHeaders = await ethrelay.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(0);
@@ -792,7 +792,7 @@ contract('Ethrelay', async (accounts) => {
             // submit header
             const block1 = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
             const ret = await submitBlockHeader(block1, accounts[0]);
-            expectEvent.inLogs(ret.logs, 'SubmitBlock', {blockHash: block1.hash});
+            expectEvent.inLogs(ret.logs, 'NewBlock', {blockHash: block1.hash});
 
             const submittedHeaders = await ethrelay.getBlockHashesSubmittedByClient({from: accounts[0]});
             expect(submittedHeaders.length).to.equal(1);

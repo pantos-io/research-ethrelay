@@ -31,9 +31,9 @@ You can find an alternative installation guide based on Docker below.
 #### Direct installation: prerequisites
 You need to have the following tools installed:
 * [Node.js](https://nodejs.org/) (version >= 10.1)
-* [Truffle](https://www.trufflesuite.com/truffle) (version 5.1.29)
+* [Truffle](https://www.trufflesuite.com/truffle) (version >= 5.2.0)
 * [Ganache](https://www.trufflesuite.com/ganache) (version >= 2.1)
-* [Solidity](https://docs.soliditylang.org/en/latest/installing-solidity.html) (0.9 > version >= 0.7)
+* [Solidity](https://docs.soliditylang.org/en/latest/installing-solidity.html) (0.9 > version >= 0.8.4)
 
 For simply running the tests, it is not necessarily required to use Ganache as
 Truffle provides an integrated blockchain that is used for automatic testing.

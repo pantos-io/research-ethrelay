@@ -1,6 +1,6 @@
 const Web3 = require("web3");
 const {BN, expectRevert, time, balance} = require('openzeppelin-test-helpers');
-const {createRLPHeader, calculateBlockHash, createRLPHeaderWithoutNonce, addToHex} = require('../utils/utils');
+const {createRLPHeader, calculateBlockHash, addToHex} = require('../utils/utils');
 const expectEvent = require('./expectEvent');
 const RLP = require('rlp');
 

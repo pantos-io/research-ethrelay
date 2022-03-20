@@ -13,7 +13,7 @@ contract Ethrelay is EthrelayCore {
 
     using RLPReader for *;
     uint constant REQUIRED_STAKE_PER_BLOCK = 0 ether;
-    uint constant REQUIRED_VERIFICATION_FEE_IN_WEI = 0.1 ether;
+    uint constant REQUIRED_VERIFICATION_FEE_IN_WEI = 0 ether;
     uint8 constant VERIFICATION_TYPE_TX = 1;
     uint8 constant VERIFICATION_TYPE_RECEIPT = 2;
     uint8 constant VERIFICATION_TYPE_STATE = 3;

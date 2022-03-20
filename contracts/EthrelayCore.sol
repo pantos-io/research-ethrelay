@@ -20,7 +20,7 @@ contract EthrelayCore {
     // the verification- and dispute-process takes a long time, so it may not be possible to verify and additionally
     // dispute the block within 5mins if a disputer don't have a generated DAG on the hard disk. to solve this
     // quickly, make the process faster or increase the lock period to get enough time for clients to dispute
-    uint16 constant LOCK_PERIOD_IN_MIN = 5 minutes;
+    uint16 constant LOCK_PERIOD_IN_MIN = 0 minutes;
     uint8 constant ALLOWED_FUTURE_BLOCK_TIME = 15 seconds;
     uint8 constant MAX_EXTRA_DATA_SIZE = 32;
     uint8 constant REQU_SUCEEDING_BLOCKS = 3;

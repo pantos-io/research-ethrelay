@@ -160,7 +160,6 @@ contract Ethrelay is EthrelayCore {
         return result;
     }
 
-    event VerifyTransaction(uint8 result);
     /// @dev Verifies if a transaction is included in the given block's transactions Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
     /// @param rlpHeader the rlp encoded header that contains the Merkle root hash
@@ -175,12 +174,9 @@ contract Ethrelay is EthrelayCore {
 
         uint8 result = verify(VERIFICATION_TYPE_TX, feeInWei, rlpHeader, noOfConfirmations, rlpEncodedTx, path, rlpEncodedNodes);
 
-        emit VerifyTransaction(result);
-
         return result;
     }
 
-    event VerifyReceipt(uint8 result);
     /// @dev Verifies if a receipt is included in the given block's receipts Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
     /// @param rlpHeader the rlp encoded header that contains the Merkle root hash
@@ -195,12 +191,9 @@ contract Ethrelay is EthrelayCore {
 
         uint8 result = verify(VERIFICATION_TYPE_RECEIPT, feeInWei, rlpHeader, noOfConfirmations, rlpEncodedReceipt, path, rlpEncodedNodes);
 
-        emit VerifyReceipt(result);
-
         return result;
     }
 
-    event VerifyState(uint8 result);
     /// @dev   Verifies if a node is included in the given block's state Merkle Patricia trie
     /// @param feeInWei the fee that is payed for the verification and must be equal to VERIFICATION_FEE_IN_WEI.
     /// @param rlpHeader the rlp encoded header that contains the Merkle root hash
@@ -214,8 +207,6 @@ contract Ethrelay is EthrelayCore {
         bytes memory path, bytes memory rlpEncodedNodes) payable public returns (uint8) {
 
         uint8 result = verify(VERIFICATION_TYPE_STATE, feeInWei, rlpHeader, noOfConfirmations, rlpEncodedState, path, rlpEncodedNodes);
-
-        emit VerifyState(result);
 
         return result;
     }

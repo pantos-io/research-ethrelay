@@ -1,11 +1,10 @@
 const RLP = require('rlp');
 const Web3 = require('web3');
-const web3 = new Web3(Web3.givenProvider || 'https://mainnet.infura.io', null, {});
-const BN = web3.utils.BN;
 const BigNumber = require('bignumber.js');
+const { arrToBufArr } = require('ethereumjs-util');
 
 const calculateBlockHash = (block) => {
-    return web3.utils.keccak256(createRLPHeader(block));
+    return Web3.utils.keccak256(createRLPHeader(block));
 };
 
 const addToHex = (hexString, number) => {
@@ -13,7 +12,7 @@ const addToHex = (hexString, number) => {
 };
 
 const createRLPHeader = (block) => {
-    return RLP.encode([
+    return arrToBufArr(RLP.encode([
         block.parentHash,
         block.sha3Uncles,
         block.miner,
@@ -21,8 +20,8 @@ const createRLPHeader = (block) => {
         block.transactionsRoot,
         block.receiptsRoot,
         block.logsBloom,
-        new BN(block.difficulty),
-        new BN(block.number),
+        BigInt(block.difficulty),
+        BigInt(block.number),
         block.gasLimit,
         block.gasUsed,
         block.timestamp,
@@ -30,7 +29,7 @@ const createRLPHeader = (block) => {
         block.mixHash,
         block.nonce,
         block.baseFeePerGas,
-    ]);
+    ]));
 };
 
 const createRLPTransaction = (transaction) => {

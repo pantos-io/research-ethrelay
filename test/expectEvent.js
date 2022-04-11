@@ -1,5 +1,5 @@
 const { web3 } = require('web3');
-const { BN } = require('openzeppelin-test-helpers');
+const { BN } = require('@openzeppelin/test-helpers');
 const { expect } = require('chai');
 
 function inLogs (logs, eventName, eventArgs = {}) {

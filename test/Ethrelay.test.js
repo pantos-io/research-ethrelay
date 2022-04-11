@@ -1,8 +1,9 @@
 const Web3 = require("web3");
-const {BN, expectRevert, time, balance} = require('openzeppelin-test-helpers');
+const {BN, expectRevert, time, balance} = require('@openzeppelin/test-helpers');
 const {createRLPHeader, calculateBlockHash, addToHex} = require('../utils/utils');
 const expectEvent = require('./expectEvent');
 const RLP = require('rlp');
+const {bufArrToArr, arrToBufArr} = require('ethereumjs-util');
 
 const { INFURA_ENDPOINT } = require("../constants");
 
@@ -19,9 +20,9 @@ const ZERO_HASH                 = '0x0000000000000000000000000000000000000000000
 const ZERO_ADDRESS              = '0x0000000000000000000000000000000000000000';
 const LOCK_PERIOD               = time.duration.minutes(5);
 const ALLOWED_FUTURE_BLOCK_TIME = time.duration.seconds(15);
-const MAX_GAS_LIMIT             = new BN(2).pow(new BN(63)).sub(new BN(1));
-const MIN_GAS_LIMIT             = new BN(5000);
-const GAS_LIMIT_BOUND_DIVISOR   = new BN(1024);
+const MAX_GAS_LIMIT             = 2n ** 63n - 1n;
+const MIN_GAS_LIMIT             = 5000;
+const GAS_LIMIT_BOUND_DIVISOR   = 1024n;
 const GAS_PRICE_IN_WEI          = new BN(0);
 
 contract('Ethrelay', async (accounts) => {
@@ -2875,7 +2876,7 @@ contract('Ethrelay', async (accounts) => {
 
                 const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
                 const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                blockWithIllegalGasLimit.gasLimit = MAX_GAS_LIMIT.add(new BN(1));
+                blockWithIllegalGasLimit.gasLimit = MAX_GAS_LIMIT + 1n;
                 blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
 
                 await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
@@ -2900,7 +2901,7 @@ contract('Ethrelay', async (accounts) => {
 
                 const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
                 const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                blockWithIllegalGasLimit.gasLimit = MIN_GAS_LIMIT.sub(new BN(1));
+                blockWithIllegalGasLimit.gasLimit = MIN_GAS_LIMIT - 1;
                 blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
 
                 await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
@@ -2924,9 +2925,9 @@ contract('Ethrelay', async (accounts) => {
                 });
 
                 const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-                const limit = new BN(genesisBlock.gasLimit).div(GAS_LIMIT_BOUND_DIVISOR);
+                const limit = BigInt(genesisBlock.gasLimit) / GAS_LIMIT_BOUND_DIVISOR;
                 const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                blockWithIllegalGasLimit.gasLimit = new BN(genesisBlock.gasLimit).add(limit).add(new BN(1));
+                blockWithIllegalGasLimit.gasLimit = BigInt(genesisBlock.gasLimit) + limit + 1n;
                 blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
 
                 await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
@@ -2950,9 +2951,9 @@ contract('Ethrelay', async (accounts) => {
                 });
 
                 const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
-                const limit = new BN(genesisBlock.gasLimit).div(GAS_LIMIT_BOUND_DIVISOR);
+                const limit = BigInt(genesisBlock.gasLimit) / GAS_LIMIT_BOUND_DIVISOR;
                 const blockWithIllegalGasLimit = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                blockWithIllegalGasLimit.gasLimit = new BN(genesisBlock.gasLimit).sub(limit).sub(new BN(1));
+                blockWithIllegalGasLimit.gasLimit = BigInt(genesisBlock.gasLimit) - limit - 1n;
                 blockWithIllegalGasLimit.hash = calculateBlockHash(blockWithIllegalGasLimit);
 
                 await submitBlockHeader(blockWithIllegalGasLimit, accounts[0]);
@@ -2977,7 +2978,7 @@ contract('Ethrelay', async (accounts) => {
 
                 const genesisBlock = await sourceWeb3.eth.getBlock(GENESIS_BLOCK);
                 const blockWithIllegalGasUsed = await sourceWeb3.eth.getBlock(GENESIS_BLOCK + 1);
-                blockWithIllegalGasUsed.gasUsed = new BN(blockWithIllegalGasUsed.gasLimit).add(new BN(1));
+                blockWithIllegalGasUsed.gasUsed = BigInt(blockWithIllegalGasUsed.gasLimit) + 1n;
                 blockWithIllegalGasUsed.hash = calculateBlockHash(blockWithIllegalGasUsed);
 
                 await submitBlockHeader(blockWithIllegalGasUsed, accounts[0]);
@@ -3171,7 +3172,7 @@ contract('Ethrelay', async (accounts) => {
         for (let i = 0; i < expectedHeaders.length; i++) {
             batch.push(createRLPHeader(expectedHeaders[i].block));
         }
-        await ethrelay.submitBlockBatch(RLP.encode(batch), { from: accountAddr, gasPrice: GAS_PRICE_IN_WEI });
+        await ethrelay.submitBlockBatch(arrToBufArr(RLP.encode(bufArrToArr(batch))), { from: accountAddr, gasPrice: GAS_PRICE_IN_WEI });
 
         const submitTime = await time.latest();
         const expectedLockedUntil = submitTime.add(LOCK_PERIOD);
